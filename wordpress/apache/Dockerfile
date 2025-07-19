@@ -91,6 +91,14 @@ RUN chown -R www-data:www-data /var/www/html && \
     find /var/www/html -type d -exec chmod 755 {} \; && \
     find /var/www/html -type f -exec chmod 644 {} \;
 
+# Setup Plugins
+COPY scripts /opt/scripts
+RUN chmod +x /opt/scripts/*.sh
+
+COPY plugins /tmp/plugins
+
+RUN /opt/scripts/plugin-install.sh /tmp/plugins
+
 # Run Apache in the foreground
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
