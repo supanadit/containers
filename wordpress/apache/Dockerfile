@@ -94,8 +94,7 @@ RUN sed -i 's/#LoadModule rewrite_module modules\/mod_rewrite.so/LoadModule rewr
     sed -i 's/#LoadModule dir_module modules\/mod_dir.so/LoadModule dir_module modules\/mod_dir.so/' /usr/local/apache2/conf/httpd.conf
 
 # Cleanup
-RUN rm -rf /tmp/plugins /tmp/themes && \
-    rm -rf /tmp/downloads/php/php-${PHP_VERSION} && \
+RUN rm -rf /tmp/downloads/php/php-${PHP_VERSION} && \
     rm -rf /tmp/downloads/php && \
     rm -rf /tmp/downloads/apr-${APR_VERSION} && \
     rm -rf /tmp/downloads/apr-util-${APR_UTIL_VERSION} && \
@@ -123,6 +122,9 @@ RUN /opt/scripts/theme-install.sh /tmp/themes
 
 # Set permissions for WordPress
 RUN chown -R www-data:www-data /var/www/html
+
+# Clean up downloaded plugins and themes
+RUN rm -rf /tmp/plugins /tmp/themes
 
 # Run Apache in the foreground
 COPY entrypoint.sh /entrypoint.sh
