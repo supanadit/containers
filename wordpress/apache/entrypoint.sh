@@ -36,10 +36,10 @@ if [ -f /content/wp-config.php ]; then
     chown www-data:www-data /var/www/html/wp-config.php
 fi
 
-# Handle WP_DEFINE_<name> variables
-# We will detect all variables that start with WP_DEFINE_ and replace them in wp-config.php
+# Handle WORDPRESS_<name> variables
+# We will detect all variables that start with WORDPRESS_ and replace them in wp-config.php
 # If not exist, we will add them to wp-config.php
-# Detect all WP_DEFINE_<name> variables
+# Detect all WORDPRESS_<name> variables
 for var in $(compgen -A variable | grep '^WORDPRESS_'); do
     var_name=${var#WORDPRESS_}
     var_value="${!var}"
