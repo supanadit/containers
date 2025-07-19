@@ -32,6 +32,24 @@ fi
 
 # If wp-config.php exists in /content, copy it to /var/www/html
 if [ -f /content/wp-config.php ]; then
+    # Handle WP_DEFINE_<name> variables
+    # We will detect all variables that start with WP_DEFINE_ and replace them in wp-config.php
+    # If not exist, we will add them to wp-config.php
+    # Detect all WP_DEFINE_<name> variables
+    for var in $(compgen -A variable | grep '^WP_DEFINE_'); do
+        # Extract the variable name without the prefix
+        var_name=${var#WP_DEFINE_}
+        var_value=${!var}
+        # Check if the variable already exists in wp-config.php
+        if grep -q "define('$var_name'" /content/wp-config.php; then
+            # If it exists, replace the value
+            sed -i "s/define('$var_name'.*/define('$var_name', '$var_value');/" /content/wp-config.php
+        else
+            # Insert after the <?php line, regardless of its position
+            sed -i "/<?php/a define('$var_name', '$var_value');" /content/wp-config.php
+        fi
+    done
+
     ln -sf /content/wp-config.php /var/www/html/wp-config.php
     chown www-data:www-data /var/www/html/wp-config.php
 fi
