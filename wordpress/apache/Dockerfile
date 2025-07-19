@@ -96,8 +96,20 @@ COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/*.sh
 
 COPY plugins /tmp/plugins
+COPY themes /tmp/themes
 
 RUN /opt/scripts/plugin-install.sh /tmp/plugins
+RUN /opt/scripts/theme-install.sh /tmp/themes
+
+# Cleanup
+RUN rm -rf /tmp/plugins /tmp/themes && \
+    rm -rf /tmp/downloads/php/php-${PHP_VERSION} && \
+    rm -rf /tmp/downloads/php && \
+    rm -rf /tmp/downloads/apr-${APR_VERSION} && \
+    rm -rf /tmp/downloads/apr-util-${APR_UTIL_VERSION} && \
+    rm -rf /tmp/downloads/httpd-${APACHE_VERSION} && \
+    rm -rf /tmp/downloads/php-${PHP_VERSION} && \
+    rm -rf /tmp/downloads
 
 # Run Apache in the foreground
 COPY entrypoint.sh /entrypoint.sh

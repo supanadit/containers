@@ -1,2 +1,5 @@
 wordpress/apache/plugins/*
 !wordpress/apache/plugins/.gitkeep
+
+wordpress/apache/themes/*
+!wordpress/apache/themes/.gitkeep
