@@ -36,8 +36,8 @@ if [ -f /content/wp-config.php ]; then
     # We will detect all variables that start with WP_DEFINE_ and replace them in wp-config.php
     # If not exist, we will add them to wp-config.php
     # Detect all WP_DEFINE_<name> variables
-    for var in $(compgen -A variable | grep '^WP_DEFINE_'); do
-        var_name=${var#WP_DEFINE_}
+    for var in $(compgen -A variable | grep '^WPDF_'); do
+        var_name=${var#WPDF_}
         var_value="${!var}"
 
         # Detect multi-line array/object
@@ -107,4 +107,4 @@ else
     chmod -R 777 /var/www/html/wp-content
 fi
 
-exec "$@"
+exec "$@""
