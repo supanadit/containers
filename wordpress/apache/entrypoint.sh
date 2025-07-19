@@ -32,50 +32,50 @@ fi
 
 # If wp-config.php exists in /content, copy it to /var/www/html
 if [ -f /content/wp-config.php ]; then
-    # Handle WP_DEFINE_<name> variables
-    # We will detect all variables that start with WP_DEFINE_ and replace them in wp-config.php
-    # If not exist, we will add them to wp-config.php
-    # Detect all WP_DEFINE_<name> variables
-    for var in $(compgen -A variable | grep '^WPDF_'); do
-        var_name=${var#WPDF_}
-        var_value="${!var}"
-
-        # Detect multi-line array/object
-        if [[ "$var_value" =~ ^\[ ]] || [[ "$var_value" =~ ^array\( ]]; then
-            # Remove trailing newline before ] or )
-            cleaned_var_value="$(echo "$var_value" | sed ':a;N;$!ba;s/\n\([])]\)$/\1/')"
-            define_stmt="define('$var_name', $cleaned_var_value);"
-        # Detect boolean or number
-        elif [[ "$var_value" =~ ^(true|false|[0-9]+)$ ]]; then
-            define_stmt="define('$var_name', $var_value);"
-        else
-            define_stmt="define('$var_name', '$var_value');"
-        fi
-
-        if grep -q "define('$var_name'" /content/wp-config.php; then
-            awk -v name="$var_name" -v stmt="$define_stmt" '
-                BEGIN {replaced=0}
-                {
-                    if ($0 ~ "define.\x27" name "\x27") {
-                        print stmt
-                        replaced=1
-                        while (replaced && !($0 ~ /\);/)) getline
-                        next
-                    }
-                    print
-                }
-            ' /content/wp-config.php > /content/wp-config.php.tmp && mv /content/wp-config.php.tmp /content/wp-config.php
-        else
-            awk -v stmt="$define_stmt" '
-                NR==1 {print; print stmt; next}
-                {print}
-            ' /content/wp-config.php > /content/wp-config.php.tmp && mv /content/wp-config.php.tmp /content/wp-config.php
-        fi
-    done
-
     ln -sf /content/wp-config.php /var/www/html/wp-config.php
     chown www-data:www-data /var/www/html/wp-config.php
 fi
+
+# Handle WP_DEFINE_<name> variables
+# We will detect all variables that start with WP_DEFINE_ and replace them in wp-config.php
+# If not exist, we will add them to wp-config.php
+# Detect all WP_DEFINE_<name> variables
+for var in $(compgen -A variable | grep '^WPDF_'); do
+    var_name=${var#WPDF_}
+    var_value="${!var}"
+
+    # Detect multi-line array/object
+    if [[ "$var_value" =~ ^\[ ]] || [[ "$var_value" =~ ^array\( ]]; then
+        # Remove trailing newline before ] or )
+        cleaned_var_value="$(echo "$var_value" | sed ':a;N;$!ba;s/\n\([])]\)$/\1/')"
+        define_stmt="define('$var_name', $cleaned_var_value);"
+    # Detect boolean or number
+    elif [[ "$var_value" =~ ^(true|false|[0-9]+)$ ]]; then
+        define_stmt="define('$var_name', $var_value);"
+    else
+        define_stmt="define('$var_name', '$var_value');"
+    fi
+
+    if grep -q "define('$var_name'" /var/www/html/wp-config.php; then
+        awk -v name="$var_name" -v stmt="$define_stmt" '
+            BEGIN {replaced=0}
+            {
+                if ($0 ~ "define.\x27" name "\x27") {
+                    print stmt
+                    replaced=1
+                    while (replaced && !($0 ~ /\);/)) getline
+                    next
+                }
+                print
+            }
+        ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
+    else
+        awk -v stmt="$define_stmt" '
+            NR==1 {print; print stmt; next}
+            {print}
+        ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /content/wp-config.php
+    fi
+done
 
 # If IS_STATELESS only symlink wp-content/uploads
 if [ "$IS_STATELESS" = "true" ]; then
