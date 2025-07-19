@@ -27,21 +27,34 @@ if [ -f /content/wp-config.php ]; then
     chown www-data:www-data /var/www/html/wp-config.php
 fi
 
-# Create symlink for all wp-content directories but first we need copy to /content
-if [ ! -d /content/wp-content ]; then
-    mkdir -p /content/wp-content
-    cp -r /var/www/html/wp-content/* /content/wp-content/
-fi
+# If IS_STATELESS only symlink wp-content/uploads
+if [ "$IS_STATELESS" = "true" ]; then
 
-if [ -d /var/www/html/wp-content ]; then
-    rm -rf /var/www/html/wp-content
-    ln -s /content/wp-content /var/www/html
-    chown -R www-data:www-data /var/www/html/wp-content
-fi
+    # Create directory uploads if it doesn't exist in /content
+    if [ ! -d /content/uploads ]; then
+        mkdir -p /content/uploads
+        chown www-data:www-data /content/uploads
+        chmod -R 777 /content/uploads
+    fi
 
-# Set 777 permissions wp-content directory
-# I have no idea how to set proper permissions for wp-content directory
-# Some plugins doesn't wont running for example redis-object-cache
-chmod -R 777 /var/www/html/wp-content
+    ln -s /content/uploads /var/www/html/wp-content/uploads
+else
+    # Create symlink for all wp-content directories but first we need copy to /content
+    if [ ! -d /content/wp-content ]; then
+        mkdir -p /content/wp-content
+        cp -r /var/www/html/wp-content/* /content/wp-content/
+    fi
+
+    if [ -d /var/www/html/wp-content ]; then
+        rm -rf /var/www/html/wp-content
+        ln -s /content/wp-content /var/www/html
+        chown -R www-data:www-data /var/www/html/wp-content
+    fi
+
+    # Set 777 permissions wp-content directory
+    # I have no idea how to set proper permissions for wp-content directory
+    # Some plugins doesn't wont running for example redis-object-cache
+    chmod -R 777 /var/www/html/wp-content
+fi
 
 exec "$@"
