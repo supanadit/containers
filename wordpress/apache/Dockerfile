@@ -93,16 +93,6 @@ RUN sed -i 's/#LoadModule rewrite_module modules\/mod_rewrite.so/LoadModule rewr
     sed -i 's/#LoadModule mime_module modules\/mod_mime.so/LoadModule mime_module modules\/mod_mime.so/' /usr/local/apache2/conf/httpd.conf && \
     sed -i 's/#LoadModule dir_module modules\/mod_dir.so/LoadModule dir_module modules\/mod_dir.so/' /usr/local/apache2/conf/httpd.conf
 
-# Setup Plugins
-COPY scripts /opt/scripts
-RUN chmod +x /opt/scripts/*.sh
-
-COPY plugins /tmp/plugins
-COPY themes /tmp/themes
-
-RUN /opt/scripts/plugin-install.sh /tmp/plugins
-RUN /opt/scripts/theme-install.sh /tmp/themes
-
 # Cleanup
 RUN rm -rf /tmp/plugins /tmp/themes && \
     rm -rf /tmp/downloads/php/php-${PHP_VERSION} && \
@@ -120,6 +110,16 @@ RUN apt-get clean && \
 # Clean up unecessary apt packages
 RUN apt-get autoremove -y && \
     apt-get autoclean -y
+
+# Setup Plugins
+COPY scripts /opt/scripts
+RUN chmod +x /opt/scripts/*.sh
+
+COPY plugins /tmp/plugins
+COPY themes /tmp/themes
+
+RUN /opt/scripts/plugin-install.sh /tmp/plugins
+RUN /opt/scripts/theme-install.sh /tmp/themes
 
 # Set permissions for WordPress
 RUN chown -R www-data:www-data /var/www/html
