@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-RUN apt-get update && apt-get install -y wget unzip build-essential perl libexpat1-dev libpcre3-dev libssl-dev pkg-config libxml2-dev sqlite3 libsqlite3-dev libcurl4-openssl-dev libonig-dev zlib1g-dev curl
+RUN apt-get update && apt-get install -y wget unzip build-essential perl libexpat1-dev libpcre3-dev libssl-dev pkg-config libxml2-dev sqlite3 libsqlite3-dev libcurl4-openssl-dev libonig-dev zlib1g-dev curl git autoconf
 
 ARG WORDPRESS_VERSION="6.8.2"
 ARG APACHE_VERSION="2.4.64"
@@ -47,9 +47,21 @@ RUN cd php-${PHP_VERSION} && \
     make -j$(nproc) && make install && \
     make clean
 
-
 RUN cp /tmp/downloads/php/php-${PHP_VERSION}/php.ini-production /usr/local/lib/php.ini && \
     sed -i 's/;date.timezone =/date.timezone = UTC/' /usr/local/lib/php.ini
+
+# START PHP Extensions
+
+# Download and install PHP Redis extension
+RUN git clone https://github.com/phpredis/phpredis.git /tmp/phpredis && \
+    cd /tmp/phpredis && \
+    phpize && \
+    ./configure --with-php-config=/usr/local/bin/php-config && \
+    make && make install && \
+    echo "extension=redis.so" >> /usr/local/lib/php.ini && \
+    rm -rf /tmp/phpredis
+
+# END PHP Extensions
 
 WORKDIR /var/www/html
 # Download and extract WordPress
@@ -58,11 +70,6 @@ RUN wget https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz && \
     rm wordpress-${WORDPRESS_VERSION}.tar.gz && \
     mv wordpress/* . && \
     rm -rf wordpress
-
-# Set PHP Logs
-RUN mkdir -p /var/log/php && \
-    touch /var/log/php/php_errors.log && \
-    chown www-data:www-data /var/log/php/php_errors.log
 
 # Change the default Apache document root
 RUN sed -i 's|DocumentRoot "/usr/local/apache2/htdocs"|DocumentRoot "/var/www/html"|' /usr/local/apache2/conf/httpd.conf && \
