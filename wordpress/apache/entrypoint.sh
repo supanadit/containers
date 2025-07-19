@@ -19,7 +19,10 @@ if [ ! -f /content/wp-config.php ]; then
 
     mv /var/www/html/wp-config.php /content/wp-config.php
     chown www-data:www-data /content/wp-config.php
-    # Copy wp-config.php to /var/www/html
+fi
+
+# If wp-config.php exists in /content, copy it to /var/www/html
+if [ -f /content/wp-config.php ]; then
     cp /content/wp-config.php /var/www/html/wp-config.php
     chown www-data:www-data /var/www/html/wp-config.php
 fi
@@ -29,7 +32,10 @@ if [ ! -d /content/uploads ]; then
     mkdir -p /content/uploads
     chown www-data:www-data /content/uploads
     chmod -R 777 /content/uploads
-    # Symlink uploads to /var/www/html
+fi
+
+# If the uploads directory exists just symlink it
+if [ -d /var/www/html/wp-content/uploads ]; then
     ln -s /content/uploads /var/www/html/wp-content/uploads
 fi
 
