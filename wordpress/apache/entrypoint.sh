@@ -100,11 +100,11 @@ else
         ln -s /content/wp-content /var/www/html
         chown -R www-data:www-data /var/www/html/wp-content
     fi
-
-    # Set 777 permissions wp-content directory
-    # I have no idea how to set proper permissions for wp-content directory
-    # Some plugins doesn't wont running for example redis-object-cache
-    chmod -R 777 /var/www/html/wp-content
 fi
+
+# Set 777 permissions wp-content directory
+# I have no idea how to set proper permissions for wp-content directory
+# Some plugins doesn't wont running for example redis-object-cache
+chmod -R 777 /var/www/html/wp-content
 
 exec "$@"
