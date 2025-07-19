@@ -25,8 +25,8 @@ if [ ! -f /var/www/html/wp-config.php ]; then
             {print}
         ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
     fi
-    echo "WordPress configuration file created at /var/www/html/wp-config.php"
-    if [ "$IS_STATELESS" != "true" ]; then
+    
+    if [ ! -f /content/wp-config.php ] && [ "$IS_STATELESS" != "true" ]; then
         cp /var/www/html/wp-config.php /content/wp-config.php
         chown www-data:www-data /content/wp-config.php
     fi
