@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-RUN apt-get update && apt-get install -y wget unzip build-essential perl libexpat1-dev libpcre3-dev libssl-dev pkg-config libxml2-dev
+RUN apt-get update && apt-get install -y wget unzip build-essential perl libexpat1-dev libpcre3-dev libssl-dev pkg-config libxml2-dev sqlite3 libsqlite3-dev libcurl4-openssl-dev libonig-dev zlib1g-dev curl
 
 ARG WORDPRESS_VERSION="6.8.2"
 ARG APACHE_VERSION="2.4.64"
@@ -40,8 +40,6 @@ WORKDIR /tmp/downloads/php
 RUN wget https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz && \
     tar -xzf php-${PHP_VERSION}.tar.gz && \
     rm php-${PHP_VERSION}.tar.gz
-
-RUN apt-get install -y sqlite3 libsqlite3-dev libcurl4-openssl-dev libonig-dev zlib1g-dev
 
 # Install and compile PHP
 RUN cd php-${PHP_VERSION} && \
@@ -93,8 +91,10 @@ RUN chown -R www-data:www-data /var/www/html && \
     find /var/www/html -type d -exec chmod 755 {} \; && \
     find /var/www/html -type f -exec chmod 644 {} \;
 
-RUN apt-get install -y curl
-
 # Run Apache in the foreground
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
 CMD ["/usr/local/apache2/bin/httpd", "-D", "FOREGROUND"]
 EXPOSE 80
