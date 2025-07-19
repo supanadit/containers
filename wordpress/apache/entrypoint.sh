@@ -40,8 +40,8 @@ fi
 # We will detect all variables that start with WP_DEFINE_ and replace them in wp-config.php
 # If not exist, we will add them to wp-config.php
 # Detect all WP_DEFINE_<name> variables
-for var in $(compgen -A variable | grep '^WPDF_'); do
-    var_name=${var#WPDF_}
+for var in $(compgen -A variable | grep '^WORDPRESS_'); do
+    var_name=${var#WORDPRESS_}
     var_value="${!var}"
 
     # Detect multi-line array/object
