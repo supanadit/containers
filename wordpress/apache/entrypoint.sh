@@ -10,12 +10,21 @@ if [ ! -f /content/wp-config.php ]; then
     sed -i "s/password_here/${WORDPRESS_DB_PASSWORD}/" /var/www/html/wp-config.php
     sed -i "s/localhost/${WORDPRESS_DB_HOST}/" /var/www/html/wp-config.php
 
-    # Fetch and inject salts
-    SALTS=$(curl -s https://api.wordpress.org/secret-key/1.1/salt/)
-    awk -v salts="$SALTS" '
-        /put your unique phrase here/ {print salts; next}
-        {print}
-    ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
+    # Only replace salts if placeholders are present
+    if grep -q "put your unique phrase here" /var/www/html/wp-config.php; then
+        SALTS=$(curl -s https://api.wordpress.org/secret-key/1.1/salt/)
+        awk -v salts="$SALTS" '
+            BEGIN {replaced=0}
+            /define\(.*_KEY.*\)|define\(.*_SALT.*\)/ {
+                if (!replaced) {
+                    print salts
+                    replaced=1
+                }
+                next
+            }
+            {print}
+        ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
+    fi
 
     mv /var/www/html/wp-config.php /content/wp-config.php
     chown www-data:www-data /content/wp-config.php
