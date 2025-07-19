@@ -27,16 +27,16 @@ if [ -f /content/wp-config.php ]; then
     chown www-data:www-data /var/www/html/wp-config.php
 fi
 
-# Create directory uploads if it doesn't exist in /content
-if [ ! -d /content/uploads ]; then
-    mkdir -p /content/uploads
-    chown www-data:www-data /content/uploads
-    chmod -R 777 /content/uploads
+# Create symlink for all wp-content directories but first we need copy to /content
+if [ ! -d /content/wp-content ]; then
+    mkdir -p /content/wp-content
+    cp -r /var/www/html/wp-content/* /content/wp-content/
 fi
 
-# If the uploads directory exists just symlink it
-if [ -d /var/www/html/wp-content/uploads ]; then
-    ln -s /content/uploads /var/www/html/wp-content/uploads
+if [ -d /var/www/html/wp-content ]; then
+    rm -rf /var/www/html/wp-content
+    ln -s /content/wp-content /var/www/html
+    chown -R www-data:www-data /var/www/html/wp-content
 fi
 
 # Set 777 permissions wp-content directory
