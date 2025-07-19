@@ -3,7 +3,7 @@
 set -e
 
 # Create wp-config.php if it doesn't exist in /content
-if [ ! -f /content/wp-config.php ]; then
+if [ ! -f /var/www/html/wp-config.php ]; then
     cp /var/www/html/wp-config-sample.php /var/www/html/wp-config.php
     sed -i "s/database_name_here/${WORDPRESS_DB_NAME}/" /var/www/html/wp-config.php
     sed -i "s/username_here/${WORDPRESS_DB_USER}/" /var/www/html/wp-config.php
@@ -26,14 +26,14 @@ if [ ! -f /content/wp-config.php ]; then
         ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
     fi
 
-    mv /var/www/html/wp-config.php /content/wp-config.php
-    chown www-data:www-data /content/wp-config.php
-fi
+    # If wp-config.php exists in /content, copy it to /var/www/html
+    if [ -f /content/wp-config.php ] && [ "$IS_STATELESS" != "true" ]; then
+        mv /var/www/html/wp-config.php /content/wp-config.php
+        chown www-data:www-data /content/wp-config.php
 
-# If wp-config.php exists in /content, copy it to /var/www/html
-if [ -f /content/wp-config.php ]; then
-    ln -sf /content/wp-config.php /var/www/html/wp-config.php
-    chown www-data:www-data /var/www/html/wp-config.php
+        ln -sf /content/wp-config.php /var/www/html/wp-config.php
+        chown www-data:www-data /var/www/html/wp-config.php
+    fi
 fi
 
 # Handle WORDPRESS_<name> variables
@@ -73,7 +73,7 @@ for var in $(compgen -A variable | grep '^WORDPRESS_'); do
         awk -v stmt="$define_stmt" '
             NR==1 {print; print stmt; next}
             {print}
-        ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /content/wp-config.php
+        ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
     fi
 done
 
