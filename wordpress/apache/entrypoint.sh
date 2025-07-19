@@ -41,8 +41,10 @@ if [ -f /content/wp-config.php ]; then
         var_value="${!var}"
 
         # Detect multi-line array/object
-        if [[ "$var_value" =~ ^\[ ]] || [[ "$var_value" =~ ^array\( ]] && ([[ "$var_value" =~ \]$ ]] || [[ "$var_value" =~ \)$ ]] || [[ "$var_value" == *$'\n'* ]]); then
-            define_stmt="define('$var_name', $var_value);"
+        if [[ "$var_value" =~ ^\[ ]] || [[ "$var_value" =~ ^array\( ]]; then
+            # Remove trailing newline before ] or )
+            cleaned_var_value="$(echo "$var_value" | sed ':a;N;$!ba;s/\n\([])]\)$/\1/')"
+            define_stmt="define('$var_name', $cleaned_var_value);"
         # Detect boolean or number
         elif [[ "$var_value" =~ ^(true|false|[0-9]+)$ ]]; then
             define_stmt="define('$var_name', $var_value);"
