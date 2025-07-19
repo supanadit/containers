@@ -23,7 +23,7 @@ fi
 
 # If wp-config.php exists in /content, copy it to /var/www/html
 if [ -f /content/wp-config.php ]; then
-    cp /content/wp-config.php /var/www/html/wp-config.php
+    ln -sf /content/wp-config.php /var/www/html/wp-config.php
     chown www-data:www-data /var/www/html/wp-config.php
 fi
 
