@@ -81,13 +81,13 @@ done
 if [ "$IS_STATELESS" = "true" ]; then
 
     # Create directory uploads if it doesn't exist in /content
-    if [ ! -d /content/uploads ]; then
-        mkdir -p /content/uploads
-        chown www-data:www-data /content/uploads
-        chmod -R 777 /content/uploads
+    if [ ! -d /content/wp-content/uploads ]; then
+        mkdir -p /content/wp-content/uploads
+        chown www-data:www-data /content/wp-content/uploads
+        chmod -R 777 /content/wp-content/uploads
     fi
 
-    ln -s /content/uploads /var/www/html/wp-content/uploads
+    ln -s /content/wp-content/uploads /var/www/html/wp-content/uploads
 else
     # Create symlink for all wp-content directories but first we need copy to /content
     if [ ! -d /content/wp-content ]; then
