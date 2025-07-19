@@ -86,11 +86,6 @@ RUN sed -i 's/#LoadModule rewrite_module modules\/mod_rewrite.so/LoadModule rewr
     sed -i 's/#LoadModule mime_module modules\/mod_mime.so/LoadModule mime_module modules\/mod_mime.so/' /usr/local/apache2/conf/httpd.conf && \
     sed -i 's/#LoadModule dir_module modules\/mod_dir.so/LoadModule dir_module modules\/mod_dir.so/' /usr/local/apache2/conf/httpd.conf
 
-# Set permissions for WordPress
-RUN chown -R www-data:www-data /var/www/html && \
-    find /var/www/html -type d -exec chmod 755 {} \; && \
-    find /var/www/html -type f -exec chmod 644 {} \;
-
 # Setup Plugins
 COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/*.sh
@@ -110,6 +105,17 @@ RUN rm -rf /tmp/plugins /tmp/themes && \
     rm -rf /tmp/downloads/httpd-${APACHE_VERSION} && \
     rm -rf /tmp/downloads/php-${PHP_VERSION} && \
     rm -rf /tmp/downloads
+
+# Clean up apt cache
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
+
+# Clean up unecessary apt packages
+RUN apt-get autoremove -y && \
+    apt-get autoclean -y
+
+# Set permissions for WordPress
+RUN chown -R www-data:www-data /var/www/html
 
 # Run Apache in the foreground
 COPY entrypoint.sh /entrypoint.sh
