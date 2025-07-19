@@ -39,4 +39,9 @@ if [ -d /var/www/html/wp-content/uploads ]; then
     ln -s /content/uploads /var/www/html/wp-content/uploads
 fi
 
+# Set 777 permissions wp-content directory
+# I have no idea how to set proper permissions for wp-content directory
+# Some plugins doesn't wont running for example redis-object-cache
+chmod -R 777 /var/www/html/wp-content
+
 exec "$@"
