@@ -37,16 +37,37 @@ if [ -f /content/wp-config.php ]; then
     # If not exist, we will add them to wp-config.php
     # Detect all WP_DEFINE_<name> variables
     for var in $(compgen -A variable | grep '^WP_DEFINE_'); do
-        # Extract the variable name without the prefix
         var_name=${var#WP_DEFINE_}
-        var_value=${!var}
-        # Check if the variable already exists in wp-config.php
-        if grep -q "define('$var_name'" /content/wp-config.php; then
-            # If it exists, replace the value
-            sed -i "s/define('$var_name'.*/define('$var_name', '$var_value');/" /content/wp-config.php
+        var_value="${!var}"
+
+        # Detect multi-line array/object
+        if [[ "$var_value" =~ ^\[ ]] || [[ "$var_value" =~ ^array\( ]] && ([[ "$var_value" =~ \]$ ]] || [[ "$var_value" =~ \)$ ]] || [[ "$var_value" == *$'\n'* ]]); then
+            define_stmt="define('$var_name', $var_value);"
+        # Detect boolean or number
+        elif [[ "$var_value" =~ ^(true|false|[0-9]+)$ ]]; then
+            define_stmt="define('$var_name', $var_value);"
         else
-            # Insert after the <?php line, regardless of its position
-            sed -i "/<?php/a define('$var_name', '$var_value');" /content/wp-config.php
+            define_stmt="define('$var_name', '$var_value');"
+        fi
+
+        if grep -q "define('$var_name'" /content/wp-config.php; then
+            awk -v name="$var_name" -v stmt="$define_stmt" '
+                BEGIN {replaced=0}
+                {
+                    if ($0 ~ "define.\x27" name "\x27") {
+                        print stmt
+                        replaced=1
+                        while (replaced && !($0 ~ /\);/)) getline
+                        next
+                    }
+                    print
+                }
+            ' /content/wp-config.php > /content/wp-config.php.tmp && mv /content/wp-config.php.tmp /content/wp-config.php
+        else
+            awk -v stmt="$define_stmt" '
+                NR==1 {print; print stmt; next}
+                {print}
+            ' /content/wp-config.php > /content/wp-config.php.tmp && mv /content/wp-config.php.tmp /content/wp-config.php
         fi
     done
 
