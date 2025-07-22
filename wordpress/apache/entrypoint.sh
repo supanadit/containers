@@ -120,7 +120,6 @@ if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
             print \"if ( isset( \$_SERVER['HTTP_X_FORWARDED_PROTO'] ) && 'https' == \$_SERVER['HTTP_X_FORWARDED_PROTO'] ) {\";
             print \"    \$_SERVER['HTTPS'] = 'on';\";
             print \"}\";
-            print \"\$_SERVER['HTTPS'] = 'on';\";
             print;
             next
         }
