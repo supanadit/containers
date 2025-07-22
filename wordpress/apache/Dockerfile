@@ -52,6 +52,20 @@ RUN cp /tmp/downloads/php/php-${PHP_VERSION}/php.ini-production /usr/local/lib/p
 
 # START PHP Extensions
 
+# Install PHP EXIF extension
+RUN cd /tmp/downloads/php/php-${PHP_VERSION}/ext/exif && \
+    /usr/local/bin/phpize && \
+    ./configure --with-php-config=/usr/local/bin/php-config && \
+    make && make install && \
+    echo "extension=exif.so" >> /usr/local/lib/php.ini
+
+# Install and enable PHP OPCache extension
+RUN cd /tmp/downloads/php/php-${PHP_VERSION}/ext/opcache && \
+    /usr/local/bin/phpize && \
+    ./configure --with-php-config=/usr/local/bin/php-config && \
+    make && make install && \
+    echo "zend_extension=opcache.so" >> /usr/local/lib/php.ini
+
 # Download and install PHP Redis extension
 RUN git clone https://github.com/phpredis/phpredis.git /tmp/phpredis && \
     cd /tmp/phpredis && \

@@ -142,11 +142,16 @@ RewriteRule . /index.php [L]
 # END WordPress
 EOF
     chown www-data:www-data /var/www/html/.htaccess
+    # w3-total-cache need write access to .htaccess
+    chmod 777 /var/www/html/.htaccess
 fi
 
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
 chmod -R 777 /var/www/html/wp-content
+# This not secure but some plugins need write access to wp-config.php
+# For example, w3-total-cache
+chmod 777 /var/www/html/wp-config.php
 
 exec "$@"
