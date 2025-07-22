@@ -106,12 +106,12 @@ fi
 
 # If IS_HTTPS is true, and IS_STATELESS is true it will create a .htaccess file to redirect HTTP to HTTPS
 if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
-    if [ ! -f /var/www/html/.htaccess ]; then
-        echo "RewriteEngine On" > /var/www/html/.htaccess
-        echo "RewriteCond %{HTTPS} !=on" >> /var/www/html/.htaccess
-        echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}/\$1 [R=301,L]" >> /var/www/html/.htaccess
-        chown www-data:www-data /var/www/html/.htaccess
-    fi
+    # if [ ! -f /var/www/html/.htaccess ]; then
+    #     echo "RewriteEngine On" > /var/www/html/.htaccess
+    #     echo "RewriteCond %{HTTPS} !=on" >> /var/www/html/.htaccess
+    #     echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}/\$1 [R=301,L]" >> /var/www/html/.htaccess
+    #     chown www-data:www-data /var/www/html/.htaccess
+    # fi
     # Adding $_SERVER['HTTPS'] = 'on'; to wp-config.php after <?php
     if ! grep -q "\$_SERVER['HTTPS'] = 'on';" /var/www/html/wp-config.php; then
         awk "
