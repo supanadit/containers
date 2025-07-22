@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-RUN apt-get update && apt-get install -y wget unzip build-essential perl libexpat1-dev libpcre3-dev libssl-dev pkg-config libxml2-dev sqlite3 libsqlite3-dev libcurl4-openssl-dev libonig-dev zlib1g-dev curl git autoconf
+RUN apt-get update && apt-get install -y wget unzip build-essential perl libexpat1-dev libpcre3-dev libssl-dev pkg-config libxml2-dev sqlite3 libsqlite3-dev libcurl4-openssl-dev libonig-dev zlib1g-dev curl git autoconf libmemcached-dev
 
 ARG WORDPRESS_VERSION="6.8.2"
 ARG APACHE_VERSION="2.4.64"
@@ -43,7 +43,7 @@ RUN wget https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz && \
 
 # Install and compile PHP
 RUN cd php-${PHP_VERSION} && \
-    ./configure --with-apxs2=/usr/local/apache2/bin/apxs --enable-mbstring --with-curl --with-openssl --with-pdo-mysql --with-mysqli && \
+    ./configure --with-apxs2=/usr/local/apache2/bin/apxs --enable-mbstring --with-curl --with-openssl --with-pdo-mysql --with-mysqli --with-zlib && \
     make -j$(nproc) && make install && \
     make clean
 
@@ -75,6 +75,13 @@ RUN git clone https://github.com/phpredis/phpredis.git /tmp/phpredis && \
     echo "extension=redis.so" >> /usr/local/lib/php.ini && \
     rm -rf /tmp/phpredis
 
+RUN git clone https://github.com/php-memcached-dev/php-memcached.git /tmp/php-memcached && \
+    cd /tmp/php-memcached && \
+    /usr/local/bin/phpize && \
+    ./configure --with-php-config=/usr/local/bin/php-config && \
+    make && make install && \
+    echo "extension=memcached.so" >> /usr/local/lib/php.ini && \
+    rm -rf /tmp/php-memcached
 # END PHP Extensions
 
 WORKDIR /var/www/html
