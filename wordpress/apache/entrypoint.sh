@@ -128,6 +128,22 @@ if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
     fi
 fi
 
+if ! grep -q "# BEGIN WordPress" /var/www/html/.htaccess 2>/dev/null; then
+    cat <<'EOF' >> /var/www/html/.htaccess
+# BEGIN WordPress
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress
+EOF
+    chown www-data:www-data /var/www/html/.htaccess
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
