@@ -104,6 +104,31 @@ else
     fi
 fi
 
+# If IS_HTTPS is true, and IS_STATELESS is true it will create a .htaccess file to redirect HTTP to HTTPS
+if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
+    if [ ! -f /var/www/html/.htaccess ]; then
+        echo "RewriteEngine On" > /var/www/html/.htaccess
+        echo "RewriteCond %{HTTPS} !=on" >> /var/www/html/.htaccess
+        echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}/\$1 [R=301,L]" >> /var/www/html/.htaccess
+        chown www-data:www-data /var/www/html/.htaccess
+    fi
+    # Adding $_SERVER['HTTPS'] = 'on'; to wp-config.php after <?php
+    if ! grep -q "\$_SERVER['HTTPS'] = 'on';" /var/www/html/wp-config.php; then
+        awk "
+        NR==1 {print; next}
+        NR==2 {
+            print \"if ( isset( \$_SERVER['HTTP_X_FORWARDED_PROTO'] ) && 'https' == \$_SERVER['HTTP_X_FORWARDED_PROTO'] ) {\";
+            print \"    \$_SERVER['HTTPS'] = 'on';\";
+            print \"}\";
+            print \"\$_SERVER['HTTPS'] = 'on';\";
+            print;
+            next
+        }
+        {print}
+        " /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
+    fi
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
