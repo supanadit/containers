@@ -146,6 +146,20 @@ EOF
     chmod 777 /var/www/html/.htaccess
 fi
 
+# If has table prefix with variable CUSTOM_TABLE_PREFIX
+if [ -n "$CUSTOM_TABLE_PREFIX" ]; then
+    if ! grep -q "\$table_prefix = '$CUSTOM_TABLE_PREFIX';" /var/www/html/wp-config.php; then
+        awk -v prefix="$CUSTOM_TABLE_PREFIX" '
+        /table_prefix =/ {
+            sub(/table_prefix = .*/, "table_prefix = '\''" prefix "'\'';");
+            print;
+            next
+        }
+        {print}
+        ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
+    fi
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
