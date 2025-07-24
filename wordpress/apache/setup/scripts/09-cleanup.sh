@@ -3,9 +3,7 @@ set -e
 
 echo "=== Cleaning up build artifacts and temporary files ==="
 
-# Remove PHP build directory
-rm -rf /tmp/downloads/php/php-${PHP_VERSION}
-rm -rf /tmp/downloads/php
+# Remove remaining temporary download directories
 rm -rf /tmp/downloads
 
 # Clean up apt cache

@@ -23,7 +23,7 @@ cd php-${PHP_VERSION}
     --with-zlib
 make -j$(nproc)
 make install
-make clean
+# Don't run make clean yet - we need the source for extensions
 
 # Setup PHP configuration
 cp php.ini-production /usr/local/lib/php.ini
