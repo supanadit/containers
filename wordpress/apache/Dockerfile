@@ -9,7 +9,7 @@ ARG APR_UTIL_VERSION="1.6.3"
 # Copy all setup scripts and resources
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
-COPY scripts /opt/scripts
+COPY addons /opt/addons
 COPY plugins /tmp/plugins
 COPY themes /tmp/themes
 
@@ -18,7 +18,9 @@ WORKDIR /var/www/html
 
 # Run the complete setup in a single layer
 RUN chmod +x /opt/setup.sh && \
-    /opt/setup.sh
+    /opt/setup.sh && \
+    rm /opt/setup.sh && \
+    rm -rf /opt/setup /opt/addons
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh

@@ -4,8 +4,8 @@ set -e
 echo "=== Installing WordPress plugins and themes ==="
 
 # Setup plugin and theme installation scripts
-cp /opt/scripts/plugin-install.sh /tmp/plugin-install.sh
-cp /opt/scripts/theme-install.sh /tmp/theme-install.sh
+cp /opt/addons/scripts/plugin-install.sh /tmp/plugin-install.sh
+cp /opt/addons/scripts/theme-install.sh /tmp/theme-install.sh
 chmod +x /tmp/plugin-install.sh
 chmod +x /tmp/theme-install.sh
 
