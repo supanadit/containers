@@ -27,6 +27,7 @@ apt-get update && apt-get install -y \
     curl \
     git \
     autoconf \
+    libmemcached11 \
     libmemcached-dev
 
 echo "=== Dependencies installed successfully ==="
