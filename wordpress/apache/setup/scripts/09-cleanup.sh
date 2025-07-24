@@ -37,7 +37,6 @@ apt-get remove -y \
     libmemcached-dev \
     libnsl-dev \
     libonig-dev \
-    libpcre3-dev \
     libsasl2-dev \
     libsqlite3-dev \
     libssl-dev \
