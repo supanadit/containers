@@ -61,7 +61,7 @@ apt-get clean
 rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
 
 # Remove unnecessary packages
-apt-get autoremove -y
+apt-get autoremove --purge -y
 apt-get autoclean -y
 
 echo "=== Cleanup completed successfully ==="
