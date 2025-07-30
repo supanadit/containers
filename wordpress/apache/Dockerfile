@@ -9,9 +9,6 @@ ARG APR_UTIL_VERSION="1.6.3"
 # Copy all setup scripts and resources
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
-COPY addons /opt/addons
-COPY plugins /tmp/plugins
-COPY themes /tmp/themes
 
 # Set working directory
 WORKDIR /var/www/html
@@ -20,7 +17,17 @@ WORKDIR /var/www/html
 RUN chmod +x /opt/setup.sh && \
     /opt/setup.sh && \
     rm /opt/setup.sh && \
-    rm -rf /opt/setup /opt/addons
+    rm -rf /opt/setup
+
+COPY addons.sh /opt/addons.sh
+COPY addons /opt/addons
+COPY plugins /tmp/plugins
+COPY themes /tmp/themes
+
+RUN chmod +x /opt/addons.sh && \
+    /opt/addons.sh && \
+    rm /opt/addons.sh && \
+    rm -rf /opt/addons /tmp/plugins /tmp/themes
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh

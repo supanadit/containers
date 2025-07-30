@@ -19,8 +19,7 @@ ${SCRIPT_DIR}/04-install-php.sh
 ${SCRIPT_DIR}/05-install-php-extensions.sh
 ${SCRIPT_DIR}/06-install-wordpress.sh
 ${SCRIPT_DIR}/07-configure-apache.sh
-${SCRIPT_DIR}/08-install-plugins-themes.sh
-${SCRIPT_DIR}/09-cleanup.sh
+${SCRIPT_DIR}/08-cleanup.sh
 
 echo "=========================================="
 echo "Setup completed successfully!"
