@@ -261,21 +261,21 @@ fi
 
 # WIP: Still Work In Progress
 # Choose Apache MPM
-# APACHE_MPM=${APACHE_MPM:-event} # default to event if not set
+APACHE_MPM=${APACHE_MPM:-event} # default to event if not set
 
-# if [ "$APACHE_MPM" = "prefork" ]; then
-#     sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^#LoadModule mpm_prefork_module/LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
-# elif [ "$APACHE_MPM" = "worker" ]; then
-#     sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^#LoadModule mpm_worker_module/LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
-# else # event
-#     sed -i 's/^#LoadModule mpm_event_module/LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
-# fi
+if [ "$APACHE_MPM" = "prefork" ]; then
+    sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+    sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+    sed -i 's/^#LoadModule mpm_prefork_module/LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+elif [ "$APACHE_MPM" = "worker" ]; then
+    sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+    sed -i 's/^#LoadModule mpm_worker_module/LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+    sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+else # event
+    sed -i 's/^#LoadModule mpm_event_module/LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+    sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+    sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+fi
 
 # Custom Prefork Apache MPM configuration
 # IS_CUSTOM_PREFORK_MPM is true, it will add custom config to /usr/local/apache2/conf/httpd.conf

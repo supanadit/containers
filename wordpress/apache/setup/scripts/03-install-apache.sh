@@ -16,7 +16,8 @@ cd httpd-${APACHE_VERSION}
     --with-apr=/usr/local/apr \
     --with-apr-util=/usr/local/apr/bin/apu-1-config \
     --enable-so \
-    --enable-ssl
+    --enable-ssl \
+    --enable-mpms-shared=all
 make
 make install
 make clean
