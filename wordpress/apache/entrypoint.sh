@@ -205,6 +205,29 @@ if [ -n "$PHP_MEMORY_LIMIT" ]; then
     fi
 fi
 
+# Custom Prefork Apache MPM configuration
+# IS_CUSTOM_PREFORK_MPM is true, it will add custom config to /usr/local/apache2/conf/httpd.conf
+if [ "$IS_CUSTOM_PREFORK_MPM" = "true" ]; then
+    # We will set custom env by default
+    APACHE_PREFORK_START_SERVERS=${APACHE_PREFORK_START_SERVERS:-2}
+    APACHE_PREFORK_MIN_SPARE_SERVERS=${APACHE_PREFORK_MIN_SPARE_SERVERS:-2}
+    APACHE_PREFORK_MAX_SPARE_SERVERS=${APACHE_PREFORK_MAX_SPARE_SERVERS:-5}
+    APACHE_PREFORK_MAX_REQUEST_WORKERS=${APACHE_PREFORK_MAX_REQUEST_WORKERS:-25}
+    APACHE_PREFORK_MAX_REQUESTS_PER_CHILD=${APACHE_PREFORK_MAX_REQUESTS_PER_CHILD:-3000}
+    
+    sed -i 's/#LoadModule dir_module modules\/mod_dir.so/LoadModule dir_module modules\/mod_dir.so/' /usr/local/apache2/conf/httpd.conf
+    # MPM Prefork Configuration
+    if ! grep -q "<IfModule mpm_prefork_module>" /usr/local/apache2/conf/httpd.conf; then
+        echo "<IfModule mpm_prefork_module>" >> /usr/local/apache2/conf/httpd.conf
+        echo "    StartServers $APACHE_PREFORK_START_SERVERS" >> /usr/local/apache2/conf/httpd.conf
+        echo "    MinSpareServers $APACHE_PREFORK_MIN_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
+        echo "    MaxSpareServers $APACHE_PREFORK_MAX_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
+        echo "    MaxRequestWorkers $APACHE_PREFORK_MAX_REQUEST_WORKERS" >> /usr/local/apache2/conf/httpd.conf
+        echo "    MaxConnectionsPerChild $APACHE_PREFORK_MAX_REQUESTS_PER_CHILD" >> /usr/local/apache2/conf/httpd.conf
+        echo "</IfModule>" >> /usr/local/apache2/conf/httpd.conf
+    fi
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
