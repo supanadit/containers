@@ -28,6 +28,8 @@ apt-get update && apt-get install -y \
     git \
     autoconf \
     libmemcached11 \
-    libmemcached-dev
+    libmemcached-dev \
+    libzip4 \
+    libzip-dev
 
 echo "=== Dependencies installed successfully ==="

@@ -205,28 +205,85 @@ if [ -n "$PHP_MEMORY_LIMIT" ]; then
     fi
 fi
 
-# Custom Prefork Apache MPM configuration
-# IS_CUSTOM_PREFORK_MPM is true, it will add custom config to /usr/local/apache2/conf/httpd.conf
-if [ "$IS_CUSTOM_PREFORK_MPM" = "true" ]; then
-    # We will set custom env by default
-    APACHE_PREFORK_START_SERVERS=${APACHE_PREFORK_START_SERVERS:-2}
-    APACHE_PREFORK_MIN_SPARE_SERVERS=${APACHE_PREFORK_MIN_SPARE_SERVERS:-2}
-    APACHE_PREFORK_MAX_SPARE_SERVERS=${APACHE_PREFORK_MAX_SPARE_SERVERS:-5}
-    APACHE_PREFORK_MAX_REQUEST_WORKERS=${APACHE_PREFORK_MAX_REQUEST_WORKERS:-25}
-    APACHE_PREFORK_MAX_REQUESTS_PER_CHILD=${APACHE_PREFORK_MAX_REQUESTS_PER_CHILD:-3000}
-    
-    sed -i 's/#LoadModule dir_module modules\/mod_dir.so/LoadModule dir_module modules\/mod_dir.so/' /usr/local/apache2/conf/httpd.conf
-    # MPM Prefork Configuration
-    if ! grep -q "<IfModule mpm_prefork_module>" /usr/local/apache2/conf/httpd.conf; then
-        echo "<IfModule mpm_prefork_module>" >> /usr/local/apache2/conf/httpd.conf
-        echo "    StartServers $APACHE_PREFORK_START_SERVERS" >> /usr/local/apache2/conf/httpd.conf
-        echo "    MinSpareServers $APACHE_PREFORK_MIN_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
-        echo "    MaxSpareServers $APACHE_PREFORK_MAX_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
-        echo "    MaxRequestWorkers $APACHE_PREFORK_MAX_REQUEST_WORKERS" >> /usr/local/apache2/conf/httpd.conf
-        echo "    MaxConnectionsPerChild $APACHE_PREFORK_MAX_REQUESTS_PER_CHILD" >> /usr/local/apache2/conf/httpd.conf
-        echo "</IfModule>" >> /usr/local/apache2/conf/httpd.conf
+# PHP_EXTENSION_GD is true, it will enable GD extension
+if [ "$PHP_EXTENSION_GD" = "true" ]; then
+    if [ -f /usr/local/lib/php.ini ]; then
+        # if commented out, uncomment it
+        if grep -q "^;extension=gd.so" /usr/local/lib/php.ini; then
+            sed -i 's/^;extension=gd.so/extension=gd.so/' /usr/local/lib/php.ini
+        fi
+        # if not exist, add it
+        if ! grep -q "^extension=gd.so" /usr/local/lib/php.ini; then
+            echo "extension=gd.so" >> /usr/local/lib/php.ini
+        fi
+    else
+        # If php.ini doesn't exist, create it with extension=gd.so
+        echo "extension=gd.so" > /usr/local/lib/php.ini
     fi
 fi
+
+# PHP_EXTENSION_INTL is true, it will enable Intl extension
+if [ "$PHP_EXTENSION_INTL" = "true" ]; then
+    if [ -f /usr/local/lib/php.ini ]; then
+        # if commented out, uncomment it
+        if grep -q "^;extension=intl.so" /usr/local/lib/php.ini; then
+            sed -i 's/^;extension=intl.so/extension=intl.so/' /usr/local/lib/php.ini
+        fi
+        # if not exist, add it
+        if ! grep -q "^extension=intl.so" /usr/local/lib/php.ini; then
+            echo "extension=intl.so" >> /usr/local/lib/php.ini
+        fi
+    else
+        # If php.ini doesn't exist, create it with extension=intl.so
+        echo "extension=intl.so" > /usr/local/lib/php.ini
+    fi
+fi
+
+
+# WIP: Still Work In Progress
+# Choose Apache MPM
+# APACHE_MPM=${APACHE_MPM:-event} # default to event if not set
+
+# if [ "$APACHE_MPM" = "prefork" ]; then
+#     sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^#LoadModule mpm_prefork_module/LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+# elif [ "$APACHE_MPM" = "worker" ]; then
+#     sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^#LoadModule mpm_worker_module/LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+# else # event
+#     sed -i 's/^#LoadModule mpm_event_module/LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+# fi
+
+# Custom Prefork Apache MPM configuration
+# IS_CUSTOM_PREFORK_MPM is true, it will add custom config to /usr/local/apache2/conf/httpd.conf
+# if [ "$IS_CUSTOM_PREFORK_MPM" = "true" ]; then
+#     # We will set custom env by default
+#     APACHE_PREFORK_START_SERVERS=${APACHE_PREFORK_START_SERVERS:-2}
+#     APACHE_PREFORK_MIN_SPARE_SERVERS=${APACHE_PREFORK_MIN_SPARE_SERVERS:-2}
+#     APACHE_PREFORK_MAX_SPARE_SERVERS=${APACHE_PREFORK_MAX_SPARE_SERVERS:-5}
+#     APACHE_PREFORK_MAX_REQUEST_WORKERS=${APACHE_PREFORK_MAX_REQUEST_WORKERS:-25}
+#     APACHE_PREFORK_MAX_REQUESTS_PER_CHILD=${APACHE_PREFORK_MAX_REQUESTS_PER_CHILD:-3000}
+
+#     sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
+#     sed -i 's/^#LoadModule mpm_prefork_module/LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
+
+#     # MPM Prefork Configuration
+#     if ! grep -q "<IfModule mpm_prefork_module>" /usr/local/apache2/conf/httpd.conf; then
+#         echo "<IfModule mpm_prefork_module>" >> /usr/local/apache2/conf/httpd.conf
+#         echo "    StartServers $APACHE_PREFORK_START_SERVERS" >> /usr/local/apache2/conf/httpd.conf
+#         echo "    MinSpareServers $APACHE_PREFORK_MIN_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
+#         echo "    MaxSpareServers $APACHE_PREFORK_MAX_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
+#         echo "    MaxRequestWorkers $APACHE_PREFORK_MAX_REQUEST_WORKERS" >> /usr/local/apache2/conf/httpd.conf
+#         echo "    MaxConnectionsPerChild $APACHE_PREFORK_MAX_REQUESTS_PER_CHILD" >> /usr/local/apache2/conf/httpd.conf
+#         echo "</IfModule>" >> /usr/local/apache2/conf/httpd.conf
+#     fi
+# fi
+# END: Still Work In Progress
 
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory

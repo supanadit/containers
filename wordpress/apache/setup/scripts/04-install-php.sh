@@ -20,7 +20,13 @@ cd php-${PHP_VERSION}
     --with-openssl \
     --with-pdo-mysql \
     --with-mysqli \
-    --with-zlib
+    --with-zlib \
+    --with-gd \
+    --with-jpeg \
+    --with-freetype \
+    --with-zip \
+    --with-intl
+
 make -j$(nproc)
 make install
 # Don't run make clean yet - we need the source for extensions

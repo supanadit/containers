@@ -54,7 +54,8 @@ apt-get remove -y \
     pkgconf \
     rpcsvc-proto \
     zlib1g-dev \
-    icu-devtools
+    icu-devtools \
+    libzip-dev
 
 # Clean up apt cache
 apt-get clean
