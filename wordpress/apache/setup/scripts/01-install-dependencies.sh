@@ -30,6 +30,10 @@ apt-get update && apt-get install -y \
     libmemcached11 \
     libmemcached-dev \
     libzip4 \
-    libzip-dev
+    libzip-dev \
+    libicu72 \
+    libicu-dev \
+    libgd3 \
+    libgd-dev
 
 echo "=== Dependencies installed successfully ==="
