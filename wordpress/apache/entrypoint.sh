@@ -277,32 +277,73 @@ else # event
     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
 fi
 
+# IS_INCLUDE_EXTRA_MPM_CONFIG is true, it will include extra MPM config
+if [ "$IS_INCLUDE_EXTRA_MPM_CONFIG" = "true" ]; then
+    # It will uncomment "Include conf/extra/httpd-mpm.conf" in httpd.conf use AWK
+    if ! grep -q "^Include conf/extra/httpd-mpm.conf" /usr/local/apache2/conf/httpd.conf; then
+        awk '
+        BEGIN { found=0 }
+        /^#Include[[:space:]]+conf\/extra\/httpd-mpm.conf/ {
+            print "Include conf/extra/httpd-mpm.conf"
+            found=1
+            next
+        }
+        {print}
+        END {
+            if (!found) print "#Include conf/extra/httpd-mpm.conf"
+        }
+        ' /usr/local/apache2/conf/httpd.conf > /usr/local/apache2/conf/httpd.conf.tmp && mv /usr/local/apache2/conf/httpd.conf.tmp /usr/local/apache2/conf/httpd.conf
+    fi
+fi
+
 # Custom Prefork Apache MPM configuration
 # IS_CUSTOM_PREFORK_MPM is true, it will add custom config to /usr/local/apache2/conf/httpd.conf
-# if [ "$IS_CUSTOM_PREFORK_MPM" = "true" ]; then
-#     # We will set custom env by default
-#     APACHE_PREFORK_START_SERVERS=${APACHE_PREFORK_START_SERVERS:-2}
-#     APACHE_PREFORK_MIN_SPARE_SERVERS=${APACHE_PREFORK_MIN_SPARE_SERVERS:-2}
-#     APACHE_PREFORK_MAX_SPARE_SERVERS=${APACHE_PREFORK_MAX_SPARE_SERVERS:-5}
-#     APACHE_PREFORK_MAX_REQUEST_WORKERS=${APACHE_PREFORK_MAX_REQUEST_WORKERS:-25}
-#     APACHE_PREFORK_MAX_REQUESTS_PER_CHILD=${APACHE_PREFORK_MAX_REQUESTS_PER_CHILD:-3000}
+if [ "$IS_CUSTOM_PREFORK_MPM" = "true" ] && [ "$APACHE_MPM" = "prefork" ] && [ "$IS_INCLUDE_EXTRA_MPM_CONFIG" = "true" ]; then
+    # We will set custom env by default
+    APACHE_PREFORK_START_SERVERS=${APACHE_PREFORK_START_SERVERS:-5}
+    APACHE_PREFORK_MIN_SPARE_SERVERS=${APACHE_PREFORK_MIN_SPARE_SERVERS:-5}
+    APACHE_PREFORK_MAX_SPARE_SERVERS=${APACHE_PREFORK_MAX_SPARE_SERVERS:-10}
+    APACHE_PREFORK_MAX_REQUEST_WORKERS=${APACHE_PREFORK_MAX_REQUEST_WORKERS:-250}
+    APACHE_PREFORK_MAX_REQUESTS_PER_CHILD=${APACHE_PREFORK_MAX_REQUESTS_PER_CHILD:-0}
 
-#     sed -i 's/^LoadModule mpm_event_module/#LoadModule mpm_event_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^LoadModule mpm_worker_module/#LoadModule mpm_worker_module/' /usr/local/apache2/conf/httpd.conf
-#     sed -i 's/^#LoadModule mpm_prefork_module/LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
-
-#     # MPM Prefork Configuration
-#     if ! grep -q "<IfModule mpm_prefork_module>" /usr/local/apache2/conf/httpd.conf; then
-#         echo "<IfModule mpm_prefork_module>" >> /usr/local/apache2/conf/httpd.conf
-#         echo "    StartServers $APACHE_PREFORK_START_SERVERS" >> /usr/local/apache2/conf/httpd.conf
-#         echo "    MinSpareServers $APACHE_PREFORK_MIN_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
-#         echo "    MaxSpareServers $APACHE_PREFORK_MAX_SPARE_SERVERS" >> /usr/local/apache2/conf/httpd.conf
-#         echo "    MaxRequestWorkers $APACHE_PREFORK_MAX_REQUEST_WORKERS" >> /usr/local/apache2/conf/httpd.conf
-#         echo "    MaxConnectionsPerChild $APACHE_PREFORK_MAX_REQUESTS_PER_CHILD" >> /usr/local/apache2/conf/httpd.conf
-#         echo "</IfModule>" >> /usr/local/apache2/conf/httpd.conf
-#     fi
-# fi
-# END: Still Work In Progress
+    # MPM Prefork Configuration we will modify it using AWK
+    awk -v start="$APACHE_PREFORK_START_SERVERS" -v min="$APACHE_PREFORK_MIN_SPARE_SERVERS" \
+    -v max="$APACHE_PREFORK_MAX_SPARE_SERVERS" -v max_workers="$APACHE_PREFORK_MAX_REQUEST_WORKERS" \
+    -v max_requests="$APACHE_PREFORK_MAX_REQUESTS_PER_CHILD" '
+    BEGIN { in_block=0; block_found=0 }
+    /^<IfModule mpm_prefork_module>/ {
+        print
+        print "    StartServers " start
+        print "    MinSpareServers " min
+        print "    MaxSpareServers " max
+        print "    MaxRequestWorkers " max_workers
+        print "    MaxConnectionsPerChild " max_requests
+        in_block=1
+        block_found=1
+        next
+    }
+    /^<\/IfModule>/ {
+        print
+        in_block=0
+        next
+    }
+    in_block && /^[[:space:]]*(StartServers|MinSpareServers|MaxSpareServers|MaxRequestWorkers|MaxConnectionsPerChild)[[:space:]]/ {
+        next
+    }
+    { print }
+    END {
+        if (!block_found) {
+            print "<IfModule mpm_prefork_module>"
+            print "    StartServers " start
+            print "    MinSpareServers " min
+            print "    MaxSpareServers " max
+            print "    MaxRequestWorkers " max_workers
+            print "    MaxConnectionsPerChild " max_requests
+            print "</IfModule>"
+        }
+    }
+    ' /usr/local/apache2/conf/extra/httpd-mpm.conf > /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp && mv /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp /usr/local/apache2/conf/extra/httpd-mpm.conf
+fi
 
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
