@@ -260,7 +260,7 @@ if [ "$PHP_EXTENSION_INTL" = "true" ]; then
 fi
 
 # WIP: Still Work In Progress
-# Choose Apache MPM
+# Choose Apache MPM: https://www.datadoghq.com/blog/monitoring-apache-web-server-performance
 APACHE_MPM=${APACHE_MPM:-event} # default to event if not set
 
 if [ "$APACHE_MPM" = "prefork" ]; then
