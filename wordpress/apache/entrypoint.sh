@@ -397,6 +397,58 @@ if [ "$APACHE_CUSTOM_MPM_EVENT" = "true" ] && [ "$APACHE_MPM" = "event" ] && [ "
     ' /usr/local/apache2/conf/extra/httpd-mpm.conf > /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp && mv /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp /usr/local/apache2/conf/extra/httpd-mpm.conf
 fi
 
+# Custom Worker Apache MPM configuration
+if [ "$APACHE_CUSTOM_MPM_WORKER" = "true" ] && [ "$APACHE_MPM" = "worker" ] && [ "$APACHE_INCLUDE_CONFIG_MPM" = "true" ]; then
+    APACHE_MPM_WORKER_START_SERVERS=${APACHE_MPM_WORKER_START_SERVERS:-3}
+    APACHE_MPM_WORKER_MIN_SPARE_THREADS=${APACHE_MPM_WORKER_MIN_SPARE_THREADS:-75}
+    APACHE_MPM_WORKER_MAX_SPARE_THREADS=${APACHE_MPM_WORKER_MAX_SPARE_THREADS:-250}
+    APACHE_MPM_WORKER_THREADS_PER_CHILD=${APACHE_MPM_WORKER_THREADS_PER_CHILD:-25}
+    APACHE_MPM_WORKER_MAX_REQUEST_WORKERS=${APACHE_MPM_WORKER_MAX_REQUEST_WORKERS:-400}
+    APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD=${APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD:-0}
+
+    awk -v start="$APACHE_MPM_WORKER_START_SERVERS" \
+        -v min="$APACHE_MPM_WORKER_MIN_SPARE_THREADS" \
+        -v max="$APACHE_MPM_WORKER_MAX_SPARE_THREADS" \
+        -v threads="$APACHE_MPM_WORKER_THREADS_PER_CHILD" \
+        -v max_workers="$APACHE_MPM_WORKER_MAX_REQUEST_WORKERS" \
+        -v max_connections="$APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD" '
+    BEGIN { in_block=0; block_found=0 }
+    /^<IfModule mpm_worker_module>/ {
+        print
+        print "    StartServers " start
+        print "    MinSpareThreads " min
+        print "    MaxSpareThreads " max
+        print "    ThreadsPerChild " threads
+        print "    MaxRequestWorkers " max_workers
+        print "    MaxConnectionsPerChild " max_connections
+        in_block=1
+        block_found=1
+        next
+    }
+    /^<\/IfModule>/ {
+        print
+        in_block=0
+        next
+    }
+    in_block && /^[[:space:]]*(StartServers|MinSpareThreads|MaxSpareThreads|ThreadsPerChild|MaxRequestWorkers|MaxConnectionsPerChild)[[:space:]]/ {
+        next
+    }
+    { print }
+    END {
+        if (!block_found) {
+            print "<IfModule mpm_worker_module>"
+            print "    StartServers " start
+            print "    MinSpareThreads " min
+            print "    MaxSpareThreads " max
+            print "    ThreadsPerChild " threads
+            print "    MaxRequestWorkers " max_workers
+            print "    MaxConnectionsPerChild " max_connections
+            print "</IfModule>"
+        }
+    }
+    ' /usr/local/apache2/conf/extra/httpd-mpm.conf > /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp && mv /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp /usr/local/apache2/conf/extra/httpd-mpm.conf
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
