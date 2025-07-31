@@ -277,8 +277,8 @@ else # event
     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
 fi
 
-# IS_INCLUDE_EXTRA_MPM_CONFIG is true, it will include extra MPM config
-if [ "$IS_INCLUDE_EXTRA_MPM_CONFIG" = "true" ]; then
+# APACHE_INCLUDE_CONFIG_MPM is true, it will include extra MPM config
+if [ "$APACHE_INCLUDE_CONFIG_MPM" = "true" ]; then
     # It will uncomment "Include conf/extra/httpd-mpm.conf" in httpd.conf use AWK
     if ! grep -q "^Include conf/extra/httpd-mpm.conf" /usr/local/apache2/conf/httpd.conf; then
         awk '
@@ -297,8 +297,8 @@ if [ "$IS_INCLUDE_EXTRA_MPM_CONFIG" = "true" ]; then
 fi
 
 # Custom Prefork Apache MPM configuration
-# IS_CUSTOM_PREFORK_MPM is true, it will add custom config to /usr/local/apache2/conf/httpd.conf
-if [ "$IS_CUSTOM_PREFORK_MPM" = "true" ] && [ "$APACHE_MPM" = "prefork" ] && [ "$IS_INCLUDE_EXTRA_MPM_CONFIG" = "true" ]; then
+# APACHE_CUSTOM_MPM_PREFORK is true, it will add custom config to /usr/local/apache2/conf/httpd.conf
+if [ "$APACHE_CUSTOM_MPM_PREFORK" = "true" ] && [ "$APACHE_MPM" = "prefork" ] && [ "$APACHE_INCLUDE_CONFIG_MPM" = "true" ]; then
     # We will set custom env by default
     APACHE_PREFORK_START_SERVERS=${APACHE_PREFORK_START_SERVERS:-5}
     APACHE_PREFORK_MIN_SPARE_SERVERS=${APACHE_PREFORK_MIN_SPARE_SERVERS:-5}
