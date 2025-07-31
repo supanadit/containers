@@ -208,37 +208,56 @@ fi
 # PHP_EXTENSION_GD is true, it will enable GD extension
 if [ "$PHP_EXTENSION_GD" = "true" ]; then
     if [ -f /usr/local/lib/php.ini ]; then
-        # if commented out, uncomment it
-        if grep -q "^;extension=gd.so" /usr/local/lib/php.ini; then
-            sed -i 's/^;extension=gd.so/extension=gd.so/' /usr/local/lib/php.ini
-        fi
-        # if not exist, add it
-        if ! grep -q "^extension=gd.so" /usr/local/lib/php.ini; then
-            echo "extension=gd.so" >> /usr/local/lib/php.ini
-        fi
+        # if commented out, uncomment it ( We use AWK to handle this )
+        awk '
+        BEGIN { found=0 }
+        /^;[[:space:]]*extension=gd/ {
+            print "extension=gd"
+            found=1
+            next
+        }
+        /^extension=gd.so/ {
+            print
+            found=1
+            next
+        }
+        {print}
+        END {
+            if (!found) print "extension=gd"
+        }
+        ' /usr/local/lib/php.ini > /usr/local/lib/php.ini.tmp && mv /usr/local/lib/php.ini.tmp /usr/local/lib/php.ini
     else
         # If php.ini doesn't exist, create it with extension=gd.so
-        echo "extension=gd.so" > /usr/local/lib/php.ini
+        echo "extension=gd" > /usr/local/lib/php.ini
     fi
 fi
 
-# PHP_EXTENSION_INTL is true, it will enable Intl extension
+# PHP_EXTENSION_INTL is true, it will enable intl extension
 if [ "$PHP_EXTENSION_INTL" = "true" ]; then
     if [ -f /usr/local/lib/php.ini ]; then
-        # if commented out, uncomment it
-        if grep -q "^;extension=intl.so" /usr/local/lib/php.ini; then
-            sed -i 's/^;extension=intl.so/extension=intl.so/' /usr/local/lib/php.ini
-        fi
-        # if not exist, add it
-        if ! grep -q "^extension=intl.so" /usr/local/lib/php.ini; then
-            echo "extension=intl.so" >> /usr/local/lib/php.ini
-        fi
+        # if commented out, uncomment it ( We use AWK to handle this )
+        awk '
+        BEGIN { found=0 }
+        /^;[[:space:]]*extension=intl/ {
+            print "extension=intl"
+            found=1
+            next
+        }
+        /^extension=intl.so/ {
+            print
+            found=1
+            next
+        }
+        {print}
+        END {
+            if (!found) print "extension=intl"
+        }
+        ' /usr/local/lib/php.ini > /usr/local/lib/php.ini.tmp && mv /usr/local/lib/php.ini.tmp /usr/local/lib/php.ini
     else
         # If php.ini doesn't exist, create it with extension=intl.so
-        echo "extension=intl.so" > /usr/local/lib/php.ini
+        echo "extension=intl" > /usr/local/lib/php.ini
     fi
 fi
-
 
 # WIP: Still Work In Progress
 # Choose Apache MPM
