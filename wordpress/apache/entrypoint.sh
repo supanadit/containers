@@ -128,47 +128,6 @@ if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
     fi
 fi
 
-if ! grep -q "# BEGIN WordPress" /var/www/html/.htaccess 2>/dev/null; then
-    cat <<'EOF' >> /var/www/html/.htaccess
-# BEGIN WordPress
-<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteBase /
-RewriteRule ^index\.php$ - [L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
-</IfModule>
-# END WordPress
-EOF
-fi
-
-# If IS_PROTECT_XMLRPC is true, it will block xmlrpc.php requests
-if [ "$IS_PROTECT_XMLRPC" = "true" ]; then
-    if ! grep -q "deny from all" /var/www/html/.htaccess; then
-        echo "<Files xmlrpc.php>" >> /var/www/html/.htaccess
-        echo "    order deny,allow" >> /var/www/html/.htaccess
-        echo "    deny from all" >> /var/www/html/.htaccess
-        echo "</Files>" >> /var/www/html/.htaccess
-    fi
-fi
-
-if [ "$IS_PROTECT_WPCONFIG" = "true" ]; then
-    # If wp-config.php is not blocked, add rules to block it
-    if ! grep -q "<Files wp-config.php>" /var/www/html/.htaccess; then
-        echo "<Files wp-config.php>" >> /var/www/html/.htaccess
-        echo "    Require all denied" >> /var/www/html/.htaccess
-        echo "</Files>" >> /var/www/html/.htaccess
-    fi
-fi
-
-# If .htaccess exists, chown and set permissions
-if [ -f /var/www/html/.htaccess ]; then
-    chown www-data:www-data /var/www/html/.htaccess
-    # w3-total-cache need write access to .htaccess
-    chmod 777 /var/www/html/.htaccess
-fi
-
 # If has table prefix with variable CUSTOM_TABLE_PREFIX
 if [ -n "$CUSTOM_TABLE_PREFIX" ]; then
     if ! grep -q "\$table_prefix = '$CUSTOM_TABLE_PREFIX';" /var/www/html/wp-config.php; then
@@ -465,6 +424,7 @@ if [ "$APACHE_STATUS" = "true" ]; then
     # Create the status config file if it doesn't exist
     if [ ! -f /usr/local/apache2/conf/extra/httpd-status.conf ]; then
         cat <<EOF > /usr/local/apache2/conf/extra/httpd-status.conf
+ExtendedStatus On
 <Location /server-status>
     SetHandler server-status
     Require host localhost
@@ -482,8 +442,89 @@ EOF
         echo "Include conf/extra/httpd-status.conf" >> /usr/local/apache2/conf/httpd.conf
     fi
 
-    chown www-data:www-data /usr/local/apache2/conf/extra/httpd-status.conf
     chmod 644 /usr/local/apache2/conf/extra/httpd-status.conf
+fi
+
+APACHE_EXPORTER=${APACHE_EXPORTER:-false} # default to false if not set
+# Start Apache Exporter if enabled
+if [ "$APACHE_EXPORTER" = "true" ] && [ "$APACHE_STATUS" = "true" ]; then
+    # Load info module using AWK
+    awk '
+    BEGIN { found=0 }
+    /^LoadModule info_module/ {
+        print
+        found=1
+        next
+    }
+    /^#LoadModule info_module/ {
+        print "LoadModule info_module modules/mod_info.so"
+        found=1
+        next
+    }
+    {print}
+    END {
+        if (!found) print "LoadModule info_module modules/mod_info.so"
+    }
+    ' /usr/local/apache2/conf/httpd.conf > /usr/local/apache2/conf/httpd.conf.tmp && mv /usr/local/apache2/conf/httpd.conf.tmp /usr/local/apache2/conf/httpd.conf
+    /usr/local/bin/apache_exporter --scrape_uri="http://localhost/server-status?auto" &
+
+    # Ensure /server-info is accessible using rewrite conditions in .htaccess
+    cat <<'EOF' >> /var/www/html/.htaccess
+# BEGIN WordPress
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/wp-admin/
+RewriteCond %{REQUEST_URI} !^/server-status
+RewriteCond %{REQUEST_URI} !^/server-info
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress
+EOF
+fi
+
+if ! grep -q "# BEGIN WordPress" /var/www/html/.htaccess 2>/dev/null; then
+    cat <<'EOF' >> /var/www/html/.htaccess
+# BEGIN WordPress
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress
+EOF
+fi
+
+# If IS_PROTECT_XMLRPC is true, it will block xmlrpc.php requests
+if [ "$IS_PROTECT_XMLRPC" = "true" ]; then
+    if ! grep -q "deny from all" /var/www/html/.htaccess; then
+        echo "<Files xmlrpc.php>" >> /var/www/html/.htaccess
+        echo "    order deny,allow" >> /var/www/html/.htaccess
+        echo "    deny from all" >> /var/www/html/.htaccess
+        echo "</Files>" >> /var/www/html/.htaccess
+    fi
+fi
+
+if [ "$IS_PROTECT_WPCONFIG" = "true" ]; then
+    # If wp-config.php is not blocked, add rules to block it
+    if ! grep -q "<Files wp-config.php>" /var/www/html/.htaccess; then
+        echo "<Files wp-config.php>" >> /var/www/html/.htaccess
+        echo "    Require all denied" >> /var/www/html/.htaccess
+        echo "</Files>" >> /var/www/html/.htaccess
+    fi
+fi
+
+# If .htaccess exists, chown and set permissions
+if [ -f /var/www/html/.htaccess ]; then
+    chown www-data:www-data /var/www/html/.htaccess
+    # w3-total-cache need write access to .htaccess
+    chmod 777 /var/www/html/.htaccess
 fi
 
 # Set 777 permissions wp-content directory

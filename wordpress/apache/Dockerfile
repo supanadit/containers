@@ -5,6 +5,7 @@ ARG APACHE_VERSION="2.4.65"
 ARG PHP_VERSION="8.3.23"
 ARG APR_VERSION="1.7.6"
 ARG APR_UTIL_VERSION="1.6.3"
+ARG APACHE_EXPORTER_VERSION="1.0.10"
 
 # Copy all setup scripts and resources
 COPY setup.sh /opt/setup.sh
@@ -25,4 +26,4 @@ RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/local/apache2/bin/httpd", "-D", "FOREGROUND"]
-EXPOSE 80
+EXPOSE 80 9117
