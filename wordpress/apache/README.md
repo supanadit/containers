@@ -20,3 +20,4 @@ It's made to have flexibility to install themes and plugins, including select cu
 
 1. Include `imagemagick` and `ghostscript` for image processing.
 2. Custom copy file for certain plugins on the fly for Stateless mode.
+3. Custom rate limiting for Apache.
