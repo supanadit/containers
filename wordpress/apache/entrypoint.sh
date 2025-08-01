@@ -449,6 +449,43 @@ if [ "$APACHE_CUSTOM_MPM_WORKER" = "true" ] && [ "$APACHE_MPM" = "worker" ] && [
     ' /usr/local/apache2/conf/extra/httpd-mpm.conf > /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp && mv /usr/local/apache2/conf/extra/httpd-mpm.conf.tmp /usr/local/apache2/conf/extra/httpd-mpm.conf
 fi
 
+APACHE_STATUS=${APACHE_STATUS:-false} # default to false if not set
+APACHE_STATUS_PUBLIC=${APACHE_STATUS_PUBLIC:-false} # default to false if not set
+if [ "$APACHE_STATUS" = "true" ]; then
+    # Enable mod_status
+    if ! grep -q "^LoadModule status_module" /usr/local/apache2/conf/httpd.conf; then
+        echo "LoadModule status_module modules/mod_status.so" >> /usr/local/apache2/conf/httpd.conf
+    fi
+
+    # Include the status config file
+    if ! grep -q "^Include conf/extra/httpd-status.conf" /usr/local/apache2/conf/httpd.conf; then
+        echo "Include conf/extra/httpd-status.conf" >> /usr/local/apache2/conf/httpd.conf
+    fi
+
+    # Create the status config file if it doesn't exist
+    if [ ! -f /usr/local/apache2/conf/extra/httpd-status.conf ]; then
+        cat <<EOF > /usr/local/apache2/conf/extra/httpd-status.conf
+<Location /server-status>
+    SetHandler server-status
+    Require host localhost
+</Location>
+EOF
+    fi
+
+    # If APACHE_STATUS_PUBLIC is true, allow public access to server-status
+    if [ "$APACHE_STATUS_PUBLIC" = "true" ]; then
+        sed -i 's/Require host localhost/Require all granted/' /usr/local/apache2/conf/extra/httpd-status.conf
+    fi
+
+    # Add include for status config in httpd.conf if not already present
+    if ! grep -q "^Include conf/extra/httpd-status.conf" /usr/local/apache2/conf/httpd.conf; then
+        echo "Include conf/extra/httpd-status.conf" >> /usr/local/apache2/conf/httpd.conf
+    fi
+
+    chown www-data:www-data /usr/local/apache2/conf/extra/httpd-status.conf
+    chmod 644 /usr/local/apache2/conf/extra/httpd-status.conf
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
