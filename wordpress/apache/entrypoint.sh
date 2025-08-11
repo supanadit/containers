@@ -89,7 +89,7 @@ if [ "$IS_STATELESS" = "true" ]; then
         chmod -R 777 /content/wp-content/uploads
     fi
 
-    ln -s /content/wp-content/uploads /var/www/html/wp-content/uploads
+    ln -s /content/wp-content/uploads /var/www/html/wp-content
 else
     # Create symlink for all wp-content directories but first we need copy to /content
     if [ ! -d /content/wp-content ]; then
