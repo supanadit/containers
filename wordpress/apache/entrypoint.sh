@@ -489,7 +489,7 @@ if [ "$IS_STATELESS" = "true" ]; then
     done
 fi
 
-chmod 775 -R /var/www/html
+chmod 777 -R /var/www/html
 chown www-data:www-data /var/www/html/wp-config.php
 
 exec "$@"
