@@ -19,6 +19,4 @@ RUN chmod +x /opt/prometheus/entrypoint.sh
 
 ENTRYPOINT ["/opt/prometheus/entrypoint.sh"]
 
-CMD ["prometheus", "--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/opt/prometheus/data", "--web.listen-address=:9090"]
 VOLUME ["/prometheus"]
-EXPOSE 9090
