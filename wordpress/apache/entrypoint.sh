@@ -526,6 +526,23 @@ if [ -f /var/www/html/.htaccess ]; then
     chmod 777 /var/www/html/.htaccess
 fi
 
+# Custom Stateless .php copy
+if [ "$IS_STATELESS" = "true" ]; then
+    # Handle STATELESS_FILE_<name>
+    for var in $(compgen -A variable | grep '^STATELESS_FILE_'); do
+        # Check if the variable is valid
+        # For example STATELESS_FILE_OBJECT_CACHE: object-cache.php
+        # It will copy /content/stateless/object-cache.php to /var/www/html/wp-content/object-cache.php
+        # But first it will check /content/stateless/object-cache.php exist, if not it will skipped
+        var_name=${var#STATELESS_FILE_}
+        var_value="${!var}"
+        if [ -f "/content/stateless/${var_value}" ]; then
+            cp "/content/stateless/${var_value}" "/var/www/html/wp-content/"
+            chown www-data:www-data "/var/www/html/wp-content/${var_value}"
+        fi
+    done
+fi
+
 # Set 777 permissions wp-content directory
 # I have no idea how to set proper permissions for wp-content directory
 # Some plugins doesn't wont running for example redis-object-cache
