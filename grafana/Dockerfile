@@ -19,13 +19,3 @@ COPY entrypoint.sh /opt/grafana/entrypoint.sh
 RUN chmod +x /opt/grafana/entrypoint.sh
 
 ENTRYPOINT ["/opt/grafana/entrypoint.sh"]
-
-CMD ["/usr/share/grafana/bin/grafana", "server", \
-     "--homepath=/usr/share/grafana", \
-     "--config=/etc/grafana/grafana.ini", \
-     "cfg:default.paths.data=/var/lib/grafana", \
-     "cfg:default.paths.logs=/var/log/grafana", \
-     "cfg:default.paths.plugins=/var/lib/grafana/plugins", \
-     "cfg:default.paths.provisioning=/etc/grafana/provisioning"]
-
-EXPOSE 3000
