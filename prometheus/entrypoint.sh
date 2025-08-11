@@ -29,7 +29,7 @@ if [ -f /config/prometheus.yml ]; then
     if [ -f /etc/prometheus/prometheus.yml ]; then
         rm /etc/prometheus/prometheus.yml
     fi
-    cp /config/prometheus.yml /etc/prometheus/prometheus.yml
+    ln -sf /config/prometheus.yml /etc/prometheus/prometheus.yml
 fi
 
 PROMETHEUS_ARG_LIST=(
