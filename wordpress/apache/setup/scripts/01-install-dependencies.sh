@@ -34,6 +34,9 @@ apt-get update && apt-get install -y \
     libicu72 \
     libicu-dev \
     libgd3 \
-    libgd-dev
+    libgd-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libfreetype6-dev
 
 echo "=== Dependencies installed successfully ==="

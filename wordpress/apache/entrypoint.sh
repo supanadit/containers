@@ -86,7 +86,7 @@ if [ "$IS_STATELESS" = "true" ]; then
     if [ ! -d /content/wp-content/uploads ]; then
         mkdir -p /content/wp-content/uploads
         chown www-data:www-data /content/wp-content/uploads
-        chmod -R 777 /content/wp-content/uploads
+        chmod -R 775 /content/wp-content/uploads
     fi
 
     ln -s /content/wp-content/uploads /var/www/html/wp-content
@@ -161,60 +161,6 @@ if [ -n "$PHP_MEMORY_LIMIT" ]; then
     else
         # If php.ini doesn't exist, create it with memory_limit
         echo "memory_limit = $PHP_MEMORY_LIMIT" > /usr/local/lib/php.ini
-    fi
-fi
-
-# PHP_EXTENSION_GD is true, it will enable GD extension
-if [ "$PHP_EXTENSION_GD" = "true" ]; then
-    if [ -f /usr/local/lib/php.ini ]; then
-        # if commented out, uncomment it ( We use AWK to handle this )
-        awk '
-        BEGIN { found=0 }
-        /^;[[:space:]]*extension=gd/ {
-            print "extension=gd"
-            found=1
-            next
-        }
-        /^extension=gd.so/ {
-            print
-            found=1
-            next
-        }
-        {print}
-        END {
-            if (!found) print "extension=gd"
-        }
-        ' /usr/local/lib/php.ini > /usr/local/lib/php.ini.tmp && mv /usr/local/lib/php.ini.tmp /usr/local/lib/php.ini
-    else
-        # If php.ini doesn't exist, create it with extension=gd.so
-        echo "extension=gd" > /usr/local/lib/php.ini
-    fi
-fi
-
-# PHP_EXTENSION_INTL is true, it will enable intl extension
-if [ "$PHP_EXTENSION_INTL" = "true" ]; then
-    if [ -f /usr/local/lib/php.ini ]; then
-        # if commented out, uncomment it ( We use AWK to handle this )
-        awk '
-        BEGIN { found=0 }
-        /^;[[:space:]]*extension=intl/ {
-            print "extension=intl"
-            found=1
-            next
-        }
-        /^extension=intl.so/ {
-            print
-            found=1
-            next
-        }
-        {print}
-        END {
-            if (!found) print "extension=intl"
-        }
-        ' /usr/local/lib/php.ini > /usr/local/lib/php.ini.tmp && mv /usr/local/lib/php.ini.tmp /usr/local/lib/php.ini
-    else
-        # If php.ini doesn't exist, create it with extension=intl.so
-        echo "extension=intl" > /usr/local/lib/php.ini
     fi
 fi
 
@@ -523,7 +469,7 @@ fi
 if [ -f /var/www/html/.htaccess ]; then
     chown www-data:www-data /var/www/html/.htaccess
     # w3-total-cache need write access to .htaccess
-    chmod 777 /var/www/html/.htaccess
+    chmod 775 /var/www/html/.htaccess
 fi
 
 # Custom Stateless .php copy
@@ -543,13 +489,7 @@ if [ "$IS_STATELESS" = "true" ]; then
     done
 fi
 
-# Set 777 permissions wp-content directory
-# I have no idea how to set proper permissions for wp-content directory
-# Some plugins doesn't wont running for example redis-object-cache
-chmod -R 777 /var/www/html/wp-content
-# This not secure but some plugins need write access to wp-config.php
-# For example, w3-total-cache
-chmod 777 /var/www/html/wp-config.php
+chmod 775 -R /var/www/html
 chown www-data:www-data /var/www/html/wp-config.php
 
 exec "$@"

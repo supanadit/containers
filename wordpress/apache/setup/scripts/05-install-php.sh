@@ -16,16 +16,16 @@ cd php-${PHP_VERSION}
 ./configure \
     --with-apxs2=/usr/local/apache2/bin/apxs \
     --enable-mbstring \
+    --enable-gd \
+    --enable-intl \
     --with-curl \
     --with-openssl \
     --with-pdo-mysql \
     --with-mysqli \
     --with-zlib \
-    --with-gd \
     --with-jpeg \
     --with-freetype \
-    --with-zip \
-    --with-intl
+    --with-zip
 
 make -j$(nproc)
 make install

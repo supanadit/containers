@@ -57,7 +57,10 @@ apt-get remove -y \
     icu-devtools \
     libicu-dev \
     libzip-dev \
-    libgd-dev
+    libgd-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libfreetype6-dev
 
 # Clean up apt cache
 apt-get clean

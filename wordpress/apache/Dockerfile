@@ -20,6 +20,17 @@ RUN chmod +x /opt/setup.sh && \
     rm /opt/setup.sh && \
     rm -rf /opt/setup
 
+COPY addons.sh /opt/addons.sh
+COPY addons/ /opt/addons/
+
+COPY plugins /tmp/plugins
+COPY themes /tmp/themes
+
+RUN chmod +x /opt/addons.sh && \
+    /opt/addons.sh && \
+    rm /opt/addons.sh && \
+    rm -rf /opt/addons
+
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
