@@ -1,0 +1,21 @@
+FROM debian:bookworm
+
+ARG GRAFANA_TEMPO_VERSION="2.8.2"
+
+COPY setup.sh /opt/setup.sh
+COPY setup/ /opt/setup/
+COPY config/tempo.yaml /etc/tempo-sample.yaml
+
+# Run the complete setup in a single layer
+RUN chmod +x /opt/setup.sh && \
+    /opt/setup.sh && \
+    rm /opt/setup.sh && \
+    rm -rf /opt/setup
+
+WORKDIR /opt/grafana
+
+# Copy entrypoint script
+COPY entrypoint.sh /opt/grafana/entrypoint.sh
+RUN chmod +x /opt/grafana/entrypoint.sh
+
+ENTRYPOINT ["/opt/grafana/entrypoint.sh"]
