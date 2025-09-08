@@ -80,6 +80,7 @@ ARG DECODERBUFS_VERSION=v3.2.2.Final
 WORKDIR /temp
 RUN git clone -b ${DECODERBUFS_VERSION} --depth 1 https://github.com/debezium/postgres-decoderbufs.git
 
+# Notes: We can build protobuf-c and libprotobuf-c from source, but it too complicated and too many step to execute which lead to very long build time
 RUN apt-get install -y protobuf-c-compiler libprotobuf-c-dev
 
 WORKDIR /temp/postgres-decoderbufs/proto
@@ -89,6 +90,42 @@ WORKDIR /temp/postgres-decoderbufs
 RUN make
 RUN make install
 # End Decoderbufs
+
+# Install Python
+# FAQ
+# Q: Why not just install Python via Debian package ?
+# A: Because we need custom version of Patroni, which requires a specific Python version.
+
+ARG PYTHON_VERSION=v3.11.2
+WORKDIR /temp
+RUN git clone -b ${PYTHON_VERSION} --depth 1 https://github.com/python/cpython.git
+
+RUN apt-get install -y libffi-dev
+
+WORKDIR /temp/cpython
+RUN ./configure --enable-optimizations && make -j$(nproc) && make altinstall
+
+RUN ln -s /usr/local/bin/python3.11 /usr/local/bin/python3
+# End Python
+
+# Install Python 3.11 pip
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
+# END: Install Python 3.11
+
+# Start Patroni
+ARG PATRONI_VERSION=v3.0.2
+WORKDIR /temp
+RUN git clone -b ${PATRONI_VERSION} --depth 1 https://github.com/patroni/patroni.git
+
+WORKDIR /temp/patroni
+
+RUN pip install "psycopg[c]"
+RUN pip install cdiff
+
+RUN pip install -r requirements.txt
+RUN pip install .[etcd]
+# End Patroni
 
 # Finishing ( PostgreSQL )
 USER postgres
