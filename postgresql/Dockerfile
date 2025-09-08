@@ -20,10 +20,15 @@ WORKDIR /temp/sources/postgresql-${POSTGRESQL_VERSION}
 # Install PostgreSQL
 RUN ./configure --prefix=/usr/local/pgsql && make && make install
 
-ENV HOME=/home/postgres
+RUN mkdir -p /usr/local/pgsql/data
 
+RUN useradd -m postgres
+RUN chown -R postgres:postgres /usr/local/pgsql
+RUN chmod 700 /usr/local/pgsql/data
+# End PostgreSQL
+
+# Start PG Backrest
 ARG PGBACKREST_VERSION=2.56.0
-
 WORKDIR /temp
 RUN mkdir -p /temp/build
 RUN wget -q -O - https://github.com/pgbackrest/pgbackrest/archive/release/${PGBACKREST_VERSION}.tar.gz | tar zx -C /temp/build
@@ -43,16 +48,31 @@ RUN chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
 
 RUN mkdir -p -m 770 /var/log/pgbackrest
 RUN chown postgres:postgres /var/log/pgbackrest
+# End PG Backrest
 
-# Finishing
-RUN mkdir -p /usr/local/pgsql/data
+RUN apt-get install -y git
+ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 
-RUN useradd -m postgres
-RUN chown -R postgres:postgres /usr/local/pgsql
-RUN chmod 700 /usr/local/pgsql/data
+# Start Citus
+ARG CITUS_VERSION=11.3.1
+WORKDIR /temp
+RUN git config --global http.sslVerify false
+RUN git clone -b release-11.3 --depth 1 https://github.com/citusdata/citus.git
+
+WORKDIR /temp/citus
+
+RUN apt-get install -y libcurl4-openssl-dev
+
+RUN chmod +x ./configure && bash ./configure
+RUN make -s clean && make -s -j8 install
+# End Citus
+
+# Finishing ( PostgreSQL )
 
 # Switch to postgres user
 USER postgres
+
+ENV HOME=/home/postgres
 
 # Initialize the database cluster
 RUN /usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data
