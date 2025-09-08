@@ -35,6 +35,14 @@ RUN ninja -C /temp/build/pgbackrest
 
 RUN cp /temp/build/pgbackrest/src/pgbackrest /usr/bin
 RUN chmod 755 /usr/bin/pgbackrest
+RUN mkdir -p /etc/pgbackrest
+RUN mkdir -p /etc/pgbackrest/conf.d
+RUN touch /etc/pgbackrest/pgbackrest.conf
+RUN chmod 640 /etc/pgbackrest/pgbackrest.conf
+RUN chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+RUN mkdir -p -m 770 /var/log/pgbackrest
+RUN chown postgres:postgres /var/log/pgbackrest
 
 # Finishing
 RUN mkdir -p /usr/local/pgsql/data
@@ -51,4 +59,4 @@ RUN /usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data
 
 WORKDIR /home/postgres
 
-CMD ["/usr/local/pgsql/bin/postgres", "-D", "/usr/local/pgsql/data"]
+CMD ["/usr/local/pgsql/bin/postgres", "-D", "/usr/local/pgsql/data", "-k"]
