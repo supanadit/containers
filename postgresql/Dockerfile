@@ -2,7 +2,7 @@ FROM debian:bookworm
 
 ARG POSTGRESQL_VERSION=13.5
 
-RUN apt-get update -y && apt-get install curl -y
+RUN apt-get update -y && apt-get install curl wget -y
 
 WORKDIR /temp/sources
 RUN curl -O https://ftp.postgresql.org/pub/source/v${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.tar.gz
@@ -20,6 +20,23 @@ WORKDIR /temp/sources/postgresql-${POSTGRESQL_VERSION}
 # Install PostgreSQL
 RUN ./configure --prefix=/usr/local/pgsql && make && make install
 
+ENV HOME=/home/postgres
+
+ARG PGBACKREST_VERSION=2.56.0
+
+WORKDIR /temp
+RUN mkdir -p /temp/build
+RUN wget -q -O - https://github.com/pgbackrest/pgbackrest/archive/release/${PGBACKREST_VERSION}.tar.gz | tar zx -C /temp/build
+
+RUN apt-get update -y && apt-get install -y python3-distutils meson gcc libpq-dev libssl-dev libxml2-dev pkg-config liblz4-dev libzstd-dev libbz2-dev libz-dev libyaml-dev libssh2-1-dev
+
+RUN meson setup /temp/build/pgbackrest /temp/build/pgbackrest-release-${PGBACKREST_VERSION}
+RUN ninja -C /temp/build/pgbackrest
+
+RUN cp /temp/build/pgbackrest/src/pgbackrest /usr/bin
+RUN chmod 755 /usr/bin/pgbackrest
+
+# Finishing
 RUN mkdir -p /usr/local/pgsql/data
 
 RUN useradd -m postgres
@@ -32,7 +49,6 @@ USER postgres
 # Initialize the database cluster
 RUN /usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data
 
-
-ENV HOME=/home/postgres
+WORKDIR /home/postgres
 
 CMD ["/usr/local/pgsql/bin/postgres", "-D", "/usr/local/pgsql/data"]
