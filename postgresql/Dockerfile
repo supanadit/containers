@@ -9,11 +9,7 @@ RUN curl -O https://ftp.postgresql.org/pub/source/v${POSTGRESQL_VERSION}/postgre
 
 RUN tar -xzf postgresql-${POSTGRESQL_VERSION}.tar.gz
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libreadline-dev \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential libreadline-dev zlib1g-dev
 
 WORKDIR /temp/sources/postgresql-${POSTGRESQL_VERSION}
 
@@ -57,7 +53,7 @@ ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 ARG CITUS_VERSION=11.3.1
 WORKDIR /temp
 RUN git config --global http.sslVerify false
-RUN git clone -b release-11.3 --depth 1 https://github.com/citusdata/citus.git
+RUN git clone -b v${CITUS_VERSION} --depth 1 https://github.com/citusdata/citus.git
 
 WORKDIR /temp/citus
 
@@ -67,9 +63,54 @@ RUN chmod +x ./configure && bash ./configure
 RUN make -s clean && make -s -j8 install
 # End Citus
 
-# Finishing ( PostgreSQL )
+# Start Percona PG Stat Monitor
+ARG PG_STAT_MONITOR_VERSION=2.2.0
 
-# Switch to postgres user
+WORKDIR /temp
+RUN git clone -b ${PG_STAT_MONITOR_VERSION} --depth 1 https://github.com/percona/pg_stat_monitor.git
+
+WORKDIR /temp/pg_stat_monitor
+
+RUN make USE_PGXS=1
+RUN make USE_PGXS=1 install
+# End Percona PG Stat Monitor
+
+RUN apt-get install -y autoconf automake libtool
+
+# Start Protobuf ( Dependency for Proto-C )
+ARG PROTOBUF_VERSION=v3.21.12
+WORKDIR /temp
+RUN git clone -b ${PROTOBUF_VERSION} --depth 1 https://github.com/protocolbuffers/protobuf.git
+
+WORKDIR /temp/protobuf
+RUN git submodule update --init --recursive
+RUN ./autogen.sh && ./configure && make -j$(nproc) && make install
+RUN ldconfig
+# End Protobuf
+
+# Start Proto-C ( Dependency for Decoderbufs )
+ARG PROTOC_VERSION=v1.5.2
+WORKDIR /temp
+RUN git clone -b ${PROTOC_VERSION} --depth 1 https://github.com/protobuf-c/protobuf-c.git
+
+WORKDIR /temp/protobuf-c
+RUN ./autogen.sh && ./configure && make && make install
+# End Proto-C
+
+# Start Decoderbufs
+ARG DECODERBUFS_VERSION=v3.2.2.Final
+WORKDIR /temp
+RUN git clone -b ${DECODERBUFS_VERSION} --depth 1 https://github.com/debezium/postgres-decoderbufs.git
+
+WORKDIR /temp/postgres-decoderbufs/proto
+RUN protoc-c --c_out=../src/proto pg_logicaldec.proto
+
+WORKDIR /temp/postgres-decoderbufs
+RUN make
+RUN make install
+# End Decoderbufs
+
+# Finishing ( PostgreSQL )
 USER postgres
 
 ENV HOME=/home/postgres
