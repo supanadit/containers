@@ -75,32 +75,12 @@ RUN make USE_PGXS=1
 RUN make USE_PGXS=1 install
 # End Percona PG Stat Monitor
 
-RUN apt-get install -y autoconf automake libtool
-
-# Start Protobuf ( Dependency for Proto-C )
-ARG PROTOBUF_VERSION=v3.21.12
-WORKDIR /temp
-RUN git clone -b ${PROTOBUF_VERSION} --depth 1 https://github.com/protocolbuffers/protobuf.git
-
-WORKDIR /temp/protobuf
-RUN git submodule update --init --recursive
-RUN ./autogen.sh && ./configure && make -j$(nproc) && make install
-RUN ldconfig
-# End Protobuf
-
-# Start Proto-C ( Dependency for Decoderbufs )
-ARG PROTOC_VERSION=v1.5.2
-WORKDIR /temp
-RUN git clone -b ${PROTOC_VERSION} --depth 1 https://github.com/protobuf-c/protobuf-c.git
-
-WORKDIR /temp/protobuf-c
-RUN ./autogen.sh && ./configure && make && make install
-# End Proto-C
-
 # Start Decoderbufs
 ARG DECODERBUFS_VERSION=v3.2.2.Final
 WORKDIR /temp
 RUN git clone -b ${DECODERBUFS_VERSION} --depth 1 https://github.com/debezium/postgres-decoderbufs.git
+
+RUN apt-get install -y protobuf-c-compiler libprotobuf-c-dev
 
 WORKDIR /temp/postgres-decoderbufs/proto
 RUN protoc-c --c_out=../src/proto pg_logicaldec.proto
