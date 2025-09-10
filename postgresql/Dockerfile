@@ -46,7 +46,7 @@ RUN mkdir -p -m 770 /var/log/pgbackrest
 RUN chown postgres:postgres /var/log/pgbackrest
 # End PG Backrest
 
-RUN apt-get install -y git
+RUN apt-get install -y git autoconf automake
 ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 
 # Start Citus
