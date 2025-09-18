@@ -14,7 +14,11 @@ ETCD_INITIAL_CLUSTER_STATE=${ETCD_INITIAL_CLUSTER_STATE:-new}
 ETCD_INITIAL_CLUSTER_TOKEN=${ETCD_INITIAL_CLUSTER_TOKEN:-etcd-cluster}
 
 # Create data directory
-mkdir -p "$ETCD_DATA_DIR"
+if [ ! -d "$ETCD_DATA_DIR" ]; then
+    echo "Creating ETCD data directory at $ETCD_DATA_DIR"
+    mkdir -p "$ETCD_DATA_DIR"
+fi
+chmod 700 "$ETCD_DATA_DIR"
 
 # Function to start ETCD with default configuration
 start_etcd() {
