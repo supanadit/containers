@@ -45,7 +45,8 @@ apt-get install -y --no-install-recommends \
     libyaml-0-2 \
     libssh2-1 \
     libcurl4 \
-    libffi8
+    libffi8 \
+    libreadline8
 
 # Clean up apt cache
 apt-get clean

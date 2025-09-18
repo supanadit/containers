@@ -20,6 +20,8 @@ RUN chmod +x /opt/setup.sh && \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
+ENV PATH="/usr/local/pgsql/bin:$PATH"
+
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
