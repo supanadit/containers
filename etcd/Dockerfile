@@ -1,4 +1,4 @@
-FROM debian:bookworm
+FROM debian:bookworm AS build
 
 ARG GO_VERSION=1.23.12
 ARG ETCD_VERSION=v3.5.21
@@ -12,6 +12,12 @@ RUN chmod +x /opt/setup.sh && \
     /opt/setup.sh && \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
+
+FROM debian:bookworm-slim
+
+COPY --from=build /usr/local/bin/etcd* /usr/local/bin/
+COPY --from=build /usr/local/bin/etcdctl /usr/local/bin/etcdctl
+COPY --from=build /usr/local/bin/etcdutl /usr/local/bin/etcdutl
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
