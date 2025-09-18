@@ -3,8 +3,6 @@ set -e
 
 echo "=== Building and installing CPython 3.11 ==="
 
-mkdir /temp
-
 cd /temp
 git clone -b ${PYTHON_VERSION} --depth 1 https://github.com/python/cpython.git
 

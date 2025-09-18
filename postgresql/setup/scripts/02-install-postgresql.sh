@@ -3,6 +3,8 @@ set -e
 
 echo "=== Building and installing PostgreSQL ==="
 
+mkdir /temp
+
 mkdir -p /temp/sources
 cd /temp/sources
 

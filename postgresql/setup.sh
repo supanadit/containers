@@ -13,8 +13,8 @@ chmod +x ${SCRIPT_DIR}/*.sh
 
 # Execute setup scripts in order
 ${SCRIPT_DIR}/01-install-dependencies.sh
-${SCRIPT_DIR}/02-install-python.sh
-${SCRIPT_DIR}/03-install-postgresql.sh
+${SCRIPT_DIR}/02-install-postgresql.sh
+${SCRIPT_DIR}/03-install-python.sh
 ${SCRIPT_DIR}/04-install-pgbackrest.sh
 ${SCRIPT_DIR}/05-install-citus.sh
 ${SCRIPT_DIR}/06-install-pgstatmonitor.sh
