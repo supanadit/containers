@@ -4,21 +4,44 @@ set -e
 
 # Signal handling function
 cleanup() {
-    echo "Received shutdown signal, stopping PostgreSQL..."
+    echo "Received shutdown signal, stopping PostgreSQL gracefully..."
+    
     if [ -n "$POSTGRES_PID" ]; then
+        echo "Sending SIGTERM to process $POSTGRES_PID..."
         kill -TERM "$POSTGRES_PID" 2>/dev/null || true
-        wait "$POSTGRES_PID" 2>/dev/null || true
+        
+        # Wait up to 30 seconds for graceful shutdown
+        local count=0
+        local max_wait=30
+        
+        while kill -0 "$POSTGRES_PID" 2>/dev/null && [ $count -lt $max_wait ]; do
+            echo "Waiting for PostgreSQL to shutdown gracefully... ($count/$max_wait)"
+            sleep 1
+            count=$((count + 1))
+        done
+        
+        # If still running after graceful period, force shutdown
+        if kill -0 "$POSTGRES_PID" 2>/dev/null; then
+            echo "PostgreSQL didn't shutdown gracefully, sending SIGKILL..."
+            kill -KILL "$POSTGRES_PID" 2>/dev/null || true
+            wait "$POSTGRES_PID" 2>/dev/null || true
+        else
+            echo "PostgreSQL shutdown gracefully"
+        fi
     fi
+    
     # Clean up PID file if it exists
     if [ -f "/usr/local/pgsql/data/postmaster.pid" ]; then
         echo "Cleaning up PID file..."
         rm -f /usr/local/pgsql/data/postmaster.pid
     fi
+    
+    echo "Shutdown complete"
     exit 0
 }
 
-# Set up signal traps
-trap cleanup SIGTERM SIGINT SIGQUIT
+# Set up signal traps - add SIGHUP for completeness
+trap cleanup SIGTERM SIGINT SIGQUIT SIGHUP
 
 # Ensure the data directory exists and has proper ownership
 mkdir -p /usr/local/pgsql/data
