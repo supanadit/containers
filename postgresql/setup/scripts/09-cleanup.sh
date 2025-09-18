@@ -34,6 +34,19 @@ apt-get remove --purge -y \
     protobuf-c-compiler \
     libprotobuf-c-dev
 
+# Install runtime libraries that are needed but development packages were removed
+apt-get install -y --no-install-recommends \
+    libssl3 \
+    libxml2 \
+    liblz4-1 \
+    libzstd1 \
+    libbz2-1.0 \
+    zlib1g \
+    libyaml-0-2 \
+    libssh2-1 \
+    libcurl4 \
+    libffi8
+
 # Clean up apt cache
 apt-get clean
 rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
