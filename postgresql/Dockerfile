@@ -20,14 +20,8 @@ RUN chmod +x /opt/setup.sh && \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
-WORKDIR /home/postgres
-
 # Copy entrypoint script
-COPY entrypoint.sh /home/postgres/entrypoint.sh
-RUN chmod +x /home/postgres/entrypoint.sh
-RUN chown postgres:postgres /home/postgres/entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-USER postgres
-ENV HOME=/home/postgres
-
-ENTRYPOINT ["/home/postgres/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

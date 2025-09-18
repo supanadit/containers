@@ -2,10 +2,15 @@
 
 set -e
 
+# Ensure the data directory exists and has proper ownership
+mkdir -p /usr/local/pgsql/data
+chown -R postgres:postgres /usr/local/pgsql/data
+chmod 700 /usr/local/pgsql/data
+
 # Check if PostgreSQL data directory exists and is empty
 if [ ! -d "/usr/local/pgsql/data" ] || [ -z "$(ls -A /usr/local/pgsql/data 2>/dev/null)" ]; then
     echo "Initializing PostgreSQL database cluster..."
-    /usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data
+    su - postgres -c "/usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data"
     echo "Database cluster initialized successfully."
 else
     echo "PostgreSQL data directory already exists and is not empty. Skipping initialization."
@@ -19,13 +24,13 @@ if [ "$USE_PATRONI" = "true" ]; then
         echo "Patroni configuration file /etc/patroni.yml not found!"
         exit 1
     fi
-    exec patroni /etc/patroni.yml
+    exec su - postgres -c "patroni /etc/patroni.yml"
 else
     echo "Starting PostgreSQL..."
     # If arguments are provided, use them; otherwise use default PostgreSQL startup
     if [ $# -eq 0 ]; then
-        exec /usr/local/pgsql/bin/postgres -D /usr/local/pgsql/data -k
+        exec su - postgres -c "/usr/local/pgsql/bin/postgres -D /usr/local/pgsql/data"
     else
-        exec "$@"
+        exec su - postgres -c "$*"
     fi
 fi
