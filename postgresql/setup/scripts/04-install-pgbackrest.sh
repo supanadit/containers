@@ -13,11 +13,10 @@ ninja -C /temp/build/pgbackrest
 
 cp /temp/build/pgbackrest/src/pgbackrest /usr/bin
 chmod 755 /usr/bin/pgbackrest
-mkdir -p /etc/pgbackrest
-mkdir -p /etc/pgbackrest/conf.d
-touch /etc/pgbackrest/pgbackrest.conf
-chmod 640 /etc/pgbackrest/pgbackrest.conf
-chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+touch /etc/pgbackrest.conf
+chmod 640 /etc/pgbackrest.conf
+chown postgres:postgres /etc/pgbackrest.conf
 
 mkdir -p -m 770 /var/log/pgbackrest
 chown postgres:postgres /var/log/pgbackrest
