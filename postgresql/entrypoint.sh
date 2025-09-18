@@ -10,7 +10,7 @@ chmod 700 /usr/local/pgsql/data
 # Check if PostgreSQL data directory exists and is empty
 if [ ! -d "/usr/local/pgsql/data" ] || [ -z "$(ls -A /usr/local/pgsql/data 2>/dev/null)" ]; then
     echo "Initializing PostgreSQL database cluster..."
-    su - postgres -c "/usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data"
+    su - postgres -c "/usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data -k -A peer"
     echo "Database cluster initialized successfully."
 else
     echo "PostgreSQL data directory already exists and is not empty. Skipping initialization."
