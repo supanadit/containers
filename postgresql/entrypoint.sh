@@ -125,13 +125,13 @@ if ! grep -q "^\[default\]" /etc/pgbackrest.conf; then
     } >> /etc/pgbackrest.conf
 fi
 
-# Add archive settings to postgresql.conf if not already present
+# Configure archive settings in postgresql.conf by uncommenting and modifying existing lines
 if ! grep -q "^archive_mode = on" /usr/local/pgsql/data/postgresql.conf; then
-    echo "Adding archive settings to postgresql.conf"
-    {
-        echo "archive_mode = on"
-        echo "archive_command = 'pgbackrest --stanza=default archive-push %p'"
-    } >> /usr/local/pgsql/data/postgresql.conf
+    echo "Configuring archive settings in postgresql.conf"
+    # Uncomment and set archive_mode to on
+    sed -i 's/^#archive_mode = off.*/archive_mode = on/' /usr/local/pgsql/data/postgresql.conf
+    # Uncomment and set archive_command
+    sed -i "s|^#archive_command = ''.*|archive_command = 'pgbackrest --stanza=default archive-push %p'|" /usr/local/pgsql/data/postgresql.conf
 fi
 
 if [ "$SLEEP_MODE" = "true" ]; then
