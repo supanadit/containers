@@ -105,7 +105,7 @@ else
 fi
 
 # If IS_HTTPS is true it will create a .htaccess file to redirect HTTP to HTTPS
-if [ "$IS_HTTPS" = "true" ] then
+if [ "$IS_HTTPS" = "true" ]; then
     # if [ ! -f /var/www/html/.htaccess ]; then
     #     echo "RewriteEngine On" > /var/www/html/.htaccess
     #     echo "RewriteCond %{HTTPS} !=on" >> /var/www/html/.htaccess
