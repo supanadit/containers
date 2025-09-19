@@ -57,6 +57,54 @@ else
     echo "PostgreSQL data directory already exists and is not empty. Skipping initialization."
 fi
 
+# Check /usr/local/pgsql/data/config directory
+if [ ! -d "/usr/local/pgsql/data/config" ]; then
+    mkdir -p /usr/local/pgsql/data/config
+    chown -R postgres:postgres /usr/local/pgsql/data/config
+    chmod 700 /usr/local/pgsql/data/config
+fi
+
+# Copy postgresql.conf and pg_hba.conf from /usr/local/pgsql/config if they exist
+if [ ! -f "/usr/local/pgsql/config/postgresql.conf" ]; then
+    cp /usr/local/pgsql/data/postgresql.conf /usr/local/pgsql/config/postgresql.conf
+    chmod 777 /usr/local/pgsql/config/postgresql.conf
+fi
+
+if [ ! -f "/usr/local/pgsql/config/pg_hba.conf" ]; then
+    cp /usr/local/pgsql/data/pg_hba.conf /usr/local/pgsql/config/pg_hba.conf
+    chmod 777 /usr/local/pgsql/config/pg_hba.conf
+fi
+
+# Make a copy of postgresql.conf.original from /usr/local/pgsql/data/postgresql.conf if it doesn't exist
+if [ ! -f "/usr/local/pgsql/config/postgresql.conf.original" ]; then
+    cp /usr/local/pgsql/data/postgresql.conf /usr/local/pgsql/config/postgresql.conf.original
+    chmod 777 /usr/local/pgsql/config/postgresql.conf.original
+fi
+
+# Make a copy of pg_hba.conf.original from /usr/local/pgsql/data/pg_hba.conf if it doesn't exist
+if [ ! -f "/usr/local/pgsql/config/pg_hba.conf.original" ]; then
+    cp /usr/local/pgsql/data/pg_hba.conf /usr/local/pgsql/config/pg_hba.conf.original
+    chmod 777 /usr/local/pgsql/config/pg_hba.conf.original
+fi
+
+# If /usr/local/pgsql/config/postgresql.conf exists, remove it
+# Then cp postgresql.conf from /usr/local/pgsql/config to /usr/local/pgsql/data
+if [ -f "/usr/local/pgsql/config/postgresql.conf" ]; then
+    rm -f /usr/local/pgsql/data/postgresql.conf
+    cp /usr/local/pgsql/config/postgresql.conf /usr/local/pgsql/data/postgresql.conf
+    chown postgres:postgres /usr/local/pgsql/data/postgresql.conf
+    chmod 644 /usr/local/pgsql/data/postgresql.conf
+fi
+
+# If /usr/local/pgsql/config/pg_hba.conf exists, remove it
+# Then cp pg_hba.conf from /usr/local/pgsql/config to /usr/local/pgsql/data
+if [ -f "/usr/local/pgsql/config/pg_hba.conf" ]; then
+    rm -f /usr/local/pgsql/data/pg_hba.conf
+    cp /usr/local/pgsql/config/pg_hba.conf /usr/local/pgsql/data/pg_hba.conf
+    chown postgres:postgres /usr/local/pgsql/data/pg_hba.conf
+    chmod 644 /usr/local/pgsql/data/pg_hba.conf
+fi
+
 # Create /var/lib/pgbackrest if it doesn't exist
 if [ ! -d "/var/lib/pgbackrest" ]; then
     mkdir -p /var/lib/pgbackrest
