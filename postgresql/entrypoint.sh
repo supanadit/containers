@@ -131,7 +131,7 @@ if ! grep -q "^archive_mode = on" /usr/local/pgsql/data/postgresql.conf; then
     {
         echo "archive_mode = on"
         echo "archive_command = 'pgbackrest --stanza=default archive-push %p'"
-    } >> /etc/pgbackrest.conf
+    } >> /usr/local/pgsql/data/postgresql.conf
 fi
 
 if [ "$SLEEP_MODE" = "true" ]; then
