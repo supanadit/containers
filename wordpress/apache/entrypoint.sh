@@ -104,8 +104,8 @@ else
     fi
 fi
 
-# If IS_HTTPS is true, and IS_STATELESS is true it will create a .htaccess file to redirect HTTP to HTTPS
-if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
+# If IS_HTTPS is true it will create a .htaccess file to redirect HTTP to HTTPS
+if [ "$IS_HTTPS" = "true" ] then
     # if [ ! -f /var/www/html/.htaccess ]; then
     #     echo "RewriteEngine On" > /var/www/html/.htaccess
     #     echo "RewriteCond %{HTTPS} !=on" >> /var/www/html/.htaccess
@@ -125,6 +125,11 @@ if [ "$IS_HTTPS" = "true" ] && [ "$IS_STATELESS" = "true" ]; then
         }
         {print}
         " /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
+    fi
+else
+    # Remove HTTPS config from wp-config.php if it exists
+    if grep -q "isset( \$_SERVER['HTTP_X_FORWARDED_PROTO'] )" /var/www/html/wp-config.php; then
+        sed -i "/if ( isset( \$_SERVER\['HTTP_X_FORWARDED_PROTO'\] ) && 'https' == \$_SERVER\['HTTP_X_FORWARDED_PROTO'\] ) {/,/}/d" /var/www/html/wp-config.php
     fi
 fi
 
