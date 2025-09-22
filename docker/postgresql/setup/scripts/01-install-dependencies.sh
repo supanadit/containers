@@ -27,6 +27,7 @@ apt-get update -y && apt-get install -y \
     libssh2-1-dev \
     libcurl4-openssl-dev \
     libffi-dev \
-    procps
+    procps \
+    gosu
 
 echo "=== Dependencies installed successfully ==="

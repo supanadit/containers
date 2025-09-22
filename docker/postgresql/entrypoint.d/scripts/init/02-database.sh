@@ -88,7 +88,7 @@ initialize_cluster() {
 
     log_debug "Running initdb with args: ${initdb_args[*]}"
 
-    # Execute initdb
+    # Execute initdb as postgres user
     if ! su -c "$initdb_cmd ${initdb_args[*]}" postgres; then
         log_error "Failed to initialize PostgreSQL cluster"
         return 1

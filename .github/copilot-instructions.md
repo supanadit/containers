@@ -7,6 +7,8 @@ Auto-generated from all feature plans. Last updated: 2025-09-22
 - PostgreSQL 13.5, Patroni v3.0.2, pgBackRest 2.56.0, Citus 11.3.1, pg_stat_monitor 2.2.0
 - Docker containerization
 - Linux environment
+- Bash 5.1 (scripts), Dockerfile + PostgreSQL 13.5, Patroni v3.0.2, pgBackRest 2.56.0, Citus 11.3.1, pg_stat_monitor 2.2.0, decoderbufs (002-reduce-build-time)
+- PostgreSQL database (002-reduce-build-time)
 
 ## Project Structure
 ```
@@ -87,6 +89,7 @@ docker run --rm postgres-container /opt/container/scripts/test/run_tests.sh
 Shell scripting: Follow POSIX standards, use `set -e` for error handling, document functions, use structured logging, validate inputs, handle errors gracefully, maintain security best practices.
 
 ## Recent Changes
+- 002-reduce-build-time: Added Bash 5.1 (scripts), Dockerfile + PostgreSQL 13.5, Patroni v3.0.2, pgBackRest 2.56.0, Citus 11.3.1, pg_stat_monitor 2.2.0, decoderbufs
 - 001-enhance-existing-postgresql: Split monolithic entrypoint.sh into modular, maintainable scripts while adding comprehensive testing coverage
 
 <!-- MANUAL ADDITIONS START -->
