@@ -14,17 +14,27 @@ ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
 
+# Copy entrypoint scripts
+COPY entrypoint.d/ /opt/container/entrypoint.d/
+
 # Run the complete setup in a single layer
 RUN chmod +x /opt/setup.sh && \
     /opt/setup.sh && \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
-ENV PATH="/usr/local/pgsql/bin:$PATH"
+# Install BATS testing framework
+RUN /opt/container/entrypoint.d/scripts/test/bats/install_bats.sh && \
+    rm -rf /tmp/bats-*
 
-# Copy entrypoint script
-COPY entrypoint.sh /entrypoint.sh
+ENV PATH="/usr/local/pgsql/bin:/opt/bats/bin:$PATH"
+
+# Copy main entrypoint script
+COPY entrypoint.d/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Make all entrypoint scripts executable
+RUN find /opt/container/entrypoint.d/ -name "*.sh" -exec chmod +x {} \;
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM

@@ -42,39 +42,39 @@
 - **Tests**: `containers/docker/postgresql/entrypoint.d/scripts/test/` for container tests
 
 ## Phase 3.1: Setup
-- [ ] T001 Create entrypoint.d/scripts directory structure in containers/docker/postgresql/
-- [ ] T002 [P] Create utils/ subdirectory and template files
-- [ ] T003 [P] Create init/ subdirectory and template files
-- [ ] T004 [P] Create runtime/ subdirectory and template files
-- [ ] T005 [P] Create test/ subdirectory and template files
+- [x] T001 Create entrypoint.d/scripts directory structure in containers/docker/postgresql/
+- [x] T002 [P] Create utils/ subdirectory and template files
+- [x] T003 [P] Create init/ subdirectory and template files
+- [x] T004 [P] Create runtime/ subdirectory and template files
+- [x] T005 [P] Create test/ subdirectory and template files
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T006 [P] Contract test for script interfaces in containers/docker/postgresql/entrypoint.d/scripts/test/unit/test_script_interfaces.bats
-- [ ] T007 [P] Contract test for configuration management in containers/docker/postgresql/entrypoint.d/scripts/test/unit/test_config_management.bats
-- [ ] T008 [P] Integration test for container startup scenarios in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_startup.bats
-- [ ] T009 [P] Integration test for graceful shutdown in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_shutdown.bats
-- [ ] T010 [P] Integration test for configuration handling in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_config.bats
-- [ ] T011 [P] Integration test for Patroni mode in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_patroni.bats
+- [x] T006 [P] Contract test for script interfaces in containers/docker/postgresql/entrypoint.d/scripts/test/unit/test_script_interfaces.bats
+- [x] T007 [P] Contract test for configuration management in containers/docker/postgresql/entrypoint.d/scripts/test/unit/test_config_management.bats
+- [x] T008 [P] Integration test for container startup scenarios in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_startup.bats
+- [x] T009 [P] Integration test for graceful shutdown in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_shutdown.bats
+- [x] T010 [P] Integration test for configuration handling in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_config.bats
+- [x] T011 [P] Integration test for Patroni mode in containers/docker/postgresql/entrypoint.d/scripts/test/integration/test_patroni.bats
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
-- [ ] T012 [P] Implement logging.sh utility in containers/docker/postgresql/entrypoint.d/scripts/utils/logging.sh
-- [ ] T013 [P] Implement validation.sh utility in containers/docker/postgresql/entrypoint.d/scripts/utils/validation.sh
-- [ ] T014 [P] Implement security.sh utility in containers/docker/postgresql/entrypoint.d/scripts/utils/security.sh
-- [ ] T015 [P] Implement 01-directories.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/01-directories.sh
-- [ ] T016 [P] Implement 02-database.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/02-database.sh
-- [ ] T017 [P] Implement 03-config.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/03-config.sh
-- [ ] T018 [P] Implement 04-backup.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/04-backup.sh
-- [ ] T019 [P] Implement startup.sh runtime script in containers/docker/postgresql/entrypoint.d/scripts/runtime/startup.sh
-- [ ] T020 [P] Implement shutdown.sh runtime script in containers/docker/postgresql/entrypoint.d/scripts/runtime/shutdown.sh
-- [ ] T021 [P] Implement healthcheck.sh runtime script in containers/docker/postgresql/entrypoint.d/scripts/runtime/healthcheck.sh
+- [x] T012 [P] Implement logging.sh utility in containers/docker/postgresql/entrypoint.d/scripts/utils/logging.sh
+- [x] T013 [P] Implement validation.sh utility in containers/docker/postgresql/entrypoint.d/scripts/utils/validation.sh
+- [x] T014 [P] Implement security.sh utility in containers/docker/postgresql/entrypoint.d/scripts/utils/security.sh
+- [x] T015 [P] Implement 01-directories.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/01-directories.sh
+- [x] T016 [P] Implement 02-database.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/02-database.sh
+- [x] T017 [P] Implement 03-config.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/03-config.sh
+- [x] T018 [P] Implement 04-backup.sh init script in containers/docker/postgresql/entrypoint.d/scripts/init/04-backup.sh
+- [x] T019 [P] Implement startup.sh runtime script in containers/docker/postgresql/entrypoint.d/scripts/runtime/startup.sh
+- [x] T020 [P] Implement shutdown.sh runtime script in containers/docker/postgresql/entrypoint.d/scripts/runtime/shutdown.sh
+- [x] T021 [P] Implement healthcheck.sh runtime script in containers/docker/postgresql/entrypoint.d/scripts/runtime/healthcheck.sh
 
 ## Phase 3.4: Integration
-- [ ] T022 Create main entrypoint.sh orchestrator in containers/docker/postgresql/entrypoint.d/entrypoint.sh
-- [ ] T023 Integrate modular scripts with existing setup.sh build process
-- [ ] T024 Update Dockerfile to use new entrypoint.d structure
-- [ ] T025 Test backward compatibility with existing container behavior
-- [ ] T026 Validate configuration file handling across all scenarios
+- [x] T022 Create main entrypoint.sh orchestrator in containers/docker/postgresql/entrypoint.d/entrypoint.sh
+- [x] T023 Integrate modular scripts with existing setup.sh build process
+- [x] T024 Update Dockerfile to use new entrypoint.d structure
+- [x] T025 Test backward compatibility with existing container behavior
+- [x] T026 Validate configuration file handling across all scenarios
 
 ## Phase 3.5: Polish
 - [ ] T027 [P] Create run_tests.sh test runner in containers/docker/postgresql/entrypoint.d/scripts/test/run_tests.sh
