@@ -81,7 +81,6 @@ select_startup_mode() {
     fi
 
     # Default to direct PostgreSQL startup
-    log_info "Starting PostgreSQL directly"
     start_postgresql_direct
     return $?
 }
