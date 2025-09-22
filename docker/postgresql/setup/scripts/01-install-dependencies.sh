@@ -26,6 +26,7 @@ apt-get update -y && apt-get install -y \
     libyaml-dev \
     libssh2-1-dev \
     libcurl4-openssl-dev \
-    libffi-dev
+    libffi-dev \
+    procps
 
 echo "=== Dependencies installed successfully ==="
