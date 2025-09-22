@@ -8,7 +8,7 @@
 1. Load feature spec from Input path
    → If not found: ERROR "No feature spec at {path}"
 2. Fill Technical Context (scan for NEEDS CLARIFICATION)
-   → Detect Project Type from context (web=frontend+backend, mobile=app+api)
+   → Detect Project Type from context (single=one container, multi=multiple containers)
    → Set Structure Decision based on project type
 3. Fill the Constitution Check section based on the content of the constitution document.
 4. Evaluate Constitution Check section below
@@ -33,15 +33,15 @@
 [Extract from feature spec: primary requirement + technical approach from research]
 
 ## Technical Context
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: [e.g., Bash 5.1, Python 3.11, Go 1.21 or NEEDS CLARIFICATION]  
+**Primary Dependencies**: [e.g., PostgreSQL 13.5, Patroni, Prometheus or NEEDS CLARIFICATION]  
+**Storage**: [if applicable, e.g., PostgreSQL, etcd, files or N/A]  
+**Testing**: [e.g., BATS, pytest, shellcheck or NEEDS CLARIFICATION]  
+**Target Platform**: [e.g., Linux x86_64, ARM64, multi-arch or NEEDS CLARIFICATION]
+**Project Type**: [single/multi-container - determines source structure]  
+**Performance Goals**: [container-specific, e.g., <30s startup, <500MB image, <100ms health check or NEEDS CLARIFICATION]  
+**Constraints**: [container-specific, e.g., <1GB RAM, <10GB disk, security compliance or NEEDS CLARIFICATION]  
+**Scale/Scope**: [container-specific, e.g., 100 concurrent, 5 services, HA deployment or NEEDS CLARIFICATION]
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
@@ -51,6 +51,7 @@
 **User Experience Consistency**: Does the design maintain consistent interfaces and configuration patterns?
 **Security First**: Are security measures (non-root, secure defaults, secrets management) addressed?
 **Performance Optimization**: Are performance goals defined and optimization strategies planned?
+**Build Efficiency**: Does the plan optimize Docker layer caching and avoid unnecessary rebuilds?
 
 ## Project Structure
 
@@ -67,42 +68,35 @@ specs/[###-feature]/
 
 ### Source Code (repository root)
 ```
-# Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+# Option 1: Single container (DEFAULT)
+docker/
+├── Dockerfile
+├── entrypoint.sh
+├── setup.sh
+├── setup/
+│   └── scripts/
+├── entrypoint.d/
+│   └── scripts/
+└── config/
 
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure]
+# Option 2: Multi-container project (when multiple containers detected)
+docker/
+├── container1/
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   ├── setup.sh
+│   ├── setup/
+│   │   └── scripts/
+│   ├── entrypoint.d/
+│   │   └── scripts/
+│   └── config/
+├── container2/
+│   └── [same structure as container1]
+└── shared/
+    └── scripts/
 ```
 
-**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates web/mobile app]
+**Structure Decision**: [DEFAULT to Option 1 unless multiple containers detected]
 
 ## Phase 0: Outline & Research
 1. **Extract unknowns from Technical Context** above:

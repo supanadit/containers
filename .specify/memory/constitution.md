@@ -1,9 +1,10 @@
 <!--
-Sync Impact Report - Constitution v1.0.0 (2025-09-22)
-Version change: N/A → 1.0.0 (initial creation)
-Added principles: I. Code Quality Standards, II. Comprehensive Testing, III. User Experience Consistency, IV. Security First, V. Performance Optimization
-Added sections: Technical Standards, Quality Assurance
-Templates requiring updates: ✅ .specify/templates/plan-template.md (constitution check gates and version reference)
+Sync Impact Report - Constitution v1.1.0 (2025-09-22)
+Version change: 1.0.0 → 1.1.0 (minor: new principle added)
+Added principles: VI. Build Efficiency
+Added sections: None
+Removed sections: None
+Templates requiring updates: ✅ .specify/templates/plan-template.md (added constitution check for new principle)
 Follow-up TODOs: None - all placeholders resolved
 -->
 
@@ -25,6 +26,9 @@ Security is non-negotiable. All containers must implement secure defaults, run a
 
 ### V. Performance Optimization
 Container images must be optimized for size, startup time, and resource usage. Multi-stage builds must minimize final image size. Performance benchmarks must be established for CPU, memory, and I/O usage. Startup time targets must be defined and monitored for each container type.
+
+### VI. Build Efficiency
+Entrypoint scripts and configuration files must be copied early in Dockerfiles to leverage layer caching. Changes to entrypoints must not trigger full rebuilds of dependency layers. Build contexts must be optimized to exclude unnecessary files. Multi-stage builds must separate frequently changing layers from stable dependency layers.
 
 ## Technical Standards
 
@@ -66,4 +70,4 @@ Constitution supersedes all other practices. Amendments require:
 
 All container development must verify compliance with these principles. Complexity must be justified and alternatives considered. Use this constitution as the foundation for all container design and implementation decisions.
 
-**Version**: 1.0.0 | **Ratified**: 2025-09-22 | **Last Amended**: 2025-09-22
+**Version**: 1.1.0 | **Ratified**: 2025-09-22 | **Last Amended**: 2025-09-22
