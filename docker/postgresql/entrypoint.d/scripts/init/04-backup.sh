@@ -103,7 +103,6 @@ enable_archiving() {
     apply_postgres_setting "wal_level" "replica"
     apply_postgres_setting "max_wal_senders" "${PATRONI_MAX_WAL_SENDERS:-10}"
     apply_postgres_setting "max_replication_slots" "${PATRONI_MAX_REPLICATION_SLOTS:-10}"
-    apply_postgres_setting "wal_keep_segments" "${PATRONI_WAL_KEEP_SEGMENTS:-8}"
 
     log_info "WAL archiving enabled in postgresql.conf"
 }
@@ -122,13 +121,26 @@ apply_postgres_setting() {
 
     log_debug "Applying PostgreSQL setting: $setting = $value"
 
-    # Use sed to replace or add the setting
+    # Determine formatting based on value type
+    local formatted_value
+    if [[ "$value" =~ ^[0-9]+$ ]]; then
+        # Pure numbers - unquoted
+        formatted_value="$value"
+    elif [[ "$value" =~ ^(on|off|true|false|replica|minimal|archive|hot_standby)$ ]]; then
+        # Known PostgreSQL keywords - unquoted
+        formatted_value="$value"
+    else
+        # Everything else (strings, time values, etc.) - quoted
+        formatted_value="'$value'"
+    fi
+
+    # Check if setting already exists
     if grep -q "^[[:space:]]*${setting}[[:space:]]*=" "$config_file"; then
         # Replace existing setting
-        sed -i "s|^[[:space:]]*${setting}[[:space:]]*=.*|${setting} = ${value}|" "$config_file"
+        sed -i "s|^[[:space:]]*${setting}[[:space:]]*=.*|${setting} = ${formatted_value}|" "$config_file"
     else
         # Add new setting
-        echo "${setting} = ${value}" >> "$config_file"
+        echo "${setting} = ${formatted_value}" >> "$config_file"
     fi
 }
 
