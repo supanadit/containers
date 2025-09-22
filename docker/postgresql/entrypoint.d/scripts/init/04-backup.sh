@@ -56,6 +56,7 @@ repo1-retention-diff=6
 log-level-console=info
 log-level-file=debug
 log-path=${backup_dir}/log
+lock-path=${backup_dir}/lock
 
 [${PGBACKREST_STANZA:-default}]
 pg1-path=${data_dir}
@@ -73,12 +74,21 @@ EOF
 
     log_info "Created pgBackRest configuration: $config_file"
 
-    # Create stanza directory structure
-    local stanza_dir="$backup_dir/archive/${PGBACKREST_STANZA:-default}"
-    mkdir -p "$stanza_dir"
-    set_secure_permissions "$stanza_dir"
+    # Create pgBackRest repository directory structure
+    local backup_subdir="$backup_dir/backup/${PGBACKREST_STANZA:-default}"
+    local archive_subdir="$backup_dir/archive/${PGBACKREST_STANZA:-default}"
+    local spool_subdir="$backup_dir/spool"
+    local log_subdir="$backup_dir/log"
+    local lock_subdir="$backup_dir/lock"
 
-    log_debug "Created stanza directory: $stanza_dir"
+    mkdir -p "$backup_subdir" "$archive_subdir" "$spool_subdir" "$log_subdir" "$lock_subdir"
+    set_secure_permissions "$backup_subdir"
+    set_secure_permissions "$archive_subdir"
+    set_secure_permissions "$spool_subdir"
+    set_secure_permissions "$log_subdir"
+    set_secure_permissions "$lock_subdir"
+
+    log_debug "Created pgBackRest repository directories: backup, archive, spool, log, lock"
 }
 
 # Enable WAL archiving in postgresql.conf

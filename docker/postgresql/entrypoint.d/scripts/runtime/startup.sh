@@ -128,6 +128,11 @@ start_postgresql_direct() {
     # Wait for PostgreSQL to be ready
     wait_for_postgresql_ready
 
+    # Initialize pgBackRest stanza if backup is enabled
+    if [ "${BACKUP_ENABLED:-false}" = "true" ]; then
+        initialize_pgbackrest_stanza
+    fi
+
     # Log successful startup
     log_info "PostgreSQL is ready and accepting connections"
 
@@ -170,6 +175,11 @@ start_patroni() {
 
     # Wait for Patroni to be ready (it will start PostgreSQL)
     wait_for_postgresql_ready
+
+    # Initialize pgBackRest stanza if backup is enabled
+    if [ "${BACKUP_ENABLED:-false}" = "true" ]; then
+        initialize_pgbackrest_stanza
+    fi
 
     # Log successful startup
     log_info "Patroni and PostgreSQL are ready"
@@ -223,6 +233,29 @@ wait_for_postgresql_ready() {
 
     log_error "PostgreSQL failed to become ready after $max_attempts attempts"
     return 1
+}
+
+# Initialize pgBackRest stanza
+initialize_pgbackrest_stanza() {
+    log_info "Initializing pgBackRest stanza"
+
+    local stanza="${PGBACKREST_STANZA:-default}"
+    local backup_info_file="/usr/local/pgsql/backup/backup/${stanza}/backup.info"
+
+    # Check if stanza backup info already exists
+    if [ -f "$backup_info_file" ]; then
+        log_info "pgBackRest stanza '$stanza' backup info already exists"
+        return 0
+    fi
+
+    # Create the stanza as postgres user
+    log_info "Creating pgBackRest stanza: $stanza"
+    if ! su -c "pgbackrest --stanza=\"$stanza\" stanza-create" postgres; then
+        log_error "Failed to create pgBackRest stanza: $stanza"
+        return 1
+    fi
+
+    log_info "Successfully created pgBackRest stanza: $stanza"
 }
 
 # Execute main function

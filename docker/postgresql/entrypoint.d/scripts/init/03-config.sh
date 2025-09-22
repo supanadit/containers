@@ -57,6 +57,9 @@ backup_original_configs() {
 
         if [ -f "$source_file" ] && [ ! -f "$backup_file" ]; then
             cp "$source_file" "$backup_file"
+            # Set permissions so postgres can read the backup files
+            chown postgres:postgres "$backup_file"
+            chmod 644 "$backup_file"
             log_debug "Backed up $file to $file.original"
         elif [ -f "$backup_file" ]; then
             log_debug "Backup already exists for $file"
