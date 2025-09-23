@@ -25,7 +25,6 @@ FROM base AS setup
 # Copy setup scripts and configuration (stable files that change infrequently)
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
-COPY config/ /opt/container/config/
 
 # Run the complete setup in a single layer with BuildKit cache mounts
 RUN --mount=type=cache,target=/var/cache/apt \
