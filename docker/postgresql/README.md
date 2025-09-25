@@ -96,13 +96,6 @@ containers/docker/postgresql/
 │       │   ├── startup.sh        # Process startup logic
 │       │   ├── shutdown.sh       # Graceful shutdown
 │       │   └── healthcheck.sh    # Health monitoring
-│       └── test/                # Testing infrastructure
-│           ├── run_tests.sh      # Test execution script
-│           ├── bats/            # BATS testing framework
-│           ├── unit/            # Unit tests
-│           ├── integration/     # Integration tests
-│           ├── performance/     # Performance tests
-│           └── fixtures/        # Test data and mocks
 ```
 
 ## Build Optimization

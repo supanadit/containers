@@ -37,7 +37,6 @@
 - Include exact file paths in descriptions
 
 ## Path Conventions
-- **Single container**: `docker/` with Dockerfile, entrypoint.sh, setup scripts
 - **Multi-container**: `docker/container1/`, `docker/container2/`, etc.
 - **Shared scripts**: `docker/shared/` for common utilities
 - Paths shown below assume single container - adjust based on plan.md structure
@@ -56,10 +55,10 @@
 - [ ] T009 Logging and monitoring setup
 
 ## Phase 3.3: Tests
-- [ ] T010 [P] Container build test in docker/test/build_test.sh
-- [ ] T011 [P] Entrypoint functionality test in docker/test/entrypoint_test.sh
-- [ ] T012 [P] Health check validation test in docker/test/health_test.sh
-- [ ] T013 [P] Security scan test in docker/test/security_test.sh
+- [ ] T010 [P] Container build test in <container>/test/build_test.sh
+- [ ] T011 [P] Entrypoint functionality test in <container>/test/entrypoint_test.sh
+- [ ] T012 [P] Health check validation test in <container>/test/health_test.sh
+- [ ] T013 [P] Security scan test in <container>/test/security_test.sh
 
 ## Phase 3.4: Integration
 - [ ] T014 Multi-stage build optimization
@@ -84,9 +83,9 @@
 ## Parallel Example
 ```
 # Launch T004-T006 together:
-Task: "Dockerfile creation in docker/Dockerfile"
-Task: "Entrypoint script in docker/entrypoint.sh"
-Task: "Setup scripts in docker/setup.sh and docker/setup/scripts/"
+Task: "Dockerfile creation in <container>/Dockerfile"
+Task: "Entrypoint script in <container>/entrypoint.sh"
+Task: "Setup scripts in <container>/setup.sh and <container>/setup/scripts/"
 ```
 
 ## Notes
