@@ -135,7 +135,6 @@ docker/
 3. **Generate contract tests** from contracts:
    - One test file per endpoint
    - Assert request/response schemas
-   - Tests must fail (no implementation yet)
 
 4. **Extract test scenarios** from user stories:
    - Each story → integration test scenario
@@ -150,7 +149,7 @@ docker/
    - Keep under 150 lines for token efficiency
    - Output to repository root
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file
+**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
 
 ## Phase 2: Task Planning Approach
 *This section describes what the /tasks command will do - DO NOT execute during /plan*
@@ -158,13 +157,13 @@ docker/
 **Task Generation Strategy**:
 - Load `.specify/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
-- Each contract → contract test task [P]
 - Each entity → model creation task [P] 
+- Each contract → implementation task
+- Each contract → contract test task [P]
 - Each user story → integration test task
-- Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
+- Implementation first: Implementation tasks before test tasks
 - Dependency order: Models before services before UI
 - Mark [P] for parallel execution (independent files)
 
