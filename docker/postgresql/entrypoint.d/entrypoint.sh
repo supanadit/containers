@@ -13,6 +13,19 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 # Script version
 SCRIPT_VERSION="1.0.0"
 
+# Default directories
+export DEFAULT_PGDATA="${DEFAULT_PGDATA:-/usr/local/pgsql/data}"
+export DEFAULT_PGCONFIG="${DEFAULT_PGCONFIG:-/usr/local/pgsql/config}"
+export DEFAULT_PGLOG="${DEFAULT_PGLOG:-/usr/local/pgsql/log}"
+export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/usr/local/pgsql/run}"
+export DEFAULT_PGBACKUP="${DEFAULT_PGBACKUP:-/usr/local/pgsql/backup}"
+
+export POSTGRES_USER="${POSTGRES_USER:-postgres}"
+export POSTGRES_DB="${POSTGRES_DB:-postgres}"
+export POSTGRES_INITDB_ARGS="${POSTGRES_INITDB_ARGS:-}"
+export POSTGRES_INITDB_WALDIR="${POSTGRES_INITDB_WALDIR:-}"
+export POSTGRES_HOST_AUTH_METHOD="${POSTGRES_HOST_AUTH_METHOD:-trust}"
+
 # Main function
 main() {
     log_script_start "entrypoint.sh v$SCRIPT_VERSION"

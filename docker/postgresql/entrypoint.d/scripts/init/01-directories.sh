@@ -10,13 +10,6 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
-# Default directories
-DEFAULT_PGDATA="/usr/local/pgsql/data"
-DEFAULT_PGCONFIG="/usr/local/pgsql/config"
-DEFAULT_PGLOG="/usr/local/pgsql/log"
-DEFAULT_PGRUN="/usr/local/pgsql/run"
-DEFAULT_PGBACKUP="/usr/local/pgsql/backup"
-
 # Main function
 main() {
     log_script_start "01-directories.sh"
