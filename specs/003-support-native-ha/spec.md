@@ -7,6 +7,11 @@
 
 ---
 
+## Clarifications
+
+### Session 2025-09-25
+- Q: How should a replica container discover the primary's network address in native HA mode? → A: Use a `PRIMARY_HOST` environment variable to specify the primary's hostname or IP address.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### Primary User Story
@@ -14,7 +19,7 @@ As a database administrator, I want to run the PostgreSQL container in a high-av
 
 ### Acceptance Scenarios
 1. **Given** a user wants to run a primary instance with native HA, **When** they start a container with `HA_MODE=native` and `REPLICATION_ROLE=primary`, **Then** the container MUST start successfully as a primary PostgreSQL server configured for streaming replication.
-2. **Given** a primary instance is running in native HA mode, **When** a user starts a second container with `HA_MODE=native`, `REPLICATION_ROLE=replica`, and configuration pointing to the primary, **Then** the container MUST start as a replica, connect to the primary, and begin replication.
+2. **Given** a primary instance is running in native HA mode, **When** a user starts a second container with `HA_MODE=native`, `REPLICATION_ROLE=replica`, and the `PRIMARY_HOST` environment variable pointing to the primary, **Then** the container MUST start as a replica, connect to the primary, and begin replication.
 3. **Given** a user has a running native HA cluster, **When** they restart the containers with `USE_PATRONI=true` and remove the native HA variables, **Then** the system MUST reconfigure itself to operate under Patroni's management.
 4. **Given** a user has a running native HA cluster, **When** they restart the containers without any HA-related environment variables, **Then** the containers MUST start as independent, standalone PostgreSQL instances.
 
@@ -35,7 +40,7 @@ As a database administrator, I want to run the PostgreSQL container in a high-av
 - **FR-004**: The system MUST enforce that native HA and Patroni are mutually exclusive. If `HA_MODE=native` and `USE_PATRONI=true` are both set, the container MUST fail validation and exit with an error.
 - **FR-005**: The system MUST enforce that native HA and Citus are mutually exclusive. If `HA_MODE=native` and `USE_CITUS=true` are both set, the container MUST fail validation and exit with an error.
 - **FR-006**: The system MUST allow a seamless transition between HA methods (native, Patroni) and a standalone mode, configurable via environment variables upon container restart.
-- **FR-007**: Replica instances in native HA mode MUST be configurable to find and connect to the primary instance. [NEEDS CLARIFICATION: How will the replica discover the primary's address? Recommend using a `PRIMARY_HOST` environment variable.]
+- **FR-007**: Replica instances in native HA mode MUST be configurable to find and connect to the primary instance using a `PRIMARY_HOST` environment variable.
 - **FR-008**: If `HA_MODE` is `native` and `REPLICATION_ROLE` is not set or has an invalid value, the container MUST fail validation and exit with an error.
 
 ---
