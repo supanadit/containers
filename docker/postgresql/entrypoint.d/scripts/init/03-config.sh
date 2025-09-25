@@ -32,6 +32,9 @@ main() {
     # Apply environment variable overrides
     apply_environment_overrides
 
+    # Apply native HA configuration
+    apply_native_ha_config
+
     # Validate final configurations
     validate_final_configs
 
@@ -232,26 +235,41 @@ apply_postgres_setting() {
 
     log_debug "Applying PostgreSQL setting: $setting = $value"
 
+    # Remove any existing occurrences (commented or uncommented)
+    sed -i -E "/^[[:space:]]*#?[[:space:]]*${setting}[[:space:]]*=.*/d" "$config_file"
+
     # Determine formatting based on value type
     local formatted_value
     if [[ "$value" =~ ^[0-9]+$ ]]; then
-        # Pure numbers - unquoted
         formatted_value="$value"
     elif [[ "$value" =~ ^(on|off|true|false|replica|minimal|archive|hot_standby)$ ]]; then
-        # Known PostgreSQL keywords - unquoted
+        formatted_value="$value"
+    elif [[ "$value" =~ ^[0-9]+(kB|MB|GB|TB|ms|s|min|h|d)$ ]]; then
         formatted_value="$value"
     else
-        # Everything else (strings, time values, etc.) - quoted
-        formatted_value="'$value'"
+        printf -v formatted_value "'%s'" "$value"
     fi
 
-    # Check if setting already exists
-    if grep -q "^[[:space:]]*${setting}[[:space:]]*=" "$config_file"; then
-        # Replace existing setting
-        sed -i "s|^[[:space:]]*${setting}[[:space:]]*=.*|${setting} = ${formatted_value}|" "$config_file"
-    else
-        # Add new setting
-        echo "${setting} = ${formatted_value}" >> "$config_file"
+    echo "${setting} = ${formatted_value}" >> "$config_file"
+}
+
+# Apply native HA configuration
+apply_native_ha_config() {
+    if [[ "${HA_MODE:-}" == "native" ]]; then
+        log_info "Applying native HA configuration"
+        apply_postgres_setting "listen_addresses" "*"
+        apply_postgres_setting "wal_level" "replica"
+        apply_postgres_setting "max_wal_senders" "10"
+        apply_postgres_setting "wal_keep_size" "256MB"
+        apply_postgres_setting "hot_standby" "on"
+
+        if [[ "${REPLICATION_ROLE:-}" == "primary" ]]; then
+            local hba_file="${PGDATA:-/usr/local/pgsql/data}/pg_hba.conf"
+            local replication_user="${REPLICATION_USER:-replicator}"
+            if ! grep -q "host replication $replication_user" "$hba_file"; then
+                echo "host replication $replication_user 0.0.0.0/0 scram-sha-256" >> "$hba_file"
+            fi
+        fi
     fi
 }
 

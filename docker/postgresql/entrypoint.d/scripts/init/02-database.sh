@@ -26,6 +26,12 @@ main() {
         return 0
     fi
 
+    # Handle native HA replica setup
+    if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "replica" ]]; then
+        clone_primary
+        return 0
+    fi
+
     # Initialize the cluster
     initialize_cluster
 
@@ -53,6 +59,45 @@ check_cluster_exists() {
 
     log_debug "No cluster files found, cluster does not exist"
     return 1
+}
+
+# Clone primary for native HA replica
+clone_primary() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+
+    log_info "Cloning primary database for replica setup..."
+
+    # Ensure data directory is empty
+    if [ -n "$(ls -A "$data_dir")" ]; then
+        log_error "Data directory is not empty. Cannot clone primary."
+        return 1
+    fi
+
+    # Set PGPASSWORD for pg_basebackup
+    export PGPASSWORD="${REPLICATION_PASSWORD}"
+
+    local backup_cmd="pg_basebackup"
+    local backup_args=(
+        -h "${PRIMARY_HOST}"
+        -p "${PRIMARY_PORT:-5432}"
+        -U "${REPLICATION_USER:-replicator}"
+        -D "$data_dir"
+        -Fp  # Plain format
+        -Xs  # Stream WAL content
+        -R   # Create standby.signal and write connection to postgresql.auto.conf
+    )
+
+    log_debug "Running pg_basebackup with args: ${backup_args[*]}"
+
+    if ! su -c "$backup_cmd ${backup_args[*]}" postgres; then
+        log_error "Failed to clone primary database."
+        # Clean up failed backup attempt
+        rm -rf "$data_dir"/*
+        return 1
+    fi
+
+    unset PGPASSWORD
+    log_info "Successfully cloned primary database."
 }
 
 # Initialize PostgreSQL cluster
@@ -182,6 +227,9 @@ EOF
 
     log_info "Cluster integrity verification completed successfully"
 }
+
+# Export functions for use by other scripts
+export -f clone_primary
 
 # Execute main function
 main "$@"

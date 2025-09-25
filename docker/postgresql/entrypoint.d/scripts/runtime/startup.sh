@@ -127,6 +127,11 @@ start_postgresql_direct() {
     # Wait for PostgreSQL to be ready
     wait_for_postgresql_ready
 
+    # Create replication user if in native HA primary mode
+    if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "primary" ]]; then
+        create_replication_user
+    fi
+
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${BACKUP_ENABLED:-false}" = "true" ]; then
         initialize_pgbackrest_stanza
@@ -255,6 +260,30 @@ initialize_pgbackrest_stanza() {
     fi
 
     log_info "Successfully created pgBackRest stanza: $stanza"
+}
+
+# Create replication user for native HA
+create_replication_user() {
+    log_info "Creating replication user for native HA"
+    
+    # Wait a moment for PostgreSQL to be fully ready
+    sleep 2
+
+    if [[ -z "${REPLICATION_PASSWORD:-}" ]]; then
+        log_error "REPLICATION_PASSWORD must be set when HA_MODE=native and REPLICATION_ROLE=primary"
+        return 1
+    fi
+
+    local role_name="${REPLICATION_USER:-replicator}"
+    local escaped_role_name="${role_name//\'/''}"
+    local escaped_password="${REPLICATION_PASSWORD//\'/''}"
+
+    local sql
+    printf -v sql "SET password_encryption = 'scram-sha-256'; DO \$do\$ BEGIN BEGIN EXECUTE format('ALTER ROLE %%I WITH LOGIN REPLICATION PASSWORD %%L', '%s', '%s'); EXCEPTION WHEN UNDEFINED_OBJECT THEN EXECUTE format('CREATE ROLE %%I WITH LOGIN REPLICATION PASSWORD %%L', '%s', '%s'); END; END; \$do\$;" "$escaped_role_name" "$escaped_password" "$escaped_role_name" "$escaped_password"
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command "$sql"
+    
+    log_info "Replication user created successfully"
 }
 
 # Execute main function

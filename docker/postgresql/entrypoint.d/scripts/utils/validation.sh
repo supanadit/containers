@@ -138,6 +138,37 @@ validate_config_files() {
     return "$exit_code"
 }
 
+# Validate HA configuration
+validate_ha_configuration() {
+    local exit_code=0
+
+    log_debug "Validating HA configuration"
+
+    if [[ "${HA_MODE:-}" == "native" ]]; then
+        if [[ "${USE_PATRONI:-false}" == "true" ]]; then
+            log_error "HA_MODE=native cannot be used with USE_PATRONI=true"
+            exit_code=1
+        fi
+
+        if [[ "${USE_CITUS:-false}" == "true" ]]; then
+            log_error "HA_MODE=native cannot be used with USE_CITUS=true"
+            exit_code=1
+        fi
+
+        if [[ "${REPLICATION_ROLE:-}" != "primary" && "${REPLICATION_ROLE:-}" != "replica" ]]; then
+            log_error "Invalid REPLICATION_ROLE: ${REPLICATION_ROLE:-} (must be primary or replica)"
+            exit_code=1
+        fi
+
+        if [[ "${REPLICATION_ROLE:-}" == "replica" && -z "${PRIMARY_HOST:-}" ]]; then
+            log_error "PRIMARY_HOST must be set for replica role"
+            exit_code=1
+        fi
+    fi
+
+    return "$exit_code"
+}
+
 # Validate file and directory permissions
 validate_permissions() {
     local exit_code=0
@@ -310,6 +341,7 @@ validate_memory_value() {
 # Export functions for use by other scripts
 export -f validate_environment
 export -f validate_config_files
+export -f validate_ha_configuration
 export -f validate_permissions
 export -f validate_dependencies
 export -f validate_postgresql_conf

@@ -142,18 +142,20 @@ check_disk_space() {
 
     # Get disk usage for the data directory
     local mount_point
-    mount_point=$(df "$data_dir" | tail -1 | awk '{print $6}')
+    mount_point=$(df -P "$data_dir" | tail -1 | awk '{print $6}')
 
-    local free_percent
-    free_percent=$(df "$mount_point" | tail -1 | awk '{print $5}' | sed 's/%//')
+    local df_usage df_usage_mb used_percent free_percent free_mb
+    df_usage=$(df -P "$mount_point" | tail -1)
+    used_percent=$(awk '{print $5}' <<<"$df_usage" | tr -d '%')
+    free_percent=$((100 - used_percent))
 
-    local free_mb
-    free_mb=$(df -m "$mount_point" | tail -1 | awk '{print $4}')
+    df_usage_mb=$(df -Pm "$mount_point" | tail -1)
+    free_mb=$(awk '{print $4}' <<<"$df_usage_mb")
 
-    log_debug "Disk space check: $free_percent% free, ${free_mb}MB free on $mount_point"
+    log_debug "Disk space check: ${free_percent}% free, ${free_mb}MB free on $mount_point"
 
-    # Check thresholds
-    if [ "$free_percent" -lt "$min_free_percent" ] || [ "$free_mb" -lt "$min_free_mb" ]; then
+    # Check thresholds (fail only if both free percentage and free space fall below limits)
+    if [ "$free_percent" -lt "$min_free_percent" ] && [ "$free_mb" -lt "$min_free_mb" ]; then
         log_error "Low disk space: ${free_percent}% free, ${free_mb}MB free"
         return 1
     fi
@@ -192,9 +194,10 @@ check_process_health() {
 
     # Check memory usage (basic check)
     local memory_usage
-    memory_usage=$(ps aux --no-headers -o pmem -C postgres | awk '{sum+=$1} END {print sum}' 2>/dev/null || echo "0")
+    memory_usage=$(ps -C postgres -o pmem= 2>/dev/null | awk '{sum+=$1} END {if (NR==0) print 0; else print sum}')
+    memory_usage=${memory_usage:-0}
 
-    if [ "$(echo "$memory_usage > 90" | bc 2>/dev/null || echo "0")" = "1" ]; then
+    if awk "BEGIN { exit !($memory_usage > 90) }" 2>/dev/null; then
         log_error "High memory usage by PostgreSQL processes: ${memory_usage}%"
         return 1
     fi
