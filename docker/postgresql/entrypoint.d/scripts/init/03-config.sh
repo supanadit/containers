@@ -384,12 +384,12 @@ apply_external_access_config() {
         if ! grep -q "host    all             all             0.0.0.0/0" "$hba_file"; then
             echo "host    all             all             0.0.0.0/0               $method" >> "$hba_file"
         else
-            sed -i "s/host    all             all             0\.0\.0\.0\/0               .*/host    all             all             0.0.0.0/0               $method/" "$hba_file"
+            sed -i "s/host    all             all             0\.0\.0\.0\/0               .*/host    all             all             0.0.0.0\/0               $method/" "$hba_file"
         fi
         if ! grep -q "host    all             all             ::/0" "$hba_file"; then
             echo "host    all             all             ::/0                    $method" >> "$hba_file"
         else
-            sed -i "s/host    all             all             ::\/0                    .*/host    all             all             ::/0                    $method/" "$hba_file"
+            sed -i "s/host    all             all             ::\/0                    .*/host    all             all             ::\/0                    $method/" "$hba_file"
         fi
     else
         # Remove external access lines
