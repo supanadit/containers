@@ -234,6 +234,25 @@ Enabled with `BACKUP_ENABLED=true`:
 - Backup retention: 2 full, 6 differential
 - Archive command integration
 
+### External Access Configuration
+
+Control external connections to the PostgreSQL database:
+
+```bash
+# Enable external access (default)
+EXTERNAL_ACCESS_ENABLE=true
+
+# Disable external access
+EXTERNAL_ACCESS_ENABLE=false
+
+# Set authentication method (default: md5)
+EXTERNAL_ACCESS_METHOD=md5
+EXTERNAL_ACCESS_METHOD=password
+EXTERNAL_ACCESS_METHOD=scram-sha-256
+```
+
+**Security Note**: When enabled, connections from any IP address (0.0.0.0/0) are allowed. Ensure strong passwords and consider additional security measures for production use.
+
 ## Health Monitoring
 
 ### Health Check Endpoint

@@ -32,6 +32,9 @@ main() {
     # Apply environment variable overrides
     apply_environment_overrides
 
+    # Apply external access configuration
+    apply_external_access_config
+
     # Apply native HA configuration
     apply_native_ha_config
 
@@ -354,6 +357,47 @@ EOF
         log_error "Generated Patroni configuration is invalid"
         return 1
     fi
+}
+
+# Apply external access configuration
+apply_external_access_config() {
+    log_info "Applying external access configuration"
+
+    # Parse environment variables with defaults
+    local enable_external="${EXTERNAL_ACCESS_ENABLE:-true}"
+    local method="${EXTERNAL_ACCESS_METHOD:-md5}"
+
+    # Validate authentication method
+    case "$method" in
+        trust|reject|md5|password|scram-sha-256) ;;
+        *) 
+            log_warn "Invalid EXTERNAL_ACCESS_METHOD '$method', falling back to md5"
+            method="md5"
+            ;;
+    esac
+
+    # Update pg_hba.conf based on configuration
+    local hba_file="${PGDATA:-/usr/local/pgsql/data}/pg_hba.conf"
+
+    if [ "$enable_external" = "true" ]; then
+        # Ensure external access lines exist with correct method
+        if ! grep -q "host    all             all             0.0.0.0/0" "$hba_file"; then
+            echo "host    all             all             0.0.0.0/0               $method" >> "$hba_file"
+        else
+            sed -i "s/host    all             all             0\.0\.0\.0\/0               .*/host    all             all             0.0.0.0/0               $method/" "$hba_file"
+        fi
+        if ! grep -q "host    all             all             ::/0" "$hba_file"; then
+            echo "host    all             all             ::/0                    $method" >> "$hba_file"
+        else
+            sed -i "s/host    all             all             ::\/0                    .*/host    all             all             ::/0                    $method/" "$hba_file"
+        fi
+    else
+        # Remove external access lines
+        sed -i '/host    all             all             0\.0\.0\.0\/0/d' "$hba_file"
+        sed -i '/host    all             all             ::\/0/d' "$hba_file"
+    fi
+
+    log_info "External access configuration applied: enabled=$enable_external, method=$method"
 }
 
 # Execute main function
