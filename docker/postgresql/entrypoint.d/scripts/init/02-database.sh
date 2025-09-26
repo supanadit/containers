@@ -10,6 +10,15 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
+# Set password modification timeout (default 5 seconds)
+TIMEOUT_CHANGE_PASSWORD=${TIMEOUT_CHANGE_PASSWORD:-5}
+
+# Sanitize password for SQL usage (escape single quotes)
+sanitize_password() {
+    local password="$1"
+    echo "$password" | sed "s/'/''/g"
+}
+
 # Main function
 main() {
     log_script_start "02-database.sh"
@@ -34,6 +43,14 @@ main() {
 
     # Initialize the cluster
     initialize_cluster
+
+    # Set postgres user password if provided
+    if [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+        if ! set_postgres_password; then
+            log_error "Failed to set postgres password"
+            return 1
+        fi
+    fi
 
     # Verify cluster integrity
     verify_cluster_integrity
@@ -226,6 +243,57 @@ EOF
     secure_cleanup "$test_config"
 
     log_info "Cluster integrity verification completed successfully"
+}
+
+# Set postgres user password
+set_postgres_password() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local password="$POSTGRES_PASSWORD"
+    local sanitized_password
+    sanitized_password=$(sanitize_password "$password")
+
+    log_info "Setting postgres user password"
+
+    # Create temporary config for password setting
+    local temp_config
+    temp_config=$(create_secure_temp_file "pg_password_config")
+
+    cat > "$temp_config" << EOF
+listen_addresses = 'localhost'
+port = 5433
+unix_socket_directories = '$data_dir'
+EOF
+
+    chmod 644 "$temp_config"
+
+    # Trap for graceful shutdown
+    trap 'log_info "Shutdown signal received, aborting password setting"; su -c "pg_ctl -D $data_dir -s stop" postgres 2>/dev/null || true; secure_cleanup "$temp_config" 2>/dev/null || true; exit 1' TERM INT
+
+    # Start postgres temporarily
+    if ! su -c "pg_ctl -D $data_dir -o \"--config-file=$temp_config\" -s start" postgres; then
+        log_error "Failed to start postgres for password setting"
+        secure_cleanup "$temp_config"
+        return 1
+    fi
+
+    # Wait for startup
+    sleep 2
+
+    # Set password with timeout
+    local sql="ALTER USER postgres PASSWORD '$sanitized_password';"
+    if ! timeout "$TIMEOUT_CHANGE_PASSWORD" su -c "psql -h localhost -p 5433 -U postgres -d postgres -c \"$sql\"" postgres; then
+        log_error "Failed to set password within timeout"
+        su -c "pg_ctl -D $data_dir -s stop" postgres
+        secure_cleanup "$temp_config"
+        return 1
+    fi
+
+    # Stop postgres
+    su -c "pg_ctl -D $data_dir -s stop" postgres
+
+    secure_cleanup "$temp_config"
+
+    log_info "Successfully set postgres user password"
 }
 
 # Export functions for use by other scripts

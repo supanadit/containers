@@ -43,6 +43,9 @@ docker run postgres-container
 # Run with Patroni clustering
 docker run -e USE_PATRONI=true postgres-container
 
+# Run with custom postgres password
+docker run -e POSTGRES_PASSWORD=mysecretpassword postgres-container
+
 # Maintenance mode
 docker run -e SLEEP_MODE=true postgres-container
 ```
@@ -58,6 +61,7 @@ docker run -e SLEEP_MODE=true postgres-container
 | `SLEEP_MODE` | `false` | Enable maintenance mode |
 | `BACKUP_ENABLED` | `false` | Enable pgBackRest backups |
 | `TIMEOUT` | `30` | Default timeout in seconds |
+| `TIMEOUT_CHANGE_PASSWORD` | `5` | Timeout for password modification in seconds |
 
 ### Custom Configuration
 
