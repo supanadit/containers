@@ -70,10 +70,10 @@ validate_environment() {
             ;;
     esac
 
-    case "${BACKUP_ENABLED:-false}" in
+    case "${ENABLE_PGBACKREST:-false}" in
         true|false) ;;
         *)
-            log_error "Invalid BACKUP_ENABLED: $BACKUP_ENABLED (must be true or false)"
+            log_error "Invalid ENABLE_PGBACKREST: $ENABLE_PGBACKREST (must be true or false)"
             exit_code=1
             ;;
     esac
@@ -227,7 +227,7 @@ validate_dependencies() {
     fi
 
     # Check for pgBackRest if backup enabled
-    if [ "${BACKUP_ENABLED:-false}" = "true" ]; then
+    if [ "${ENABLE_PGBACKREST:-false}" = "true" ]; then
         if ! command -v "pgbackrest" >/dev/null 2>&1; then
             log_error "Backup is enabled but pgbackrest command not found"
             exit_code=1

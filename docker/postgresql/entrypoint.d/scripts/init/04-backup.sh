@@ -15,7 +15,7 @@ main() {
     log_script_start "04-backup.sh"
 
     # Only proceed if backup is enabled
-    if [ "${BACKUP_ENABLED:-false}" != "true" ]; then
+    if [ "${ENABLE_PGBACKREST:-false}" != "true" ]; then
         log_info "Backup not enabled, skipping backup setup"
         return 0
     fi
@@ -105,8 +105,8 @@ enable_archiving() {
     fi
 
     # Set archive parameters
-    apply_postgres_setting "archive_mode" "on"
-    apply_postgres_setting "archive_command" "pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
+    # apply_postgres_setting "archive_mode" "on"
+    # apply_postgres_setting "archive_command" "pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push ${PGDATA}/%p"
     apply_postgres_setting "archive_timeout" "${ARCHIVE_TIMEOUT:-1800s}"
 
     # Set WAL parameters for replication

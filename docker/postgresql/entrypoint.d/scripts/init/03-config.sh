@@ -218,9 +218,11 @@ apply_environment_overrides() {
     apply_postgres_setting "log_duration" "${POSTGRESQL_LOG_DURATION:-}"
 
     # Archive settings
-    if [ "${BACKUP_ENABLED:-false}" = "true" ]; then
+    if [ "${ENABLE_PGBACKREST:-false}" = "true" ]; then
         apply_postgres_setting "archive_mode" "on"
-        apply_postgres_setting "archive_command" "pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
+        apply_postgres_setting "archive_command" "pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push ${PGDATA}/%p"
+    else
+        apply_postgres_setting "archive_mode" "off"
     fi
 }
 
@@ -329,9 +331,9 @@ bootstrap:
         max_wal_senders: ${PATRONI_MAX_WAL_SENDERS:-10}
         max_replications_slots: ${PATRONI_MAX_REPLICATION_SLOTS:-10}
         wal_keep_segments: ${PATRONI_WAL_KEEP_SEGMENTS:-8}
-        archive_mode: "${BACKUP_ENABLED:-off}"
+        archive_mode: "${ENABLE_PGBACKREST:-off}"
         archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
-        archive_command: "${BACKUP_ENABLED:+pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p}"
+        archive_command: "${ENABLE_PGBACKREST:+pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p}"
 postgresql:
   listen: ${POSTGRESQL_LISTEN_HOST:-0.0.0.0}:${POSTGRESQL_PORT:-5432}
   connect_address: ${POSTGRESQL_CONNECT_HOST:-localhost}:${POSTGRESQL_PORT:-5432}
