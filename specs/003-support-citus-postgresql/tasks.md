@@ -49,30 +49,30 @@
 - **New files**: Place in appropriate subdirectories per container conventions
 
 ## Phase 3.1: Container Setup
-- [ ] T001 Update Dockerfile to add Citus environment variables in runtime stage
-- [ ] T002 Validate Citus installation in existing setup scripts
+- [x] T001 Update Dockerfile to add Citus environment variables in runtime stage
+- [x] T002 Validate Citus installation in existing setup scripts
 
 ## Phase 3.2: Core Citus Implementation
-- [ ] T003 Modify entrypoint.d/scripts/init/03-config.sh to enable Citus extension when CITUS_ENABLE=true
-- [ ] T004 Add Citus configuration parameters to postgresql.conf based on CITUS_ROLE
-- [ ] T005 Create Citus initialization script for metadata setup and role configuration
-- [ ] T006 Update entrypoint.d/scripts/runtime/healthcheck.sh to validate Citus functionality
+- [x] T003 Modify entrypoint.d/scripts/init/03-config.sh to enable Citus extension when CITUS_ENABLE=true
+- [x] T004 Add Citus configuration parameters to postgresql.conf based on CITUS_ROLE
+- [x] T005 Create Citus initialization script for metadata setup and role configuration
+- [x] T006 Update entrypoint.d/scripts/runtime/healthcheck.sh to validate Citus functionality
 
 ## Phase 3.3: Integration Features
-- [ ] T007 Add Patroni integration for Citus coordinator/worker role management
-- [ ] T008 Implement Citus metadata persistence across Patroni failovers
-- [ ] T009 Configure Citus worker auto-discovery in Patroni clusters
+- [x] T007 Add Patroni integration for Citus coordinator/worker role management
+- [x] T008 Implement Citus metadata persistence across Patroni failovers
+- [x] T009 Configure Citus worker auto-discovery in Patroni clusters
 
 ## Phase 3.4: Container Testing
-- [ ] T010 [P] Create Citus standalone mode test in tests/integration_test.sh
-- [ ] T011 [P] Create Citus cluster mode test in tests/integration_test.sh
-- [ ] T012 [P] Create Citus SQL API contract validation test in tests/unit_test.sh
-- [ ] T013 [P] Create Patroni + Citus integration test in tests/integration_test.sh
-- [ ] T014 [P] Create Citus security validation test in tests/security_test.sh
+- [x] T010 [P] Create Citus standalone mode test in tests/integration_test.sh
+- [x] T011 [P] Create Citus cluster mode test in tests/integration_test.sh
+- [x] T012 [P] Create Citus SQL API contract validation test in tests/unit_test.sh
+- [x] T013 [P] Create Patroni + Citus integration test in tests/integration_test.sh
+- [x] T014 [P] Create Citus security validation test in tests/security_test.sh
 
 ## Phase 3.5: Container Polish & Validation
-- [ ] T015 Update README.md with Citus usage examples and configuration options
-- [ ] T016 Update TROUBLESHOOTING.md with Citus-specific issues and solutions
+- [x] T015 Update README.md with Citus usage examples and configuration options
+- [x] T016 Update TROUBLESHOOTING.md with Citus-specific issues and solutions
 - [ ] T017 [P] Create Citus performance benchmark test in tests/performance_test.sh
 - [ ] T018 [P] Validate Citus startup time meets <60s requirement
 - [ ] T019 [P] Run final Citus integration test suite
@@ -98,13 +98,12 @@ task T017 & task T018 & task T019
 ```
 
 ## Container Task Validation Checklist
-- [ ] Citus extension enablement implemented in entrypoint scripts?
-- [ ] All CITUS_* environment variables documented and handled?
-- [ ] Standalone and cluster modes fully supported?
-- [ ] Patroni integration handles Citus roles correctly?
-- [ ] SQL API contracts validated through automated tests?
+- [x] Citus extension enablement implemented in entrypoint scripts?
+- [x] All CITUS_* environment variables documented and handled?
+- [x] Standalone and cluster modes fully supported?
+- [x] Patroni integration handles Citus roles correctly?
+- [x] SQL API contracts validated through automated tests?
 - [ ] Performance requirements (<60s startup, <500MB image) maintained?
 - [ ] Security hardening preserved with Citus additions?
-- [ ] Documentation updated with Citus usage examples?
-- [ ] All edge cases from spec addressed (failover, network partitions)?</content>
-<parameter name="filePath">/home/supanadit/Workspace/Personal/Docker/containers/specs/003-support-citus-postgresql/tasks.md
+- [x] Documentation updated with Citus usage examples?
+- [ ] All edge cases from spec addressed (failover, network partitions)?

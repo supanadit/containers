@@ -43,6 +43,20 @@ ENV PATH="/usr/local/pgsql/bin:$PATH"
 FROM setup AS runtime
 # Create postgres user for security (already created in setup stage)
 
+# Default runtime configuration for Citus support
+ENV CITUS_ENABLE="false" \
+    CITUS_ROLE="coordinator" \
+    CITUS_COORDINATOR_HOST="localhost" \
+    CITUS_COORDINATOR_PORT="5432" \
+    CITUS_COORDINATOR_USER="postgres" \
+    CITUS_COORDINATOR_PASSWORD="" \
+    CITUS_NODE_NAME="" \
+    CITUS_WORKER_NODES="" \
+    CITUS_ADVERTISE_HOST="" \
+    CITUS_ADVERTISE_PORT="5432" \
+    CITUS_AUTO_REGISTER="true" \
+    CITUS_AUTO_REBALANCE="false"
+
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
 

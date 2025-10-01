@@ -15,6 +15,13 @@ HEALTH_OK=0
 HEALTH_WARNING=1
 HEALTH_CRITICAL=2
 
+DATABASE_NAME="${CITUS_DATABASE:-${POSTGRES_DB:-postgres}}"
+
+is_citus_enabled() {
+    local flag="${CITUS_ENABLE:-false}"
+    [[ "${flag,,}" == "true" ]]
+}
+
 # Main function
 main() {
     local check_type="${1:-comprehensive}"
@@ -69,6 +76,14 @@ comprehensive_health_check() {
     if ! check_process_health; then
         overall_status=$HEALTH_CRITICAL
         issues+=("process_health")
+    fi
+
+    # Check Citus status when enabled
+    if is_citus_enabled; then
+        if ! check_citus_status; then
+            overall_status=$HEALTH_CRITICAL
+            issues+=("citus_status")
+        fi
     fi
 
     # Report results
@@ -167,6 +182,51 @@ check_disk_space() {
 check_process_health() {
     log_debug "Checking process health"
 
+
+# Check Citus extension health
+check_citus_status() {
+    log_debug "Checking Citus extension status"
+
+    if ! command -v psql >/dev/null 2>&1; then
+        log_warn "psql not available; skipping Citus health check"
+        return 0
+    fi
+
+    local extension_count
+    extension_count=$(su - postgres -c "psql -v ON_ERROR_STOP=1 -tA --dbname '${DATABASE_NAME}' --command \"SELECT COUNT(*) FROM pg_extension WHERE extname = 'citus';\"" 2>/dev/null || echo "0")
+
+    if ! [[ "${extension_count}" =~ ^[0-9]+$ ]]; then
+        log_error "Unable to determine Citus extension state"
+        return 1
+    fi
+
+    if [ "${extension_count}" -eq 0 ]; then
+        log_error "Citus extension is not installed in database ${DATABASE_NAME}"
+        return 1
+    fi
+
+    if ! su - postgres -c "psql -v ON_ERROR_STOP=1 --dbname '${DATABASE_NAME}' --command \"SELECT citus_version();\"" >/dev/null 2>&1; then
+        log_error "Failed to query citus_version()"
+        return 1
+    fi
+
+    local role="${CITUS_ROLE:-coordinator}"
+    local is_coord
+    is_coord=$(su - postgres -c "psql -v ON_ERROR_STOP=1 -tA --dbname '${DATABASE_NAME}' --command \"SELECT CASE WHEN citus_is_coordinator() THEN 1 ELSE 0 END;\"" 2>/dev/null || echo "-1")
+
+    if [[ "${role}" == "coordinator" && "${is_coord}" != "1" ]]; then
+        log_error "Node expected to act as coordinator but citus_is_coordinator() returned ${is_coord}"
+        return 1
+    fi
+
+    if [[ "${role}" == "worker" && "${is_coord}" != "0" ]]; then
+        log_error "Node expected to act as worker but citus_is_coordinator() returned ${is_coord}"
+        return 1
+    fi
+
+    log_debug "Citus health check passed"
+    return 0
+}
     # Check for PostgreSQL processes
     local pg_processes
     pg_processes=$(pgrep -f "postgres" | wc -l)

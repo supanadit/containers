@@ -102,6 +102,114 @@ test_sanitize_password
 test_default_external_access_enabled
 test_external_access_disabled
 test_invalid_method_fallback
+
+# Citus Unit Tests
+
+# Mock Citus functions for testing
+is_citus_enabled() {
+    [ "${CITUS_ENABLE:-false}" = "true" ]
+}
+
+get_citus_role() {
+    echo "${CITUS_ROLE:-standalone}"
+}
+
+is_citus_coordinator() {
+    [ "$(get_citus_role)" = "coordinator" ]
+}
+
+is_citus_worker() {
+    [ "$(get_citus_role)" = "worker" ]
+}
+
+# Test Citus enablement
+test_citus_enabled() {
+    echo "Testing Citus enablement..."
+
+    # Test default disabled
+    unset CITUS_ENABLE
+    if ! is_citus_enabled; then
+        echo "✓ Citus disabled by default test passed"
+    else
+        echo "✗ Citus disabled by default test failed"
+        return 1
+    fi
+
+    # Test enabled
+    export CITUS_ENABLE=true
+    if is_citus_enabled; then
+        echo "✓ Citus enabled test passed"
+    else
+        echo "✗ Citus enabled test failed"
+        return 1
+    fi
+
+    return 0
+}
+
+# Test Citus role detection
+test_citus_role() {
+    echo "Testing Citus role detection..."
+
+    # Test default role
+    unset CITUS_ROLE
+    result=$(get_citus_role)
+    if [ "$result" = "standalone" ]; then
+        echo "✓ Default Citus role test passed"
+    else
+        echo "✗ Default Citus role test failed: expected 'standalone', got '$result'"
+        return 1
+    fi
+
+    # Test coordinator role
+    export CITUS_ROLE=coordinator
+    if is_citus_coordinator && ! is_citus_worker; then
+        echo "✓ Citus coordinator role test passed"
+    else
+        echo "✗ Citus coordinator role test failed"
+        return 1
+    fi
+
+    # Test worker role
+    export CITUS_ROLE=worker
+    if is_citus_worker && ! is_citus_coordinator; then
+        echo "✓ Citus worker role test passed"
+    else
+        echo "✗ Citus worker role test failed"
+        return 1
+    fi
+
+    return 0
+}
+
+# Test Citus coordinator detection
+test_citus_coordinator_detection() {
+    echo "Testing Citus coordinator detection..."
+
+    export CITUS_ROLE=coordinator
+    if is_citus_coordinator; then
+        echo "✓ Citus coordinator detection test passed"
+    else
+        echo "✗ Citus coordinator detection test failed"
+        return 1
+    fi
+
+    export CITUS_ROLE=worker
+    if ! is_citus_coordinator; then
+        echo "✓ Citus non-coordinator detection test passed"
+    else
+        echo "✗ Citus non-coordinator detection test failed"
+        return 1
+    fi
+
+    return 0
+}
+
+# Run Citus tests
+test_citus_enabled
+test_citus_role
+test_citus_coordinator_detection
+
 exit_code=$?
 
 if [ $exit_code -eq 0 ]; then

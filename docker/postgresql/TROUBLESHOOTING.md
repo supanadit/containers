@@ -239,6 +239,193 @@ docker exec <container_id> curl -s http://localhost:8008/patroni | jq .
    docker exec <container_id> cat /usr/local/pgsql/config/patroni.yml | grep scope
    ```
 
+## Citus Distributed Database Issues
+
+### Symptom: Citus extension not loading
+
+**Possible Causes:**
+1. CITUS_ENABLE not set
+2. Extension not installed
+3. PostgreSQL version incompatibility
+
+**Diagnosis:**
+```bash
+# Check Citus environment variables
+docker exec <container_id> env | grep CITUS
+
+# Check if extension is available
+docker exec <container_id> psql -U postgres -c "SELECT * FROM pg_available_extensions WHERE name = 'citus';"
+
+# Check PostgreSQL logs for Citus errors
+docker logs <container_id> | grep citus
+```
+
+**Solutions:**
+
+1. **Enable Citus**
+   ```bash
+   # Set CITUS_ENABLE=true
+   docker run -e CITUS_ENABLE=true postgres-container
+   ```
+
+2. **Verify Installation**
+   ```bash
+   # Check Citus installation
+   docker exec <container_id> ls -la /usr/local/pgsql/lib/postgresql/ | grep citus
+   ```
+
+### Symptom: Worker cannot connect to coordinator
+
+**Possible Causes:**
+1. Network connectivity issues
+2. Incorrect coordinator hostname/port
+3. Authentication failures
+4. Coordinator not running
+
+**Diagnosis:**
+```bash
+# Test network connectivity
+docker exec <worker_container> ping <coordinator_host>
+
+# Check Citus worker logs
+docker logs <worker_container> | grep citus
+
+# Verify coordinator is running Citus
+docker exec <coordinator_container> psql -U postgres -c "SELECT * FROM citus_get_active_worker_nodes();"
+```
+
+**Solutions:**
+
+1. **Fix Network Issues**
+   ```bash
+   # Ensure containers are on same network
+   docker network connect <network_name> <worker_container>
+   docker network connect <network_name> <coordinator_container>
+   ```
+
+2. **Correct Configuration**
+   ```bash
+   # Set correct coordinator host
+   docker run -e CITUS_COORDINATOR_HOST=<coordinator_ip> postgres-container
+   ```
+
+3. **Check Coordinator Status**
+   ```bash
+   # Verify coordinator has Citus extension
+   docker exec <coordinator_container> psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS citus;"
+   ```
+
+### Symptom: Distributed queries failing
+
+**Possible Causes:**
+1. Table not distributed
+2. Reference table issues
+3. Shard placement problems
+4. Coordinator/worker mismatch
+
+**Diagnosis:**
+```bash
+# Check table distribution
+docker exec <coordinator_container> psql -U postgres -c "SELECT * FROM citus_tables;"
+
+# Check shard distribution
+docker exec <coordinator_container> psql -U postgres -c "SELECT * FROM citus_shards;"
+
+# Verify worker nodes
+docker exec <coordinator_container> psql -U postgres -c "SELECT * FROM citus_get_active_worker_nodes();"
+```
+
+**Solutions:**
+
+1. **Distribute Tables**
+   ```sql
+   -- Create distributed table
+   CREATE TABLE distributed_table (id serial PRIMARY KEY, data text);
+   SELECT create_distributed_table('distributed_table', 'id');
+   ```
+
+2. **Fix Reference Tables**
+   ```sql
+   -- Create reference table
+   CREATE TABLE reference_table (id serial PRIMARY KEY, name text);
+   SELECT create_reference_table('reference_table');
+   ```
+
+### Symptom: Citus with Patroni failover issues
+
+**Possible Causes:**
+1. Metadata not persisted
+2. Coordinator role not transferred
+3. Worker registration lost
+4. Advisory lock conflicts
+
+**Diagnosis:**
+```bash
+# Check Patroni leader
+docker exec <container_id> patronictl list
+
+# Check Citus metadata persistence
+docker exec <coordinator_container> psql -U postgres -c "SELECT count(*) FROM pg_dist_node;"
+
+# Check advisory locks
+docker exec <container_id> psql -U postgres -c "SELECT * FROM pg_locks WHERE locktype = 'advisory';"
+```
+
+**Solutions:**
+
+1. **Ensure Metadata Persistence**
+   ```bash
+   # Use persistent volumes for PGDATA
+   docker run -v pgdata:/usr/local/pgsql/data postgres-container
+   ```
+
+2. **Configure Patroni Callbacks**
+   ```yaml
+   # In patroni.yml
+   callbacks:
+     on_role_change: /opt/container/entrypoint.d/scripts/runtime/citus.sh on_role_change
+   ```
+
+### Symptom: Performance degradation with Citus
+
+**Possible Causes:**
+1. Uneven shard distribution
+2. Inefficient query plans
+3. Network latency
+4. Insufficient workers
+
+**Diagnosis:**
+```bash
+# Check query execution plans
+docker exec <coordinator_container> psql -U postgres -c "EXPLAIN ANALYZE SELECT * FROM distributed_table;"
+
+# Monitor Citus statistics
+docker exec <coordinator_container> psql -U postgres -c "SELECT * FROM citus_stat_statements;"
+
+# Check shard sizes
+docker exec <coordinator_container> psql -U postgres -c "SELECT * FROM citus_shard_sizes();"
+```
+
+**Solutions:**
+
+1. **Rebalance Shards**
+   ```sql
+   -- Rebalance distributed table
+   SELECT rebalance_table_shards('distributed_table');
+   ```
+
+2. **Add More Workers**
+   ```sql
+   -- Add worker node
+   SELECT * from citus_add_node('new-worker', 5432);
+   ```
+
+3. **Optimize Queries**
+   ```sql
+   -- Use distributed functions
+   SELECT count(*) FROM distributed_table; -- Fast on coordinator
+   ```
+
 ## Backup and Recovery Issues
 
 ### Symptom: pgBackRest backup fails

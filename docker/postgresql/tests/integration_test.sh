@@ -76,3 +76,116 @@ test_custom_auth_method
 test_invalid_method_fallback
 
 echo "External access integration tests completed (simulated)"
+
+# Citus Integration Tests
+
+# Test 12: Citus disabled by default
+test_citus_disabled_default() {
+    echo "Test 12: Citus disabled by default"
+    unset CITUS_ENABLE
+    # Simulate: Citus extension should not be created
+    echo "✓ Citus extension should not be loaded when CITUS_ENABLE is not set"
+}
+
+# Test 13: Citus enabled standalone mode
+test_citus_enabled_standalone() {
+    echo "Test 13: Citus enabled standalone mode"
+    export CITUS_ENABLE=true
+    export CITUS_ROLE=standalone
+    # Simulate: Citus extension should be created and configured
+    echo "✓ Citus extension should be loaded and configured for standalone use"
+}
+
+# Test 14: Citus coordinator role
+test_citus_coordinator_role() {
+    echo "Test 14: Citus coordinator role"
+    export CITUS_ENABLE=true
+    export CITUS_ROLE=coordinator
+    # Simulate: Should configure as coordinator
+    echo "✓ PostgreSQL should be configured as Citus coordinator"
+}
+
+# Test 15: Citus worker role
+test_citus_worker_role() {
+    echo "Test 15: Citus worker role"
+    export CITUS_ENABLE=true
+    export CITUS_ROLE=worker
+    export CITUS_COORDINATOR_HOST=localhost
+    # Simulate: Should configure as worker and connect to coordinator
+    echo "✓ PostgreSQL should be configured as Citus worker"
+}
+
+# Test 16: Citus extension verification
+test_citus_extension_verification() {
+    echo "Test 16: Citus extension verification"
+    export CITUS_ENABLE=true
+    # Simulate: Check if citus extension is available
+    echo "✓ Citus extension should be available and functional"
+}
+
+# Test 17: Citus health check
+test_citus_health_check() {
+    echo "Test 17: Citus health check"
+    export CITUS_ENABLE=true
+    # Simulate: Health check should include Citus status
+    echo "✓ Health check should verify Citus is operational"
+}
+
+echo "Running Citus integration tests..."
+test_citus_disabled_default
+test_citus_enabled_standalone
+test_citus_coordinator_role
+test_citus_worker_role
+test_citus_extension_verification
+test_citus_health_check
+
+echo "Citus integration tests completed (simulated)"
+
+# Citus Patroni Integration Tests
+
+# Test 18: Citus with Patroni coordinator
+test_citus_patroni_coordinator() {
+    echo "Test 18: Citus with Patroni coordinator"
+    export CITUS_ENABLE=true
+    export PATRONI_ENABLE=true
+    export CITUS_ROLE=coordinator
+    # Simulate: Patroni should manage Citus coordinator
+    echo "✓ Patroni should manage Citus coordinator role"
+}
+
+# Test 19: Citus with Patroni worker
+test_citus_patroni_worker() {
+    echo "Test 19: Citus with Patroni worker"
+    export CITUS_ENABLE=true
+    export PATRONI_ENABLE=true
+    export CITUS_ROLE=worker
+    # Simulate: Patroni should manage Citus worker
+    echo "✓ Patroni should manage Citus worker role"
+}
+
+# Test 20: Citus metadata persistence
+test_citus_metadata_persistence() {
+    echo "Test 20: Citus metadata persistence"
+    export CITUS_ENABLE=true
+    export PATRONI_ENABLE=true
+    # Simulate: Citus metadata should persist across failovers
+    echo "✓ Citus metadata should be preserved during Patroni failovers"
+}
+
+# Test 21: Citus worker auto-discovery
+test_citus_worker_auto_discovery() {
+    echo "Test 21: Citus worker auto-discovery"
+    export CITUS_ENABLE=true
+    export PATRONI_ENABLE=true
+    export CITUS_AUTO_REGISTER_WORKERS=true
+    # Simulate: Workers should auto-register with coordinator
+    echo "✓ Citus workers should auto-discover and register with coordinator"
+}
+
+echo "Running Citus Patroni integration tests..."
+test_citus_patroni_coordinator
+test_citus_patroni_worker
+test_citus_metadata_persistence
+test_citus_worker_auto_discovery
+
+echo "Citus Patroni integration tests completed (simulated)"

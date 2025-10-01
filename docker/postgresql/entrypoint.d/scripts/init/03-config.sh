@@ -35,6 +35,9 @@ main() {
     # Apply external access configuration
     apply_external_access_config
 
+    # Apply Citus configuration if enabled
+    apply_citus_configuration
+
     # Apply native HA configuration
     apply_native_ha_config
 
@@ -256,6 +259,77 @@ apply_postgres_setting() {
     fi
 
     echo "${setting} = ${formatted_value}" >> "$config_file"
+}
+
+# Determine if Citus is enabled via environment
+is_citus_enabled() {
+    local flag="${CITUS_ENABLE:-false}"
+    [[ "${flag,,}" == "true" ]]
+}
+
+# Ensure shared_preload_libraries contains a specific library without duplicates
+ensure_shared_preload_library() {
+    local library="$1"
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local config_file="$data_dir/postgresql.conf"
+
+    local current_line
+    current_line=$(grep -E "^[[:space:]]*shared_preload_libraries" "$config_file" || true)
+
+    local current_value=""
+    if [ -n "$current_line" ]; then
+        current_value=$(echo "$current_line" | cut -d'=' -f2- | sed -e "s/#.*//" -e "s/'//g" -e 's/"//g' -e 's/[[:space:]]//g')
+    fi
+
+    local updated_list="$current_value"
+    if [ -z "$current_value" ]; then
+        updated_list="$library"
+    else
+        local found="false"
+        IFS=',' read -ra existing_libs <<< "$current_value"
+        for existing in "${existing_libs[@]}"; do
+            if [[ "$existing" == "$library" ]]; then
+                found="true"
+                break
+            fi
+        done
+        if [ "$found" = "false" ]; then
+            updated_list="${current_value},${library}"
+        fi
+    fi
+
+    apply_postgres_setting "shared_preload_libraries" "$updated_list"
+}
+
+# Apply Citus-related configuration to postgresql.conf when enabled
+apply_citus_configuration() {
+    if ! is_citus_enabled; then
+        log_debug "Citus not enabled; skipping configuration"
+        return 0
+    fi
+
+    log_info "Applying Citus configuration"
+
+    ensure_shared_preload_library "citus"
+
+    local max_workers="${CITUS_MAX_WORKER_PROCESSES:-8}"
+    apply_postgres_setting "citus.max_worker_processes" "$max_workers"
+
+    local executor_mode="${CITUS_DISTRIBUTED_EXECUTOR:-adaptive}"
+    apply_postgres_setting "citus.distributed_executor" "$executor_mode"
+
+    if [ -n "${CITUS_NODE_NAME:-}" ]; then
+        apply_postgres_setting "citus.node_name" "${CITUS_NODE_NAME}"
+    fi
+
+    local citus_role="${CITUS_ROLE:-coordinator}"
+    if [[ "${citus_role}" == "coordinator" ]]; then
+        apply_postgres_setting "citus.enable_control_commands" "true"
+    else
+        apply_postgres_setting "citus.enable_control_commands" "false"
+    fi
+
+    return 0
 }
 
 # Apply native HA configuration

@@ -56,6 +56,120 @@ docker run -e POSTGRES_PASSWORD=mysecretpassword postgres-container
 docker run -e SLEEP_MODE=true postgres-container
 ```
 
+## Citus Support
+
+This container includes Citus extension for distributed PostgreSQL, enabling horizontal scaling and distributed tables.
+
+### Citus Standalone Mode
+
+```bash
+# Run Citus in standalone mode (single node)
+docker run -e CITUS_ENABLE=true postgres-container
+```
+
+### Citus Coordinator
+
+```bash
+# Run as Citus coordinator
+docker run -e CITUS_ENABLE=true -e CITUS_ROLE=coordinator postgres-container
+```
+
+### Citus Worker
+
+```bash
+# Run as Citus worker
+docker run -e CITUS_ENABLE=true -e CITUS_ROLE=worker -e CITUS_COORDINATOR_HOST=coordinator-host postgres-container
+```
+
+### Citus with Patroni
+
+```bash
+# Coordinator with Patroni
+docker run -e CITUS_ENABLE=true -e CITUS_ROLE=coordinator -e USE_PATRONI=true postgres-container
+
+# Worker with Patroni
+docker run -e CITUS_ENABLE=true -e CITUS_ROLE=worker -e USE_PATRONI=true -e CITUS_COORDINATOR_HOST=coordinator-host postgres-container
+```
+
+### Citus Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CITUS_ENABLE` | `false` | Enable Citus extension |
+| `CITUS_ROLE` | `standalone` | Citus role: `standalone`, `coordinator`, or `worker` |
+| `CITUS_COORDINATOR_HOST` | `localhost` | Coordinator hostname for workers |
+| `CITUS_COORDINATOR_PORT` | `5432` | Coordinator port for workers |
+| `CITUS_AUTO_REGISTER_WORKERS` | `false` | Auto-register workers with coordinator |
+
+### Citus Configuration
+
+After starting the container, create the Citus extension:
+
+```sql
+-- Connect to PostgreSQL
+psql -h localhost -U postgres
+
+-- Create Citus extension
+CREATE EXTENSION citus;
+
+-- For coordinator: add worker nodes
+SELECT * from citus_add_node('worker-host', 5432);
+
+-- For worker: verify connection to coordinator
+SELECT * from citus_get_active_worker_nodes();
+```
+
+### Citus Features
+
+- **Distributed Tables**: Create tables that span multiple nodes
+- **Query Parallelization**: Automatic query distribution across workers
+- **High Availability**: Integration with Patroni for failover
+- **Auto-scaling**: Dynamic addition/removal of worker nodes
+- **Real-time Analytics**: Fast queries on large datasets
+
+### Citus Limitations
+
+- Foreign keys between distributed tables not supported
+- Some PostgreSQL features may have distributed equivalents
+- Requires careful schema design for optimal performance
+
+### Citus with Patroni Integration
+
+When using Citus with Patroni:
+
+- Coordinator should run on Patroni leader
+- Workers can run on Patroni replicas or separate instances
+- Metadata is preserved during failovers
+- Workers auto-register with coordinator when enabled
+
+```bash
+# Example docker-compose.yml for Citus cluster
+version: '3.8'
+services:
+  citus-coordinator:
+    image: postgres-container
+    environment:
+      - CITUS_ENABLE=true
+      - CITUS_ROLE=coordinator
+      - USE_PATRONI=true
+      - PATRONI_NAME=citus-coord
+      - PATRONI_NAMESPACE=citus
+    ports:
+      - "5432:5432"
+
+  citus-worker1:
+    image: postgres-container
+    environment:
+      - CITUS_ENABLE=true
+      - CITUS_ROLE=worker
+      - CITUS_COORDINATOR_HOST=citus-coordinator
+      - USE_PATRONI=true
+      - PATRONI_NAME=citus-worker1
+      - PATRONI_NAMESPACE=citus
+    depends_on:
+      - citus-coordinator
+```
+
 ### Environment Variables
 
 | Variable | Default | Description |
@@ -69,7 +183,7 @@ docker run -e SLEEP_MODE=true postgres-container
 | `TIMEOUT` | `30` | Default timeout in seconds |
 | `TIMEOUT_CHANGE_PASSWORD` | `5` | Timeout for password modification in seconds |
 
-### Custom Configuration
+## Custom Configuration
 
 ```bash
 # Custom postgresql.conf
