@@ -43,6 +43,12 @@ docker run postgres-container
 # Run with Patroni clustering
 docker run -e USE_PATRONI=true postgres-container
 
+# Run with Patroni and watchdog (requires hardware watchdog)
+docker run --device /dev/watchdog:/dev/watchdog \
+  -e USE_PATRONI=true \
+  -e PATRONI_WATCHDOG_MODE=required \
+  postgres-container
+
 # Run with custom postgres password
 docker run -e POSTGRES_PASSWORD=mysecretpassword postgres-container
 
@@ -225,6 +231,31 @@ Generated automatically when `USE_PATRONI=true`:
 - Cluster scope: `postgres-cluster`
 - REST API: `0.0.0.0:8008`
 - etcd integration for DCS
+
+#### Watchdog Support
+
+Enable Linux watchdog for enhanced reliability:
+
+```bash
+# Enable watchdog (requires device access)
+PATRONI_WATCHDOG_MODE=required
+PATRONI_WATCHDOG_DEVICE=/dev/watchdog
+PATRONI_WATCHDOG_SAFETY_MARGIN=5
+
+# Run container with watchdog device access
+docker run --device /dev/watchdog:/dev/watchdog \
+  -e USE_PATRONI=true \
+  -e PATRONI_WATCHDOG_MODE=required \
+  postgres-container
+
+# Or run with privileged access
+docker run --privileged \
+  -e USE_PATRONI=true \
+  -e PATRONI_WATCHDOG_MODE=required \
+  postgres-container
+```
+
+**Note**: Watchdog requires hardware support on the host system and appropriate device access in the container.
 
 ### Backup Configuration
 

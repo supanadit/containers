@@ -272,7 +272,7 @@ apply_native_ha_config() {
             local hba_file="${PGDATA:-/usr/local/pgsql/data}/pg_hba.conf"
             local replication_user="${REPLICATION_USER:-replicator}"
             if ! grep -q "host replication $replication_user" "$hba_file"; then
-                echo "host replication $replication_user 0.0.0.0/0 scram-sha-256" >> "$hba_file"
+                echo "host replication $replication_user 0.0.0.0 scram-sha-256" >> "$hba_file"
             fi
         fi
     fi
@@ -316,6 +316,10 @@ restapi:
 etcd3:
   host: ${ETCD_HOST:-localhost}
   port: ${ETCD_PORT:-2379}
+watchdog:
+  mode: ${PATRONI_WATCHDOG_MODE:-off}
+  device: ${PATRONI_WATCHDOG_DEVICE:-/dev/watchdog}
+  safety_margin: ${PATRONI_WATCHDOG_SAFETY_MARGIN:-5}
 bootstrap:
   dcs:
     ttl: ${PATRONI_TTL:-30}
