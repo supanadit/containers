@@ -52,6 +52,14 @@ main() {
         fi
     fi
 
+    # Create replication user if Patroni is enabled
+    if [ "${USE_PATRONI:-false}" = "true" ]; then
+        if ! create_replication_user; then
+            log_error "Failed to create replication user"
+            return 1
+        fi
+    fi
+
     # Verify cluster integrity
     verify_cluster_integrity
 
@@ -294,6 +302,56 @@ EOF
     secure_cleanup "$temp_config"
 
     log_info "Successfully set postgres user password"
+}
+
+# Create replication user for Patroni
+create_replication_user() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local replication_user="${PATRONI_REPLICATION_USER:-replicator}"
+    local replication_password="${PATRONI_REPLICATION_PASSWORD:-replicator_password}"
+
+    log_info "Creating replication user: $replication_user"
+
+    # Create temporary config for user creation
+    local temp_config
+    temp_config=$(create_secure_temp_file "pg_replication_config")
+
+    cat > "$temp_config" << EOF
+listen_addresses = 'localhost'
+port = 5433
+unix_socket_directories = '$data_dir'
+EOF
+
+    chmod 644 "$temp_config"
+
+    # Trap for graceful shutdown
+    trap 'log_info "Shutdown signal received, aborting replication user creation"; su -c "pg_ctl -D $data_dir -s stop" postgres 2>/dev/null || true; secure_cleanup "$temp_config" 2>/dev/null || true; exit 1' TERM INT
+
+    # Start postgres temporarily
+    if ! su -c "pg_ctl -D $data_dir -o \"--config-file=$temp_config\" -s start" postgres; then
+        log_error "Failed to start postgres for replication user creation"
+        secure_cleanup "$temp_config"
+        return 1
+    fi
+
+    # Wait for startup
+    sleep 2
+
+    # Create replication user with timeout
+    local sql="CREATE USER $replication_user REPLICATION LOGIN PASSWORD '$replication_password';"
+    if ! timeout "$TIMEOUT_CHANGE_PASSWORD" su -c "psql -h localhost -p 5433 -U postgres -d postgres -c \"$sql\"" postgres; then
+        log_error "Failed to create replication user within timeout"
+        su -c "pg_ctl -D $data_dir -s stop" postgres
+        secure_cleanup "$temp_config"
+        return 1
+    fi
+
+    # Stop postgres
+    su -c "pg_ctl -D $data_dir -s stop" postgres
+
+    secure_cleanup "$temp_config"
+
+    log_info "Successfully created replication user: $replication_user"
 }
 
 # Export functions for use by other scripts
