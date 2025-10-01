@@ -15,9 +15,10 @@ ARG BUILD_DATE
 ARG VCS_REF
 
 LABEL org.opencontainers.image.created=$BUILD_DATE \
-      org.opencontainers.image.revision=$VCS_REF \
-      org.opencontainers.image.title="PostgreSQL with Build Optimization" \
-      org.opencontainers.image.description="Optimized PostgreSQL container with Patroni, pgBackRest, and Citus"
+    org.opencontainers.image.revision=$VCS_REF \
+    org.opencontainers.image.title="PostgreSQL with Build Optimization" \
+    org.opencontainers.image.description="Optimized PostgreSQL container with Patroni, pgBackRest, and Citus" \
+    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>"
 
 ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 
