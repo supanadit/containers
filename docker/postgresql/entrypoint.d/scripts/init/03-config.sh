@@ -313,8 +313,9 @@ name: ${PATRONI_NAME:-postgres-node-1}
 restapi:
   listen: ${PATRONI_REST_HOST:-0.0.0.0}:${PATRONI_REST_PORT:-8008}
   connect_address: ${PATRONI_REST_HOST:-localhost}:${PATRONI_REST_PORT:-8008}
-etcd:
-  host: ${ETCD_HOST:-localhost}:${ETCD_PORT:-2379}
+etcd3:
+  host: ${ETCD_HOST:-localhost}
+  port: ${ETCD_PORT:-2379}
 bootstrap:
   dcs:
     ttl: ${PATRONI_TTL:-30}
@@ -339,6 +340,7 @@ postgresql:
   connect_address: ${POSTGRESQL_CONNECT_HOST:-localhost}:${POSTGRESQL_PORT:-5432}
   data_dir: ${data_dir}
   config_dir: ${data_dir}
+  user: postgres
   pgpass: /tmp/pgpass
   authentication:
     replication:

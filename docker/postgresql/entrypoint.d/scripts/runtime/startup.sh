@@ -172,7 +172,7 @@ start_patroni() {
     log_debug "Starting Patroni with command: $patroni_cmd ${patroni_args[*]}"
 
     # Start Patroni as a background process (not exec, so we can handle signals)
-    "$patroni_cmd" "${patroni_args[@]}" &
+    su -c "$patroni_cmd ${patroni_args[*]}" postgres &
     local patroni_pid=$!
 
     log_info "Patroni started with PID: $patroni_pid"
