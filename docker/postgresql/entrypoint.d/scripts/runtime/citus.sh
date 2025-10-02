@@ -118,6 +118,91 @@ worker_exists() {
     [[ "${result}" == "1" ]]
 }
 
+get_registered_workers() {
+    # Get all currently registered worker nodes (excluding coordinator if it exists)
+    psql_superuser_output "SELECT nodename || ':' || nodeport FROM pg_dist_node WHERE noderole = 'primary' ORDER BY nodename;"
+}
+
+remove_worker_node() {
+    local host="$1"
+    local port="$2"
+
+    if ! worker_exists "$host" "$port"; then
+        log_debug "Worker node ${host}:${port} is not registered"
+        return 0
+    fi
+
+    log_info "Removing worker node ${host}:${port} from cluster"
+
+    # Remove the worker node using Citus function
+    if psql_superuser "SELECT citus_remove_node('${host}', ${port});"; then
+        log_info "Successfully removed worker node ${host}:${port}"
+        return 0
+    else
+        log_error "Failed to remove worker node ${host}:${port}"
+        return 1
+    fi
+}
+
+cleanup_removed_workers() {
+    local current_config="${CITUS_WORKER_NODES:-}${PATRONI_CITUS_WORKERS:+,${PATRONI_CITUS_WORKERS}}"
+    
+    if [ -z "$current_config" ]; then
+        log_debug "No workers in current configuration"
+        return 0
+    fi
+
+    # Get list of currently registered workers
+    local registered_workers
+    registered_workers=$(get_registered_workers)
+    
+    if [ -z "$registered_workers" ]; then
+        log_debug "No workers currently registered"
+        return 0
+    fi
+
+    log_info "Checking for workers to remove based on current configuration"
+
+    # Convert current config to array for comparison
+    IFS=',' read -ra config_workers <<< "$current_config"
+    
+    # Normalize config workers (trim whitespace and standardize format)
+    local normalized_config=()
+    for worker in "${config_workers[@]}"; do
+        local trimmed_worker
+        trimmed_worker=$(echo "$worker" | xargs)
+        if [ -n "$trimmed_worker" ]; then
+            # Ensure port is included
+            if [[ "$trimmed_worker" != *":"* ]]; then
+                trimmed_worker="${trimmed_worker}:${DEFAULT_WORKER_PORT}"
+            fi
+            normalized_config+=("$trimmed_worker")
+        fi
+    done
+
+    # Check each registered worker against current configuration
+    while IFS= read -r registered_worker; do
+        local should_remove=true
+        
+        for config_worker in "${normalized_config[@]}"; do
+            if [[ "$registered_worker" == "$config_worker" ]]; then
+                should_remove=false
+                break
+            fi
+        done
+        
+        if [[ "$should_remove" == "true" ]]; then
+            local worker_host="${registered_worker%%:*}"
+            local worker_port="${registered_worker##*:}"
+            
+            log_info "Worker ${registered_worker} not in current configuration, removing..."
+            remove_worker_node "$worker_host" "$worker_port"
+        else
+            log_debug "Worker ${registered_worker} found in current configuration, keeping"
+        fi
+    done <<< "$registered_workers"
+}
+
 add_worker_node() {
     local host="$1"
     local port="$2"
@@ -158,14 +243,19 @@ add_worker_node() {
 configure_coordinator() {
     local worker_list="${CITUS_WORKER_NODES:-}${PATRONI_CITUS_WORKERS:+,${PATRONI_CITUS_WORKERS}}"
 
+    # Setup authentication for worker connections
+    setup_pgpass
+
+    # Always run cleanup to remove workers no longer in configuration
+    log_info "Performing worker cleanup based on current configuration"
+    cleanup_removed_workers
+
     if [ -z "$worker_list" ]; then
         log_info "No worker nodes specified; skipping worker registration"
         return 0
     fi
 
-    # Setup authentication for worker connections
-    setup_pgpass
-
+    # Register workers that are in the current configuration
     local register_workers_action='register_worker_nodes'
     with_coordination_lock "$COORDINATOR_LOCK_KEY" "$register_workers_action"
 }
