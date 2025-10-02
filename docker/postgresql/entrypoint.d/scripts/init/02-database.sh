@@ -36,7 +36,7 @@ main() {
     fi
 
     # Skip initialization in Patroni mode - let Patroni handle bootstrap
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         log_info "Patroni mode enabled, skipping database initialization - Patroni will handle bootstrap"
         return 0
     fi
@@ -59,7 +59,7 @@ main() {
     fi
 
     # Create replication user if Patroni is enabled
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         if ! create_replication_user; then
             log_error "Failed to create replication user"
             return 1

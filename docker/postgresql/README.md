@@ -41,11 +41,11 @@ docker build --progress=plain -t postgres-dev docker/postgresql/
 docker run postgres-container
 
 # Run with Patroni clustering
-docker run -e USE_PATRONI=true postgres-container
+docker run -e PATRONI_ENABLE=true postgres-container
 
 # Run with Patroni and watchdog (requires hardware watchdog)
 docker run --device /dev/watchdog:/dev/watchdog \
-  -e USE_PATRONI=true \
+  -e PATRONI_ENABLE=true \
   -e PATRONI_WATCHDOG_MODE=required \
   postgres-container
 
@@ -85,10 +85,10 @@ docker run -e CITUS_ENABLE=true -e CITUS_ROLE=worker -e CITUS_COORDINATOR_HOST=c
 
 ```bash
 # Coordinator with Patroni
-docker run -e CITUS_ENABLE=true -e CITUS_ROLE=coordinator -e USE_PATRONI=true postgres-container
+docker run -e CITUS_ENABLE=true -e CITUS_ROLE=coordinator -e PATRONI_ENABLE=true postgres-container
 
 # Worker with Patroni
-docker run -e CITUS_ENABLE=true -e CITUS_ROLE=worker -e USE_PATRONI=true -e CITUS_COORDINATOR_HOST=coordinator-host postgres-container
+docker run -e CITUS_ENABLE=true -e CITUS_ROLE=worker -e PATRONI_ENABLE=true -e CITUS_COORDINATOR_HOST=coordinator-host postgres-container
 ```
 
 ### Citus Environment Variables
@@ -151,7 +151,7 @@ services:
     environment:
       - CITUS_ENABLE=true
       - CITUS_ROLE=coordinator
-      - USE_PATRONI=true
+      - PATRONI_ENABLE=true
       - PATRONI_NAME=citus-coord
       - PATRONI_NAMESPACE=citus
     ports:
@@ -163,7 +163,7 @@ services:
       - CITUS_ENABLE=true
       - CITUS_ROLE=worker
       - CITUS_COORDINATOR_HOST=citus-coordinator
-      - USE_PATRONI=true
+      - PATRONI_ENABLE=true
       - PATRONI_NAME=citus-worker1
       - PATRONI_NAMESPACE=citus
     depends_on:
@@ -177,7 +177,7 @@ services:
 | `PGDATA` | `/usr/local/pgsql/data` | PostgreSQL data directory |
 | `PGCONFIG` | `/usr/local/pgsql/config` | Configuration directory |
 | `LOG_LEVEL` | `INFO` | Logging verbosity (DEBUG, INFO, WARN, ERROR) |
-| `USE_PATRONI` | `false` | Enable Patroni clustering |
+| `PATRONI_ENABLE` | `false` | Enable Patroni clustering |
 | `SLEEP_MODE` | `false` | Enable maintenance mode |
 | `BACKUP_ENABLED` | `false` | Enable pgBackRest backups |
 | `TIMEOUT` | `30` | Default timeout in seconds |
@@ -340,7 +340,7 @@ POSTGRESQL_LISTEN_ADDRESSES=0.0.0.0
 
 ### Patroni Configuration
 
-Generated automatically when `USE_PATRONI=true`:
+Generated automatically when `PATRONI_ENABLE=true`:
 
 - Cluster scope: `postgres-cluster`
 - REST API: `0.0.0.0:8008`
@@ -358,13 +358,13 @@ PATRONI_WATCHDOG_SAFETY_MARGIN=5
 
 # Run container with watchdog device access
 docker run --device /dev/watchdog:/dev/watchdog \
-  -e USE_PATRONI=true \
+  -e PATRONI_ENABLE=true \
   -e PATRONI_WATCHDOG_MODE=required \
   postgres-container
 
 # Or run with privileged access
 docker run --privileged \
-  -e USE_PATRONI=true \
+  -e PATRONI_ENABLE=true \
   -e PATRONI_WATCHDOG_MODE=required \
   postgres-container
 ```

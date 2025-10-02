@@ -59,7 +59,7 @@ comprehensive_health_check() {
     fi
 
     # Check Patroni status if enabled
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         if ! check_patroni_status; then
             overall_status=$HEALTH_CRITICAL
             issues+=("patroni_status")
@@ -233,7 +233,7 @@ check_citus_status() {
 
     if [ "$pg_processes" -eq 0 ]; then
         # If Patroni is enabled, PostgreSQL might not be running directly
-        if [ "${USE_PATRONI:-false}" = "true" ]; then
+        if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
             log_debug "PostgreSQL not running directly (Patroni mode)"
         else
             log_error "No PostgreSQL processes found"

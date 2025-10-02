@@ -113,7 +113,7 @@ log_environment() {
         log_debug "  PGDATA=${PGDATA:-not set}"
         log_debug "  PGCONFIG=${PGCONFIG:-not set}"
         log_debug "  LOG_LEVEL=${LOG_LEVEL:-not set}"
-        log_debug "  USE_PATRONI=${USE_PATRONI:-not set}"
+        log_debug "  PATRONI_ENABLE=${PATRONI_ENABLE:-not set}"
         log_debug "  SLEEP_MODE=${SLEEP_MODE:-not set}"
         log_debug "  TIMEOUT=${TIMEOUT:-not set}"
     fi

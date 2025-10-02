@@ -74,7 +74,7 @@ select_startup_mode() {
     fi
 
     # Check for Patroni mode
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         log_info "Patroni mode enabled, starting Patroni"
         start_patroni
         return $?

@@ -30,42 +30,42 @@ main() {
     generate_secure_defaults
 
     # Apply environment variable overrides
-    if [ "${USE_PATRONI:-false}" != "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
         apply_environment_overrides
     else
         log_info "Patroni mode enabled, skipping environment overrides on config files"
     fi
 
     # Apply external access configuration
-    if [ "${USE_PATRONI:-false}" != "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
         apply_external_access_config
     else
         log_info "Patroni mode enabled, external access will be configured in patroni.yml"
     fi
 
     # Apply Citus configuration if enabled
-    if [ "${USE_PATRONI:-false}" != "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
         apply_citus_configuration
     else
         log_info "Patroni mode enabled, Citus configuration will be in patroni.yml bootstrap"
     fi
 
     # Apply native HA configuration
-    if [ "${USE_PATRONI:-false}" != "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
         apply_native_ha_config
     else
         log_info "Patroni mode enabled, HA configuration is handled by Patroni"
     fi
 
     # Validate final configurations
-    if [ "${USE_PATRONI:-false}" != "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
         validate_final_configs
     else
         log_info "Patroni mode enabled, skipping config file validation - Patroni manages configs"
     fi
 
     # Generate Patroni configuration if needed
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         generate_patroni_config
     fi
 
@@ -134,7 +134,7 @@ generate_secure_defaults() {
     log_info "Generating secure default configurations"
 
     # Skip generating configs in data dir for Patroni - let Patroni manage them
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         log_info "Patroni mode enabled, skipping config generation in data directory"
         return 0
     fi

@@ -54,10 +54,10 @@ validate_environment() {
     fi
 
     # Validate mode flags
-    case "${USE_PATRONI:-false}" in
+    case "${PATRONI_ENABLE:-false}" in
         true|false) ;;
         *)
-            log_error "Invalid USE_PATRONI: $USE_PATRONI (must be true or false)"
+            log_error "Invalid PATRONI_ENABLE: $PATRONI_ENABLE (must be true or false)"
             exit_code=1
             ;;
     esac
@@ -145,8 +145,8 @@ validate_ha_configuration() {
     log_debug "Validating HA configuration"
 
     if [[ "${HA_MODE:-}" == "native" ]]; then
-        if [[ "${USE_PATRONI:-false}" == "true" ]]; then
-            log_error "HA_MODE=native cannot be used with USE_PATRONI=true"
+        if [[ "${PATRONI_ENABLE:-false}" == "true" ]]; then
+            log_error "HA_MODE=native cannot be used with PATRONI_ENABLE=true"
             exit_code=1
         fi
 
@@ -219,7 +219,7 @@ validate_dependencies() {
     done
 
     # Check for Patroni if enabled
-    if [ "${USE_PATRONI:-false}" = "true" ]; then
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
         if ! command -v "patroni" >/dev/null 2>&1; then
             log_error "Patroni is enabled but patroni command not found"
             exit_code=1
