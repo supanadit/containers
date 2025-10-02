@@ -23,6 +23,24 @@ is_citus_enabled() {
     [[ "${flag,,}" == "true" ]]
 }
 
+setup_pgpass() {
+    if [ -n "${COORDINATOR_PASSWORD:-}" ] && [ -n "${COORDINATOR_USER:-}" ]; then
+        local pgpass_file="/home/postgres/.pgpass"
+        log_debug "Setting up .pgpass file for inter-node authentication"
+        
+        # Create .pgpass file with worker node credentials
+        cat > "$pgpass_file" <<EOF
+*:5432:*:${COORDINATOR_USER}:${COORDINATOR_PASSWORD}
+EOF
+        
+        # Set proper permissions and ownership
+        chown postgres:postgres "$pgpass_file"
+        chmod 600 "$pgpass_file"
+        
+        log_debug ".pgpass file created successfully"
+    fi
+}
+
 psql_superuser() {
     local sql="$1"
     su - postgres -c "PATH=/usr/local/pgsql/bin:$PATH psql -v ON_ERROR_STOP=1 -h localhost --dbname \"${DATABASE_NAME}\" --command \"${sql}\"" >/dev/null
@@ -111,14 +129,30 @@ add_worker_node() {
 
     log_info "Registering worker node ${host}:${port}"
 
-    if [ -n "${COORDINATOR_PASSWORD}" ]; then
-        local sanitized_pass
-        sanitized_pass=$(printf "%s" "${COORDINATOR_PASSWORD}" | sed "s/'/''/g")
-        psql_superuser "SELECT citus_add_node('${host}', ${port}, NULL, '${COORDINATOR_USER}', '${sanitized_pass}');"
-        return 0
-    fi
-
-    psql_superuser "SELECT citus_add_node('${host}', ${port});"
+    # Retry logic for worker registration
+    local max_attempts=5
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        log_debug "Attempting to register worker ${host}:${port} (attempt $attempt/$max_attempts)"
+        
+        if psql_superuser "SELECT citus_add_node('${host}', ${port});"; then
+            log_info "Successfully registered worker node ${host}:${port}"
+            return 0
+        fi
+        
+        log_warn "Failed to register worker ${host}:${port} (attempt $attempt/$max_attempts)"
+        
+        if [ $attempt -lt $max_attempts ]; then
+            log_debug "Waiting 5 seconds before retry..."
+            sleep 5
+        fi
+        
+        ((attempt++))
+    done
+    
+    log_error "Failed to register worker node ${host}:${port} after $max_attempts attempts"
+    return 1
 }
 
 configure_coordinator() {
@@ -128,6 +162,9 @@ configure_coordinator() {
         log_info "No worker nodes specified; skipping worker registration"
         return 0
     fi
+
+    # Setup authentication for worker connections
+    setup_pgpass
 
     local register_workers_action='register_worker_nodes'
     with_coordination_lock "$COORDINATOR_LOCK_KEY" "$register_workers_action"
@@ -184,6 +221,9 @@ configure_worker() {
         log_warn "Invalid CITUS_COORDINATOR_PORT value: $coordinator_port"
         return 0
     fi
+
+    # Setup authentication for inter-node connections (including to other workers)
+    setup_pgpass
 
     log_info "Configuring worker to use coordinator ${coordinator_host}:${coordinator_port}"
     psql_superuser "SELECT citus_set_coordinator_host('${coordinator_host}', ${coordinator_port});"
