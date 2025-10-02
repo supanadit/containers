@@ -30,19 +30,39 @@ main() {
     generate_secure_defaults
 
     # Apply environment variable overrides
-    apply_environment_overrides
+    if [ "${USE_PATRONI:-false}" != "true" ]; then
+        apply_environment_overrides
+    else
+        log_info "Patroni mode enabled, skipping environment overrides on config files"
+    fi
 
     # Apply external access configuration
-    apply_external_access_config
+    if [ "${USE_PATRONI:-false}" != "true" ]; then
+        apply_external_access_config
+    else
+        log_info "Patroni mode enabled, external access will be configured in patroni.yml"
+    fi
 
     # Apply Citus configuration if enabled
-    apply_citus_configuration
+    if [ "${USE_PATRONI:-false}" != "true" ]; then
+        apply_citus_configuration
+    else
+        log_info "Patroni mode enabled, Citus configuration will be in patroni.yml bootstrap"
+    fi
 
     # Apply native HA configuration
-    apply_native_ha_config
+    if [ "${USE_PATRONI:-false}" != "true" ]; then
+        apply_native_ha_config
+    else
+        log_info "Patroni mode enabled, HA configuration is handled by Patroni"
+    fi
 
     # Validate final configurations
-    validate_final_configs
+    if [ "${USE_PATRONI:-false}" != "true" ]; then
+        validate_final_configs
+    else
+        log_info "Patroni mode enabled, skipping config file validation - Patroni manages configs"
+    fi
 
     # Generate Patroni configuration if needed
     if [ "${USE_PATRONI:-false}" = "true" ]; then
@@ -112,6 +132,12 @@ generate_secure_defaults() {
     local data_dir="${PGDATA:-/usr/local/pgsql/data}"
 
     log_info "Generating secure default configurations"
+
+    # Skip generating configs in data dir for Patroni - let Patroni manage them
+    if [ "${USE_PATRONI:-false}" = "true" ]; then
+        log_info "Patroni mode enabled, skipping config generation in data directory"
+        return 0
+    fi
 
     # Generate postgresql.conf if it doesn't exist
     if [ ! -f "$data_dir/postgresql.conf" ]; then
@@ -413,6 +439,9 @@ bootstrap:
         archive_mode: "${ENABLE_PGBACKREST:-off}"
         archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
         archive_command: "${ENABLE_PGBACKREST:+pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p}"
+      pg_hba:
+        - host replication replicator 0.0.0.0/0 md5
+        - host all all 0.0.0.0/0 md5
 postgresql:
   listen: ${POSTGRESQL_LISTEN_HOST:-0.0.0.0}:${POSTGRESQL_PORT:-5432}
   connect_address: ${POSTGRESQL_CONNECT_HOST:-localhost}:${POSTGRESQL_PORT:-5432}

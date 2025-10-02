@@ -35,6 +35,12 @@ main() {
         return 0
     fi
 
+    # Skip initialization in Patroni mode - let Patroni handle bootstrap
+    if [ "${USE_PATRONI:-false}" = "true" ]; then
+        log_info "Patroni mode enabled, skipping database initialization - Patroni will handle bootstrap"
+        return 0
+    fi
+
     # Handle native HA replica setup
     if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "replica" ]]; then
         clone_primary
