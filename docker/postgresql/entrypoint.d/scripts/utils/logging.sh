@@ -39,7 +39,7 @@ log_message() {
 
     # Only log if level is enabled
     if is_log_level_enabled "$level"; then
-        echo "[$timestamp] [$level] $message"
+        echo "[$timestamp] [$level] $message" >&2
     fi
 }
 

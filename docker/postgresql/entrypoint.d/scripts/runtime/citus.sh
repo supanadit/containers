@@ -25,17 +25,18 @@ is_citus_enabled() {
 
 psql_superuser() {
     local sql="$1"
-    su - postgres -c "PATH=/usr/local/pgsql/bin:$PATH psql -v ON_ERROR_STOP=1 --dbname \"${DATABASE_NAME}\" --command \"${sql}\"" >/dev/null
+    su - postgres -c "PATH=/usr/local/pgsql/bin:$PATH psql -v ON_ERROR_STOP=1 -h localhost --dbname \"${DATABASE_NAME}\" --command \"${sql}\"" >/dev/null
 }
 
 psql_superuser_output() {
     local sql="$1"
-    su - postgres -c "PATH=/usr/local/pgsql/bin:$PATH psql -v ON_ERROR_STOP=1 -tA --dbname \"${DATABASE_NAME}\" --command \"${sql}\"" 2>/dev/null
+    su - postgres -c "PATH=/usr/local/pgsql/bin:$PATH psql -v ON_ERROR_STOP=1 -tA -h localhost --dbname \"${DATABASE_NAME}\" --command \"${sql}\"" 2>/dev/null
 }
 
 is_primary() {
     local result
     result=$(psql_superuser_output "SELECT CASE WHEN pg_is_in_recovery() THEN 0 ELSE 1 END;")
+    log_debug "is_primary result: '$result'"
     [[ "${result}" == "1" ]]
 }
 
@@ -76,6 +77,13 @@ determine_node_identity() {
 
 create_extension_if_needed() {
     log_debug "Ensuring Citus extension exists in ${DATABASE_NAME}"
+    
+    # Check if in recovery
+    if psql_superuser_output "SELECT pg_is_in_recovery();" | grep -q "t"; then
+        log_info "PostgreSQL is in recovery, skipping Citus extension creation"
+        return 0
+    fi
+    
     psql_superuser "CREATE EXTENSION IF NOT EXISTS citus;"
 }
 
@@ -115,14 +123,6 @@ add_worker_node() {
 
 configure_coordinator() {
     local worker_list="${CITUS_WORKER_NODES:-}${PATRONI_CITUS_WORKERS:+,${PATRONI_CITUS_WORKERS}}"
-
-    if [ -n "${USE_PATRONI:-}" ] && [ "${USE_PATRONI}" = "true" ]; then
-        export PATRONI_CITUS_ROLE="coordinator"
-        local advertise
-        advertise=$(determine_node_identity "$ADVERTISE_HOST" "$ADVERTISE_PORT")
-        export PATRONI_CITUS_COORDINATOR_HOST="${advertise}"
-        export PATRONI_CITUS_COORDINATOR_PORT="${ADVERTISE_PORT}"
-    fi
 
     if [ -z "$worker_list" ]; then
         log_info "No worker nodes specified; skipping worker registration"
@@ -229,8 +229,8 @@ main() {
         return 0
     fi
 
-    if ! is_primary && [ "${USE_PATRONI:-false}" = "true" ]; then
-        log_info "Node is not primary under Patroni; skipping Citus bootstrap"
+    if ! is_primary && [ "${CITUS_ROLE:-coordinator}" != "coordinator" ]; then
+        log_info "Node is not primary; skipping Citus bootstrap"
         log_script_end "citus.sh"
         return 0
     fi
