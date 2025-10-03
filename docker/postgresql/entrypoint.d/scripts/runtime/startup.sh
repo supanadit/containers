@@ -275,7 +275,7 @@ initialize_pgbackrest_stanza() {
     log_info "Initializing pgBackRest stanza"
 
     local stanza="${PGBACKREST_STANZA:-default}"
-    local backup_info_file="/usr/local/pgsql/backup/backup/${stanza}/backup.info"
+    local backup_info_file="/usr/local/pgsql/backup/${stanza}/backup.info"
 
     # Check if stanza backup info already exists
     if [ -f "$backup_info_file" ]; then
