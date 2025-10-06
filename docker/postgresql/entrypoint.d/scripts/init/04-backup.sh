@@ -112,6 +112,26 @@ EOF
         [ -n "${PGBACKREST_REPO_GCS_KEY:-${PGBACKREST_REPO1_GCS_KEY:-}}" ] && echo "repo1-gcs-key=${PGBACKREST_REPO_GCS_KEY:-${PGBACKREST_REPO1_GCS_KEY}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_GCS_KEY_TYPE:-${PGBACKREST_REPO1_GCS_KEY_TYPE:-}}" ] && echo "repo1-gcs-key-type=${PGBACKREST_REPO_GCS_KEY_TYPE:-${PGBACKREST_REPO1_GCS_KEY_TYPE}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_GCS_USER_PROJECT:-${PGBACKREST_REPO1_GCS_USER_PROJECT:-}}" ] && echo "repo1-gcs-user-project=${PGBACKREST_REPO_GCS_USER_PROJECT:-${PGBACKREST_REPO1_GCS_USER_PROJECT}}" >> "$config_file"
+    elif [ "$repo1_type" = "sftp" ]; then
+        # SFTP-specific configuration
+        local sftp_host="${PGBACKREST_REPO_SFTP_HOST:-${PGBACKREST_REPO1_SFTP_HOST:-}}"
+        [ -n "$sftp_host" ] && echo "repo1-sftp-host=$sftp_host" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_HOST_PORT:-${PGBACKREST_REPO1_SFTP_HOST_PORT:-}}" ] && echo "repo1-sftp-host-port=${PGBACKREST_REPO_SFTP_HOST_PORT:-${PGBACKREST_REPO1_SFTP_HOST_PORT}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_HOST_USER:-${PGBACKREST_REPO1_SFTP_HOST_USER:-}}" ] && echo "repo1-sftp-host-user=${PGBACKREST_REPO_SFTP_HOST_USER:-${PGBACKREST_REPO1_SFTP_HOST_USER}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_HOST_FINGERPRINT:-${PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT:-}}" ] && echo "repo1-sftp-host-fingerprint=${PGBACKREST_REPO_SFTP_HOST_FINGERPRINT:-${PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_HOST_KEY_CHECK_TYPE:-${PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE:-}}" ] && echo "repo1-sftp-host-key-check-type=${PGBACKREST_REPO_SFTP_HOST_KEY_CHECK_TYPE:-${PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_HOST_KEY_HASH_TYPE:-${PGBACKREST_REPO1_SFTP_HOST_KEY_HASH_TYPE:-}}" ] && echo "repo1-sftp-host-key-hash-type=${PGBACKREST_REPO_SFTP_HOST_KEY_HASH_TYPE:-${PGBACKREST_REPO1_SFTP_HOST_KEY_HASH_TYPE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_PRIVATE_KEY_FILE:-${PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE:-}}" ] && echo "repo1-sftp-private-key-file=${PGBACKREST_REPO_SFTP_PRIVATE_KEY_FILE:-${PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_PRIVATE_KEY_PASSPHRASE:-${PGBACKREST_REPO1_SFTP_PRIVATE_KEY_PASSPHRASE:-}}" ] && echo "repo1-sftp-private-key-passphrase=${PGBACKREST_REPO_SFTP_PRIVATE_KEY_PASSPHRASE:-${PGBACKREST_REPO1_SFTP_PRIVATE_KEY_PASSPHRASE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_SFTP_PUBLIC_KEY_FILE:-${PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE:-}}" ] && echo "repo1-sftp-public-key-file=${PGBACKREST_REPO_SFTP_PUBLIC_KEY_FILE:-${PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE}}" >> "$config_file"
+        if [ -n "${PGBACKREST_REPO_SFTP_KNOWN_HOSTS:-${PGBACKREST_REPO1_SFTP_KNOWN_HOSTS:-}}" ]; then
+            local known_hosts_combined="${PGBACKREST_REPO_SFTP_KNOWN_HOSTS:-${PGBACKREST_REPO1_SFTP_KNOWN_HOSTS}}"
+            # Split on comma or space
+            IFS=', ' read -r -a _kh_array <<< "$known_hosts_combined"
+            for _kh in "${_kh_array[@]}"; do
+                [ -n "$_kh" ] && echo "repo1-sftp-known-host=$_kh" >> "$config_file"
+            done
+        fi
     else
         log_warn "Unknown PGBACKREST_REPO_TYPE='${repo1_type}', defaulting to posix behavior"
         echo "repo1-path=${backup_dir}" >> "$config_file"

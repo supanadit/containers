@@ -70,6 +70,26 @@ Notes:
 - If credentials are omitted, ensure the container runtime/environment allows implicit auth (IAM role, etc.).
 - `PGBACKREST_REPO1_S3_VERIFY_TLS=false` is only for development with self-signed certs. Use TLS verification in production.
 - Local directories `backup/` and `archive/` are only created when using a posix/filesystem repository. For S3/GCS they are not needed (only log/lock/spool are local).
+ 
+When using SFTP:
+
+```
+PGBACKREST_REPO1_TYPE=sftp
+PGBACKREST_REPO1_SFTP_HOST=sftp.example.com          # Required host
+PGBACKREST_REPO1_SFTP_HOST_PORT=22                   # Optional
+PGBACKREST_REPO1_SFTP_HOST_USER=pgbackrest           # Optional (default depends on image user)
+PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE=/keys/id_ed25519        # Path inside container
+PGBACKREST_REPO1_SFTP_PRIVATE_KEY_PASSPHRASE=changeit          # Optional
+PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE=/keys/id_ed25519.pub     # Optional
+PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE=strict|accept-new|fingerprint|none
+PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT=aa:bb:cc:...  # Required if using fingerprint check type
+PGBACKREST_REPO1_SFTP_KNOWN_HOSTS=/known_hosts,/extra_known_hosts  # Comma or space separated
+```
+
+Notes SFTP:
+- Provide private key via a secret/volume mount; ensure correct permissions (600) before container start.
+- Multiple known hosts files can be listed separated by comma or space.
+- If using fingerprint verification set both HOST_FINGERPRINT and HOST_KEY_CHECK_TYPE=fingerprint.
 
 Example docker compose service snippet (abbreviated):
 

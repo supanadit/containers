@@ -82,9 +82,9 @@ validate_environment() {
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
         case "$repo_type" in
-            posix|filesystem|s3|gcs) ;;
+            posix|filesystem|s3|gcs|sftp) ;;
             *)
-                log_error "Invalid PGBACKREST_REPO_TYPE: $repo_type (must be posix|filesystem|s3|gcs)"
+                log_error "Invalid PGBACKREST_REPO_TYPE: $repo_type (must be posix|filesystem|s3|gcs|sftp)"
                 exit_code=1
                 ;;
         esac
@@ -128,6 +128,24 @@ validate_environment() {
                     auto|service|token) ;;
                     *)
                         log_error "Invalid PGBACKREST_REPO_GCS_KEY_TYPE: ${PGBACKREST_REPO_GCS_KEY_TYPE} (must be auto|service|token)"
+                        exit_code=1
+                        ;;
+                esac
+            fi
+        elif [ "$repo_type" = "sftp" ]; then
+            if [ -z "${PGBACKREST_REPO_SFTP_HOST:-}" ]; then
+                log_error "PGBACKREST_REPO_SFTP_HOST is required when PGBACKREST_REPO_TYPE=sftp"
+                exit_code=1
+            fi
+            if [ -n "${PGBACKREST_REPO_SFTP_HOST_PORT:-}" ] && ! [[ "${PGBACKREST_REPO_SFTP_HOST_PORT}" =~ ^[0-9]+$ ]]; then
+                log_error "Invalid PGBACKREST_REPO_SFTP_HOST_PORT: ${PGBACKREST_REPO_SFTP_HOST_PORT} (must be numeric)"
+                exit_code=1
+            fi
+            if [ -n "${PGBACKREST_REPO_SFTP_HOST_KEY_CHECK_TYPE:-}" ]; then
+                case "${PGBACKREST_REPO_SFTP_HOST_KEY_CHECK_TYPE}" in
+                    strict|accept-new|fingerprint|none) ;;
+                    *)
+                        log_error "Invalid PGBACKREST_REPO_SFTP_HOST_KEY_CHECK_TYPE: ${PGBACKREST_REPO_SFTP_HOST_KEY_CHECK_TYPE}"
                         exit_code=1
                         ;;
                 esac
