@@ -247,11 +247,16 @@ initialize_pgbackrest_stanza() {
     local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
     local archive_info_file="$backup_dir/archive/$stanza/archive.info"
     local backup_info_file="$backup_dir/backup/$stanza/backup.info"
+    local repo_type="${PGBACKREST_REPO1_TYPE:-posix}"
 
-    # Check if stanza already exists (check for archive.info as it's required for WAL archiving)
-    if [ -f "$archive_info_file" ] && [ -f "$backup_info_file" ]; then
-        log_info "pgBackRest stanza '$stanza' already exists"
-        return 0
+    # For posix/filesystem repositories, we can detect stanza by local files
+    if [ "$repo_type" = "posix" ] || [ "$repo_type" = "filesystem" ]; then
+        if [ -f "$archive_info_file" ] && [ -f "$backup_info_file" ]; then
+            log_info "pgBackRest stanza '$stanza' already exists (local files detected)"
+            return 0
+        fi
+    else
+        log_debug "Skipping local stanza existence check for repo1-type=${repo_type}"
     fi
 
     # Create the stanza as postgres user (unset problematic environment variables)
