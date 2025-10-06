@@ -26,6 +26,11 @@ export POSTGRES_INITDB_ARGS="${POSTGRES_INITDB_ARGS:-}"
 export POSTGRES_INITDB_WALDIR="${POSTGRES_INITDB_WALDIR:-}"
 export POSTGRES_HOST_AUTH_METHOD="${POSTGRES_HOST_AUTH_METHOD:-trust}"
 
+# Citus configuration environment variables
+export CITUS_ENABLE="${CITUS_ENABLE:-false}"
+export CITUS_ROLE="${CITUS_ROLE:-coordinator}"
+export CITUS_NODE_NAME="${CITUS_NODE_NAME:-}"
+
 # Main function
 main() {
     log_script_start "entrypoint.sh v$SCRIPT_VERSION"
