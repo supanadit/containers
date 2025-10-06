@@ -10,6 +10,11 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
+# Helper function to run pgBackRest commands without problematic environment variables
+run_pgbackrest() {
+    env -u PGBACKREST_ENABLE pgbackrest "$@"
+}
+
 # Main function
 main() {
     log_script_start "04-backup.sh"
@@ -32,7 +37,10 @@ main() {
     # Enable archiving in postgresql.conf
     enable_archiving
 
-    # Test backup connectivity
+    # Note: Stanza creation is handled in the runtime phase when PostgreSQL is running
+    # See startup.sh for stanza creation logic
+
+    # Test backup connectivity (basic checks only)
     test_backup_connectivity
 
     log_script_end "04-backup.sh"
@@ -117,6 +125,52 @@ enable_archiving() {
     log_info "WAL archiving enabled in postgresql.conf"
 }
 
+# Create pgBackRest stanza (available for export to runtime scripts)
+create_pgbackrest_stanza() {
+    local stanza="${PGBACKREST_STANZA:-default}"
+    
+    log_info "Creating pgBackRest stanza: $stanza"
+    
+    # Check if PostgreSQL is running by attempting to connect
+    local max_attempts=30
+    local attempt=1
+    local pg_ready=false
+    
+    log_debug "Waiting for PostgreSQL to be ready for stanza creation..."
+    
+    while [ $attempt -le $max_attempts ]; do
+        if pg_isready -q -h localhost -p "${POSTGRESQL_PORT:-5432}" -U "${POSTGRES_USER:-postgres}"; then
+            pg_ready=true
+            break
+        fi
+        log_debug "Attempt $attempt/$max_attempts: PostgreSQL not ready, waiting..."
+        sleep 2
+        ((attempt++))
+    done
+    
+    if [ "$pg_ready" = false ]; then
+        log_error "PostgreSQL is not ready after $max_attempts attempts. Cannot create stanza."
+        return 1
+    fi
+    
+    log_debug "PostgreSQL is ready, proceeding with stanza creation"
+    
+    # Create the stanza
+    if run_pgbackrest --config=/etc/pgbackrest.conf --stanza="$stanza" stanza-create; then
+        log_info "Successfully created pgBackRest stanza: $stanza"
+    else
+        log_error "Failed to create pgBackRest stanza: $stanza"
+        return 1
+    fi
+    
+    # Verify stanza was created successfully
+    if run_pgbackrest --config=/etc/pgbackrest.conf --stanza="$stanza" check; then
+        log_info "pgBackRest stanza verification successful: $stanza"
+    else
+        log_warn "pgBackRest stanza verification failed, but stanza was created"
+    fi
+}
+
 # Apply a PostgreSQL setting (local function for this script)
 apply_postgres_setting() {
     local setting="$1"
@@ -159,7 +213,7 @@ test_backup_connectivity() {
     log_info "Testing backup system connectivity"
 
     # Test pgBackRest version
-    if ! pgbackrest version; then
+    if ! run_pgbackrest version; then
         log_error "pgBackRest is not working properly"
         return 1
     fi
@@ -178,12 +232,15 @@ test_backup_connectivity() {
         return 1
     fi
 
-    # Validate configuration syntax
-    if ! pgbackrest --config="/etc/pgbackrest.conf" info 2>/dev/null; then
-        log_warn "pgBackRest configuration validation failed (PostgreSQL may not be running)"
-        log_warn "This is expected during container initialization"
+    # Basic configuration file syntax check (don't try to connect to PostgreSQL)
+    log_debug "Validating pgBackRest configuration file syntax"
+    
+    # Just check if the config file has the basic required sections
+    if grep -q "^\[global\]" "/etc/pgbackrest.conf" && grep -q "^\[${stanza}\]" "/etc/pgbackrest.conf"; then
+        log_info "pgBackRest configuration file has required sections"
     else
-        log_info "pgBackRest configuration validation successful"
+        log_error "pgBackRest configuration file is missing required sections"
+        return 1
     fi
 
     # Test backup directory permissions
@@ -195,6 +252,10 @@ test_backup_connectivity() {
 
     log_info "Backup system connectivity test completed"
 }
+
+# Export functions for use by other scripts
+export -f run_pgbackrest
+export -f create_pgbackrest_stanza
 
 # Execute main function
 main "$@"

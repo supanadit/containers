@@ -244,17 +244,19 @@ initialize_pgbackrest_stanza() {
     log_info "Initializing pgBackRest stanza"
 
     local stanza="${PGBACKREST_STANZA:-default}"
-    local backup_info_file="/usr/local/pgsql/backup/${stanza}/backup.info"
+    local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
+    local archive_info_file="$backup_dir/archive/$stanza/archive.info"
+    local backup_info_file="$backup_dir/backup/$stanza/backup.info"
 
-    # Check if stanza backup info already exists
-    if [ -f "$backup_info_file" ]; then
-        log_info "pgBackRest stanza '$stanza' backup info already exists"
+    # Check if stanza already exists (check for archive.info as it's required for WAL archiving)
+    if [ -f "$archive_info_file" ] && [ -f "$backup_info_file" ]; then
+        log_info "pgBackRest stanza '$stanza' already exists"
         return 0
     fi
 
-    # Create the stanza as postgres user
+    # Create the stanza as postgres user (unset problematic environment variables)
     log_info "Creating pgBackRest stanza: $stanza"
-    if ! su -c "pgbackrest --stanza=\"$stanza\" stanza-create" postgres; then
+    if ! su -c "env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=\"$stanza\" stanza-create" postgres; then
         log_error "Failed to create pgBackRest stanza: $stanza"
         return 1
     fi
