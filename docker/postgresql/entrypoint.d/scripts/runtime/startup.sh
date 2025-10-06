@@ -9,6 +9,7 @@ set -euo pipefail
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
+source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
 # Set up signal handlers for graceful shutdown
 setup_signal_handlers() {
@@ -255,6 +256,34 @@ initialize_pgbackrest_stanza() {
     local archive_info_file="$backup_dir/archive/$stanza/archive.info"
     local backup_info_file="$backup_dir/backup/$stanza/backup.info"
     local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
+
+    if [ "${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY:-true}" = "true" ]; then
+        if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+            local wait_target=$(( ${PGBACKREST_STANZA_PRIMARY_WAIT:-60} ))
+            local waited=0
+            local primary_ready=false
+            while [ $waited -lt "$wait_target" ]; do
+                if is_primary_role; then
+                    primary_ready=true
+                    break
+                fi
+                sleep 2
+                waited=$((waited + 2))
+            done
+            if [ "$primary_ready" != "true" ]; then
+                log_info "Skipping pgBackRest stanza creation; node not Patroni leader after ${wait_target}s"
+                return 0
+            fi
+        elif ! is_primary_role; then
+            log_info "Skipping pgBackRest stanza creation because node is not primary"
+            return 0
+        fi
+    fi
+
+    if ! is_citus_backup_allowed; then
+        log_info "Skipping pgBackRest stanza creation for Citus role ${CITUS_ROLE:-unknown}"
+        return 0
+    fi
 
     # For posix/filesystem repositories, we can detect stanza by local files; for remote/object repos (s3/gcs) skip
     if [ "$repo_type" = "posix" ] || [ "$repo_type" = "filesystem" ]; then

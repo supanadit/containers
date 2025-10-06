@@ -5,6 +5,7 @@
 set -euo pipefail
 
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
 STANZA="${PGBACKREST_STANZA:-default}"
 CFG="/etc/pgbackrest.conf"
@@ -24,23 +25,6 @@ mkdir -p "$state_dir"
 ts_now() { date +%s; }
 
 write_pid() { echo $$ >"$state_dir/${PROCESS_NAME}.pid"; }
-
-is_primary() {
-	# When Patroni in use, rely on patroni API if available; else check pg_isready + recovery status
-	if [ "${PATRONI_ENABLE:-false}" = "true" ] && command -v curl >/dev/null 2>&1; then
-		local endpoint="${PATRONI_REST_URL:-http://localhost:8008}"/master
-		if curl -sf "${endpoint}" >/dev/null 2>&1; then
-			return 0
-		fi
-	fi
-	# Fallback: query pg to see if in recovery
-	if command -v psql >/dev/null 2>&1; then
-		if PGPASSWORD="${POSTGRES_PASSWORD:-}" psql -qtAX -U "${POSTGRES_USER:-postgres}" -h localhost -p "${POSTGRESQL_PORT:-5432}" -d "${POSTGRES_DB:-postgres}" -c "select pg_is_in_recovery();" 2>/dev/null | grep -q '^f'; then
-			return 0
-		fi
-	fi
-	return 1
-}
 
 run_backup() {
 	local type="$1"
@@ -86,7 +70,13 @@ write_pid
 graceful_sleep "$FIRST_INCR_DELAY"
 
 while true; do
-	if [ "$PRIMARY_ONLY" = "true" ] && ! is_primary; then
+	if ! is_citus_backup_allowed; then
+		log_debug "[auto-backup] Skipping backups (Citus scope excludes this node)"
+		graceful_sleep 60
+		continue
+	fi
+
+	if [ "$PRIMARY_ONLY" = "true" ] && ! is_primary_role; then
 		log_debug "[auto-backup] Instance not primary; skipping backups this cycle"
 		graceful_sleep 30
 		continue

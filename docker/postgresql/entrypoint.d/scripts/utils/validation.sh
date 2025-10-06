@@ -78,6 +78,22 @@ validate_environment() {
             ;;
     esac
 
+    case "${PGBACKREST_ARCHIVE_ENABLE:-true}" in
+        true|false) ;;
+        *)
+            log_error "Invalid PGBACKREST_ARCHIVE_ENABLE: ${PGBACKREST_ARCHIVE_ENABLE} (must be true or false)"
+            exit_code=1
+            ;;
+    esac
+
+    case "${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY:-true}" in
+        true|false) ;;
+        *)
+            log_error "Invalid PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY: ${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY} (must be true or false)"
+            exit_code=1
+            ;;
+    esac
+
     # If pgBackRest enabled, validate repository type specifics
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         # Auto-backup feature validation
@@ -105,6 +121,13 @@ validate_environment() {
                 fi
             fi
         done
+
+        if [ -n "${PGBACKREST_STANZA_PRIMARY_WAIT:-}" ]; then
+            if ! [[ "${PGBACKREST_STANZA_PRIMARY_WAIT}" =~ ^[0-9]+$ ]] || [ "${PGBACKREST_STANZA_PRIMARY_WAIT}" -lt 0 ]; then
+                log_error "Invalid PGBACKREST_STANZA_PRIMARY_WAIT: ${PGBACKREST_STANZA_PRIMARY_WAIT} (must be non-negative integer seconds)"
+                exit_code=1
+            fi
+        fi
 
         local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
         case "$repo_type" in
@@ -177,6 +200,24 @@ validate_environment() {
                 esac
             fi
         fi
+    fi
+
+    if [ "${CITUS_ENABLE:-false}" = "true" ]; then
+        case "${CITUS_ROLE:-coordinator}" in
+            coordinator|worker) ;;
+            *)
+                log_error "Invalid CITUS_ROLE: ${CITUS_ROLE} (must be coordinator or worker)"
+                exit_code=1
+                ;;
+        esac
+
+        case "${CITUS_BACKUP_SCOPE:-coordinator-only}" in
+            coordinator-only|all-nodes) ;;
+            *)
+                log_error "Invalid CITUS_BACKUP_SCOPE: ${CITUS_BACKUP_SCOPE} (must be coordinator-only or all-nodes)"
+                exit_code=1
+                ;;
+        esac
     fi
 
     # Validate PostgreSQL-specific variables

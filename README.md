@@ -18,6 +18,10 @@ Core variables:
 PGBACKREST_STANZA=default                # Optional stanza name (default: default)
 PGBACKREST_PASSWORD=<db_password>        # Optional database user password
 PGBACKUP=/path/to/local/backup           # Base path for local repository/log/lock/spool (default: /usr/local/pgsql/backup)
+PGBACKREST_ARCHIVE_ENABLE=true           # Inject archive_command when managing postgresql.conf directly
+PGBACKREST_ARCHIVE_COMMAND_EXTRA=        # Optional flags appended to archive_command (e.g. --job-default=y)
+PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY=true  # Skip stanza-create on replicas by default
+PGBACKREST_STANZA_PRIMARY_WAIT=60        # Seconds to wait for Patroni leadership before skipping stanza-create
 ```
 
 Repository selection (repo1):
@@ -112,6 +116,17 @@ Backup selection order per cycle (every 60s loop):
 3. Else incremental if incr interval elapsed
 
 Logs: `/var/log/pgbackrest-auto.log` inside container.
+
+#### Citus backup scope
+
+When `CITUS_ENABLE=true`, the container defaults to running pgBackRest orchestration only on the Citus coordinator node. Control this behavior with:
+
+```
+CITUS_ROLE=coordinator|worker            # Role of the container within the Citus cluster
+CITUS_BACKUP_SCOPE=coordinator-only      # Set to all-nodes to allow workers to schedule backups
+```
+
+Workers automatically skip stanza creation and scheduled backups when `CITUS_BACKUP_SCOPE` remains `coordinator-only`. Each worker can still be backed up manually by overriding the scope or running pgBackRest outside the scheduler.
 
 Example docker compose service snippet (abbreviated):
 

@@ -30,6 +30,7 @@ export POSTGRES_HOST_AUTH_METHOD="${POSTGRES_HOST_AUTH_METHOD:-trust}"
 export CITUS_ENABLE="${CITUS_ENABLE:-false}"
 export CITUS_ROLE="${CITUS_ROLE:-coordinator}"
 export CITUS_NODE_NAME="${CITUS_NODE_NAME:-}"
+export CITUS_BACKUP_SCOPE="${CITUS_BACKUP_SCOPE:-coordinator-only}"
 
 # Main function
 main() {

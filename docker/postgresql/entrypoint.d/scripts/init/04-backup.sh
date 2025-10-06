@@ -185,17 +185,32 @@ enable_archiving() {
         return 1
     fi
 
-    # Set archive parameters
-    # apply_postgres_setting "archive_mode" "on"
-    # apply_postgres_setting "archive_command" "pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push ${PGDATA}/%p"
-    apply_postgres_setting "archive_timeout" "${ARCHIVE_TIMEOUT:-1800s}"
+    if [ "${PGBACKREST_ARCHIVE_ENABLE:-true}" != "true" ]; then
+        log_info "PGBACKREST_ARCHIVE_ENABLE=false; skipping archive configuration"
+    else
+        if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+            log_info "Patroni enabled; archive configuration will be managed via patroni.yml"
+        else
+            apply_postgres_setting "archive_mode" "on"
+            local archive_cmd="env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
+            if [ -n "${PGBACKREST_ARCHIVE_COMMAND_EXTRA:-}" ]; then
+                archive_cmd="${archive_cmd} ${PGBACKREST_ARCHIVE_COMMAND_EXTRA}"
+            fi
+            apply_postgres_setting "archive_command" "$archive_cmd"
+            apply_postgres_setting "archive_timeout" "${ARCHIVE_TIMEOUT:-1800s}"
+        fi
+    fi
 
-    # Set WAL parameters for replication
-    apply_postgres_setting "wal_level" "replica"
-    apply_postgres_setting "max_wal_senders" "${PATRONI_MAX_WAL_SENDERS:-10}"
-    apply_postgres_setting "max_replication_slots" "${PATRONI_MAX_REPLICATION_SLOTS:-10}"
+    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+        # Set WAL parameters for replication when managing postgresql.conf directly
+        apply_postgres_setting "wal_level" "replica"
+        apply_postgres_setting "max_wal_senders" "${PATRONI_MAX_WAL_SENDERS:-10}"
+        apply_postgres_setting "max_replication_slots" "${PATRONI_MAX_REPLICATION_SLOTS:-10}"
+    else
+        log_debug "Skipping direct WAL tuning because Patroni manages postgresql.conf"
+    fi
 
-    log_info "WAL archiving enabled in postgresql.conf"
+    log_info "WAL archiving configuration processed"
 }
 
 # Create pgBackRest stanza (available for export to runtime scripts)

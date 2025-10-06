@@ -406,6 +406,17 @@ generate_patroni_config() {
     local patroni_config="/etc/patroni.yml"
     local data_dir="${PGDATA:-/usr/local/pgsql/data}"
 
+    local archive_mode="off"
+    local archive_command=""
+    if [ "${PGBACKREST_ENABLE:-false}" = "true" ] && [ "${PGBACKREST_ARCHIVE_ENABLE:-true}" = "true" ]; then
+        archive_mode="on"
+        local archive_extra=""
+        if [ -n "${PGBACKREST_ARCHIVE_COMMAND_EXTRA:-}" ]; then
+            archive_extra=" ${PGBACKREST_ARCHIVE_COMMAND_EXTRA}"
+        fi
+        archive_command="env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p${archive_extra}"
+    fi
+
     # Generate basic Patroni configuration
     cat > "$patroni_config" << EOF
 scope: ${PATRONI_SCOPE:-postgres-cluster}
@@ -434,11 +445,11 @@ bootstrap:
         hot_standby: "on"
         logging_collector: "on"
         max_wal_senders: ${PATRONI_MAX_WAL_SENDERS:-10}
-        max_replications_slots: ${PATRONI_MAX_REPLICATION_SLOTS:-10}
+                max_replication_slots: ${PATRONI_MAX_REPLICATION_SLOTS:-10}
         wal_keep_segments: ${PATRONI_WAL_KEEP_SEGMENTS:-8}
-        archive_mode: "${PGBACKREST_ENABLE:-off}"
+                archive_mode: "${archive_mode}"
         archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
-        archive_command: "${PGBACKREST_ENABLE:+env -u PGBACKREST_ENABLE pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p}"
+                archive_command: "${archive_command}"
       pg_hba:
         - host replication replicator 0.0.0.0/0 md5
         - host all all 0.0.0.0/0 md5
