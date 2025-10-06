@@ -247,7 +247,7 @@ apply_environment_overrides() {
     apply_postgres_setting "log_duration" "${POSTGRESQL_LOG_DURATION:-}"
 
     # Archive settings
-    if [ "${ENABLE_PGBACKREST:-false}" = "true" ]; then
+    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         apply_postgres_setting "archive_mode" "on"
         apply_postgres_setting "archive_command" "pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push ${PGDATA}/%p"
     else
@@ -436,9 +436,9 @@ bootstrap:
         max_wal_senders: ${PATRONI_MAX_WAL_SENDERS:-10}
         max_replications_slots: ${PATRONI_MAX_REPLICATION_SLOTS:-10}
         wal_keep_segments: ${PATRONI_WAL_KEEP_SEGMENTS:-8}
-        archive_mode: "${ENABLE_PGBACKREST:-off}"
+        archive_mode: "${PGBACKREST_ENABLE:-off}"
         archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
-        archive_command: "${ENABLE_PGBACKREST:+pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p}"
+        archive_command: "${PGBACKREST_ENABLE:+pgbackrest --stanza=${PGBACKREST_STANZA:-default} archive-push %p}"
       pg_hba:
         - host replication replicator 0.0.0.0/0 md5
         - host all all 0.0.0.0/0 md5

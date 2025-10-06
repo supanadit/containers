@@ -133,7 +133,7 @@ start_postgresql_direct() {
     fi
 
     # Initialize pgBackRest stanza if backup is enabled
-    if [ "${ENABLE_PGBACKREST:-false}" = "true" ]; then
+    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         initialize_pgbackrest_stanza
     fi
 
@@ -181,7 +181,7 @@ start_patroni() {
     wait_for_postgresql_ready
 
     # Initialize pgBackRest stanza if backup is enabled
-    if [ "${ENABLE_PGBACKREST:-false}" = "true" ]; then
+    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         initialize_pgbackrest_stanza
     fi
 

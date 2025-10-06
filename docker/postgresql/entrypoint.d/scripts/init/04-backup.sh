@@ -15,7 +15,7 @@ main() {
     log_script_start "04-backup.sh"
 
     # Only proceed if backup is enabled
-    if [ "${ENABLE_PGBACKREST:-false}" != "true" ]; then
+    if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
         log_info "Backup not enabled, skipping backup setup"
         return 0
     fi
