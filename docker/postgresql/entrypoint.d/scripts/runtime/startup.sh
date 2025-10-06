@@ -249,7 +249,7 @@ initialize_pgbackrest_stanza() {
     local backup_info_file="$backup_dir/backup/$stanza/backup.info"
     local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
 
-    # For posix/filesystem repositories, we can detect stanza by local files
+    # For posix/filesystem repositories, we can detect stanza by local files; for remote/object repos (s3/gcs) skip
     if [ "$repo_type" = "posix" ] || [ "$repo_type" = "filesystem" ]; then
         if [ -f "$archive_info_file" ] && [ -f "$backup_info_file" ]; then
             log_info "pgBackRest stanza '$stanza' already exists (local files detected)"

@@ -82,9 +82,9 @@ validate_environment() {
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
         case "$repo_type" in
-            posix|filesystem|s3) ;;
+            posix|filesystem|s3|gcs) ;;
             *)
-                log_error "Invalid PGBACKREST_REPO_TYPE: $repo_type (must be posix|filesystem|s3)"
+                log_error "Invalid PGBACKREST_REPO_TYPE: $repo_type (must be posix|filesystem|s3|gcs)"
                 exit_code=1
                 ;;
         esac
@@ -112,6 +112,22 @@ validate_environment() {
                     true|TRUE|false|FALSE|1|0|y|Y|n|N) ;; 
                     *)
                         log_error "Invalid PGBACKREST_REPO_S3_VERIFY_TLS: ${PGBACKREST_REPO_S3_VERIFY_TLS} (must be boolean-like)"
+                        exit_code=1
+                        ;;
+                esac
+            fi
+        elif [ "$repo_type" = "gcs" ]; then
+            # GCS requires at least a bucket
+            if [ -z "${PGBACKREST_REPO_GCS_BUCKET:-}" ]; then
+                log_error "PGBACKREST_REPO_GCS_BUCKET is required when PGBACKREST_REPO_TYPE=gcs"
+                exit_code=1
+            fi
+            # Key type sanity (optional)
+            if [ -n "${PGBACKREST_REPO_GCS_KEY_TYPE:-}" ]; then
+                case "${PGBACKREST_REPO_GCS_KEY_TYPE}" in
+                    auto|service|token) ;;
+                    *)
+                        log_error "Invalid PGBACKREST_REPO_GCS_KEY_TYPE: ${PGBACKREST_REPO_GCS_KEY_TYPE} (must be auto|service|token)"
                         exit_code=1
                         ;;
                 esac
