@@ -247,7 +247,7 @@ initialize_pgbackrest_stanza() {
     local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
     local archive_info_file="$backup_dir/archive/$stanza/archive.info"
     local backup_info_file="$backup_dir/backup/$stanza/backup.info"
-    local repo_type="${PGBACKREST_REPO1_TYPE:-posix}"
+    local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
 
     # For posix/filesystem repositories, we can detect stanza by local files
     if [ "$repo_type" = "posix" ] || [ "$repo_type" = "filesystem" ]; then

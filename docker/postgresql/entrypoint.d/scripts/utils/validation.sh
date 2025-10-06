@@ -80,38 +80,38 @@ validate_environment() {
 
     # If pgBackRest enabled, validate repository type specifics
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
-        local repo_type="${PGBACKREST_REPO1_TYPE:-posix}"
+        local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
         case "$repo_type" in
             posix|filesystem|s3) ;;
             *)
-                log_error "Invalid PGBACKREST_REPO1_TYPE: $repo_type (must be posix|filesystem|s3)"
+                log_error "Invalid PGBACKREST_REPO_TYPE: $repo_type (must be posix|filesystem|s3)"
                 exit_code=1
                 ;;
         esac
 
         if [ "$repo_type" = "s3" ]; then
             # Basic required vars for S3
-            if [ -z "${PGBACKREST_REPO1_S3_BUCKET:-}" ]; then
-                log_error "PGBACKREST_REPO1_S3_BUCKET is required when PGBACKREST_REPO1_TYPE=s3"
+            if [ -z "${PGBACKREST_REPO_S3_BUCKET:-}" ]; then
+                log_error "PGBACKREST_REPO_S3_BUCKET is required when PGBACKREST_REPO_TYPE=s3"
                 exit_code=1
             fi
-            if [ -z "${PGBACKREST_REPO1_S3_ENDPOINT:-}" ]; then
-                log_error "PGBACKREST_REPO1_S3_ENDPOINT is required when PGBACKREST_REPO1_TYPE=s3 (can point to MinIO or S3 compatible endpoint)"
+            if [ -z "${PGBACKREST_REPO_S3_ENDPOINT:-}" ]; then
+                log_error "PGBACKREST_REPO_S3_ENDPOINT is required when PGBACKREST_REPO_TYPE=s3 (can point to MinIO or S3 compatible endpoint)"
                 exit_code=1
             fi
             # Optional: warn if credentials missing (may rely on IAM/anonymous)
-            if [ -z "${PGBACKREST_REPO1_S3_KEY:-}" ] || [ -z "${PGBACKREST_REPO1_S3_KEY_SECRET:-}" ]; then
+            if [ -z "${PGBACKREST_REPO_S3_KEY:-}" ] || [ -z "${PGBACKREST_REPO_S3_KEY_SECRET:-}" ]; then
                 log_warn "S3 key or secret not provided; ensure alternative auth (IAM/anonymous) is configured if required"
             fi
-            if [ -n "${PGBACKREST_REPO1_S3_PORT:-}" ] && ! [[ "${PGBACKREST_REPO1_S3_PORT}" =~ ^[0-9]+$ ]]; then
-                log_error "Invalid PGBACKREST_REPO1_S3_PORT: ${PGBACKREST_REPO1_S3_PORT} (must be numeric)"
+            if [ -n "${PGBACKREST_REPO_S3_PORT:-}" ] && ! [[ "${PGBACKREST_REPO_S3_PORT}" =~ ^[0-9]+$ ]]; then
+                log_error "Invalid PGBACKREST_REPO_S3_PORT: ${PGBACKREST_REPO_S3_PORT} (must be numeric)"
                 exit_code=1
             fi
-            if [ -n "${PGBACKREST_REPO1_S3_VERIFY_TLS:-}" ]; then
-                case "${PGBACKREST_REPO1_S3_VERIFY_TLS}" in
+            if [ -n "${PGBACKREST_REPO_S3_VERIFY_TLS:-}" ]; then
+                case "${PGBACKREST_REPO_S3_VERIFY_TLS}" in
                     true|TRUE|false|FALSE|1|0|y|Y|n|N) ;; 
                     *)
-                        log_error "Invalid PGBACKREST_REPO1_S3_VERIFY_TLS: ${PGBACKREST_REPO1_S3_VERIFY_TLS} (must be boolean-like)"
+                        log_error "Invalid PGBACKREST_REPO_S3_VERIFY_TLS: ${PGBACKREST_REPO_S3_VERIFY_TLS} (must be boolean-like)"
                         exit_code=1
                         ;;
                 esac
