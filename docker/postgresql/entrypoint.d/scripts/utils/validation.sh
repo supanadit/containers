@@ -150,8 +150,8 @@ validate_ha_configuration() {
             exit_code=1
         fi
 
-        if [[ "${USE_CITUS:-false}" == "true" ]]; then
-            log_error "HA_MODE=native cannot be used with USE_CITUS=true"
+        if [[ "${CITUS_ENABLE:-false}" == "true" ]]; then
+            log_error "HA_MODE=native cannot be used with CITUS_ENABLE=true"
             exit_code=1
         fi
 
