@@ -80,6 +80,32 @@ validate_environment() {
 
     # If pgBackRest enabled, validate repository type specifics
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+        # Auto-backup feature validation
+        case "${PGBACKREST_AUTO_ENABLE:-false}" in
+            true|false) ;;
+            *)
+                log_error "Invalid PGBACKREST_AUTO_ENABLE: ${PGBACKREST_AUTO_ENABLE} (must be true or false)"
+                exit_code=1
+                ;;
+        esac
+        case "${PGBACKREST_AUTO_PRIMARY_ONLY:-true}" in
+            true|false) ;;
+            *)
+                log_error "Invalid PGBACKREST_AUTO_PRIMARY_ONLY: ${PGBACKREST_AUTO_PRIMARY_ONLY} (must be true or false)"
+                exit_code=1
+                ;;
+        esac
+        # Intervals must be positive integers if set
+        for interval_var in PGBACKREST_AUTO_FULL_INTERVAL PGBACKREST_AUTO_DIFF_INTERVAL PGBACKREST_AUTO_INCR_INTERVAL PGBACKREST_AUTO_FIRST_INCR_DELAY; do
+            local val="${!interval_var:-}"
+            if [ -n "$val" ]; then
+                if ! [[ "$val" =~ ^[0-9]+$ ]] || [ "$val" -le 0 ]; then
+                    log_error "Invalid ${interval_var}: ${val} (must be positive integer seconds)"
+                    exit_code=1
+                fi
+            fi
+        done
+
         local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
         case "$repo_type" in
             posix|filesystem|s3|gcs|sftp) ;;

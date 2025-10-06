@@ -135,6 +135,9 @@ start_postgresql_direct() {
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         initialize_pgbackrest_stanza
+        if [ "${PGBACKREST_AUTO_ENABLE:-false}" = "true" ]; then
+            start_pgbackrest_scheduler "$pg_pid"
+        fi
     fi
 
     # Log successful startup
@@ -183,6 +186,10 @@ start_patroni() {
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         initialize_pgbackrest_stanza
+        if [ "${PGBACKREST_AUTO_ENABLE:-false}" = "true" ]; then
+            # Patroni main process is patroni_pid; pass it
+            start_pgbackrest_scheduler "$patroni_pid"
+        fi
     fi
 
     # Log successful startup
@@ -268,6 +275,20 @@ initialize_pgbackrest_stanza() {
 
     log_info "Successfully created pgBackRest stanza: $stanza"
 }
+
+# Launch pgBackRest automatic backup scheduler (non-blocking)
+start_pgbackrest_scheduler() {
+    local parent_pid="$1"
+    if [ ! -x /opt/container/entrypoint.d/scripts/runtime/backup-scheduler.sh ]; then
+        log_error "Backup scheduler script missing or not executable"
+        return 1
+    fi
+    log_info "Starting pgBackRest automatic backup scheduler"
+    PGBACKREST_PARENT_PID="$parent_pid" nohup /opt/container/entrypoint.d/scripts/runtime/backup-scheduler.sh >/var/log/pgbackrest-auto.log 2>&1 &
+    local sched_pid=$!
+    log_info "pgBackRest backup scheduler started with PID ${sched_pid} (log: /var/log/pgbackrest-auto.log)"
+}
+export -f start_pgbackrest_scheduler
 
 # Create replication user for native HA
 create_replication_user() {

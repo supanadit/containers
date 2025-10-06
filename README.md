@@ -91,6 +91,28 @@ Notes SFTP:
 - Multiple known hosts files can be listed separated by comma or space.
 - If using fingerprint verification set both HOST_FINGERPRINT and HOST_KEY_CHECK_TYPE=fingerprint.
 
+Automatic backup scheduling:
+
+Set `PGBACKREST_AUTO_ENABLE=true` to start an internal lightweight scheduler process that runs backups periodically (no cron daemon required).
+
+Environment variables:
+```
+PGBACKREST_AUTO_ENABLE=true                 # Enable scheduler
+PGBACKREST_AUTO_FULL_INTERVAL=86400         # Seconds between full backups (default 86400 = 24h)
+PGBACKREST_AUTO_DIFF_INTERVAL=21600         # Seconds between differential backups (default 6h)
+PGBACKREST_AUTO_INCR_INTERVAL=900           # Seconds between incremental backups (default 15m)
+PGBACKREST_AUTO_FIRST_INCR_DELAY=120        # Delay after container start before first incremental
+PGBACKREST_AUTO_PRIMARY_ONLY=true           # Only run on primary (recommended in HA)
+PGBACKREST_AUTO_STATE_DIR=/tmp/pgbackrest-auto  # State dir for last-run timestamps
+```
+
+Backup selection order per cycle (every 60s loop):
+1. Full if full interval elapsed
+2. Else differential if diff interval elapsed
+3. Else incremental if incr interval elapsed
+
+Logs: `/var/log/pgbackrest-auto.log` inside container.
+
 Example docker compose service snippet (abbreviated):
 
 ```
