@@ -127,11 +127,6 @@ start_postgresql_direct() {
     # Wait for PostgreSQL to be ready
     wait_for_postgresql_ready
 
-    if ! run_citus_initialization; then
-        log_error "Citus runtime initialization failed"
-        return 1
-    fi
-
     # Create replication user if in native HA primary mode
     if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "primary" ]]; then
         create_replication_user
@@ -184,11 +179,6 @@ start_patroni() {
 
     # Wait for Patroni to be ready (it will start PostgreSQL)
     wait_for_postgresql_ready
-
-    if ! run_citus_initialization; then
-        log_error "Citus runtime initialization failed in Patroni mode"
-        return 1
-    fi
 
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${ENABLE_PGBACKREST:-false}" = "true" ]; then
@@ -247,27 +237,6 @@ wait_for_postgresql_ready() {
 
     log_error "PostgreSQL failed to become ready after $max_attempts attempts"
     return 1
-}
-
-# Execute Citus initialization script when available
-run_citus_initialization() {
-    local citus_script="/opt/container/entrypoint.d/scripts/runtime/citus.sh"
-
-    if [ ! -f "$citus_script" ]; then
-        log_debug "Citus runtime script not found; skipping"
-        return 0
-    fi
-
-    if [ ! -x "$citus_script" ]; then
-        chmod +x "$citus_script"
-    fi
-
-    if ! "$citus_script"; then
-        log_error "Citus runtime script execution failed"
-        return 1
-    fi
-
-    return 0
 }
 
 # Initialize pgBackRest stanza
