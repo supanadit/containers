@@ -11,6 +11,11 @@ source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
+# Restore coordination files
+RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+RESTORE_SENTINEL="${RESTORE_STATE_DIR}/pgbackrest-restore.pending"
+RESTORE_COMPLETE_MARK="${RESTORE_STATE_DIR}/pgbackrest-restore.complete"
+
 # Helper function to generate env command that removes all PGBACKREST environment variables
 generate_clean_env_command() {
     local env_cmd="env"
@@ -52,6 +57,101 @@ handle_shutdown() {
     exit 0
 }
 
+# Interpret truthy/falsey values
+is_truthy() {
+    local value="${1:-}"
+    case "${value,,}" in
+        true|1|yes|on|y) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Determine whether a pgBackRest restore is pending
+is_restore_pending() {
+    [ -f "$RESTORE_SENTINEL" ]
+}
+
+# Run pgBackRest restore before starting PostgreSQL
+perform_pgbackrest_restore() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local postgres_user="${POSTGRES_USER:-postgres}"
+    local postgres_group="${POSTGRES_GROUP:-postgres}"
+    local stanza="${PGBACKREST_STANZA:-default}"
+
+    if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
+        log_error "[restore] PGBACKREST_RESTORE requested but PGBACKREST_ENABLE is not true"
+        return 1
+    fi
+
+    if [ ! -f /etc/pgbackrest.conf ]; then
+        log_error "[restore] pgbackrest configuration /etc/pgbackrest.conf not found"
+        return 1
+    fi
+
+    mkdir -p "$data_dir"
+    chown "$postgres_user:$postgres_group" "$data_dir"
+    chmod 700 "$data_dir"
+
+    if [ -n "$(ls -A "$data_dir" 2>/dev/null)" ]; then
+        log_warn "[restore] PostgreSQL data directory is not empty; pgBackRest will reconcile contents (delta restore)"
+    fi
+
+    local clean_env_cmd
+    clean_env_cmd="$(generate_clean_env_command)"
+
+    local restore_args=("--config=/etc/pgbackrest.conf" "--stanza=$stanza" "restore")
+
+    if [ -n "${PGBACKREST_RESTORE_TYPE:-}" ]; then
+        restore_args+=("--type=${PGBACKREST_RESTORE_TYPE}")
+    fi
+    if [ -n "${PGBACKREST_RESTORE_TARGET:-}" ]; then
+        restore_args+=("--target=${PGBACKREST_RESTORE_TARGET}")
+    fi
+    if [ -n "${PGBACKREST_RESTORE_TARGET_TIMELINE:-}" ]; then
+        restore_args+=("--target-timeline=${PGBACKREST_RESTORE_TARGET_TIMELINE}")
+    fi
+    if [ -n "${PGBACKREST_RESTORE_TARGET_ACTION:-}" ]; then
+        restore_args+=("--target-action=${PGBACKREST_RESTORE_TARGET_ACTION}")
+    fi
+    if ! is_truthy "${PGBACKREST_RESTORE_DELTA:-true}"; then
+        :
+    else
+        restore_args+=("--delta")
+    fi
+    if is_truthy "${PGBACKREST_RESTORE_FORCE:-false}"; then
+        restore_args+=("--force")
+    fi
+    if [ -n "${PGBACKREST_RESTORE_EXTRA_OPTS:-}" ]; then
+        # shellcheck disable=SC2206
+        local extra_opts=( ${PGBACKREST_RESTORE_EXTRA_OPTS} )
+        restore_args+=("${extra_opts[@]}")
+    fi
+
+    local restore_cmd="$clean_env_cmd pgbackrest"
+    local arg
+    for arg in "${restore_args[@]}"; do
+        restore_cmd+=" $(printf '%q' "$arg")"
+    done
+
+    log_info "[restore] Executing pgBackRest restore for stanza '$stanza'"
+
+    if ! su -c "$restore_cmd" "$postgres_user"; then
+        log_error "[restore] pgBackRest restore command failed"
+        return 1
+    fi
+
+    log_info "[restore] pgBackRest restore completed successfully"
+
+    mkdir -p "$RESTORE_STATE_DIR"
+    if [ -f "$RESTORE_SENTINEL" ]; then
+        rm -f "$RESTORE_SENTINEL"
+    fi
+    printf 'restored_at=%s\n' "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" >"$RESTORE_COMPLETE_MARK"
+    chmod 600 "$RESTORE_COMPLETE_MARK"
+
+    return 0
+}
+
 # Main function
 main() {
     log_script_start "startup.sh"
@@ -69,6 +169,15 @@ main() {
     if ! validate_security_context; then
         log_error "Security context validation failed"
         return 1
+    fi
+
+    # Perform pgBackRest restore if requested
+    if is_restore_pending; then
+        log_info "Restore sentinel detected; preparing to restore PostgreSQL data directory"
+        if ! perform_pgbackrest_restore; then
+            log_error "pgBackRest restore failed"
+            return 1
+        fi
     fi
 
     # Select startup mode

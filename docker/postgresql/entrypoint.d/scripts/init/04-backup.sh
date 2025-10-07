@@ -41,6 +41,13 @@ run_pgbackrest() {
     env "${env_args[@]}" pgbackrest "$@"
 }
 
+# Determine whether a pgBackRest restore is pending
+is_restore_pending() {
+    local run_dir="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+    local sentinel="$run_dir/pgbackrest-restore.pending"
+    [ -f "$sentinel" ]
+}
+
 # Main function
 main() {
     log_script_start "04-backup.sh"
@@ -274,11 +281,19 @@ EOF
 enable_archiving() {
     local data_dir="${PGDATA:-/usr/local/pgsql/data}"
     local config_file="$data_dir/postgresql.conf"
+    local restore_pending=false
+    if is_restore_pending; then
+        restore_pending=true
+    fi
 
     log_info "Enabling WAL archiving in postgresql.conf"
 
     # Check if config file exists
     if [ ! -f "$config_file" ]; then
+        if $restore_pending; then
+            log_info "postgresql.conf not present yet (restore pending); skipping archive configuration until restore completes"
+            return 0
+        fi
         log_error "postgresql.conf not found: $config_file"
         return 1
     fi

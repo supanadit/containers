@@ -34,48 +34,58 @@ main() {
         return 1
     fi
 
-    # Backup original configurations
-    backup_original_configs
-
-    # Copy user-provided configurations
-    copy_user_configs
-
-    # Generate secure default configurations
-    generate_secure_defaults
-
-    # Apply environment variable overrides
-    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-        apply_environment_overrides
-    else
-        log_info "Patroni mode enabled, skipping environment overrides on config files"
+    local restore_pending=false
+    if is_restore_pending; then
+        restore_pending=true
+        log_info "pgBackRest restore pending; deferring direct modifications to postgresql.conf and pg_hba.conf"
     fi
 
-    # Apply external access configuration
-    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-        apply_external_access_config
-    else
-        log_info "Patroni mode enabled, external access will be configured in patroni.yml"
-    fi
+    if ! $restore_pending; then
+        # Backup original configurations
+        backup_original_configs
 
-    # Apply Citus configuration if enabled
-    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-        apply_citus_configuration
-    else
-        log_info "Patroni mode enabled, Citus configuration will be in patroni.yml bootstrap"
-    fi
+        # Copy user-provided configurations
+        copy_user_configs
 
-    # Apply native HA configuration
-    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-        apply_native_ha_config
-    else
-        log_info "Patroni mode enabled, HA configuration is handled by Patroni"
-    fi
+        # Generate secure default configurations
+        generate_secure_defaults
 
-    # Validate final configurations
-    if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-        validate_final_configs
+        # Apply environment variable overrides
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            apply_environment_overrides
+        else
+            log_info "Patroni mode enabled, skipping environment overrides on config files"
+        fi
+
+        # Apply external access configuration
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            apply_external_access_config
+        else
+            log_info "Patroni mode enabled, external access will be configured in patroni.yml"
+        fi
+
+        # Apply Citus configuration if enabled
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            apply_citus_configuration
+        else
+            log_info "Patroni mode enabled, Citus configuration will be in patroni.yml bootstrap"
+        fi
+
+        # Apply native HA configuration
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            apply_native_ha_config
+        else
+            log_info "Patroni mode enabled, HA configuration is handled by Patroni"
+        fi
+
+        # Validate final configurations
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            validate_final_configs
+        else
+            log_info "Patroni mode enabled, skipping config file validation - Patroni manages configs"
+        fi
     else
-        log_info "Patroni mode enabled, skipping config file validation - Patroni manages configs"
+        log_debug "Skipping PostgreSQL config file manipulation until restore completes"
     fi
 
     # Generate Patroni configuration if needed
@@ -84,6 +94,13 @@ main() {
     fi
 
     log_script_end "03-config.sh"
+}
+
+# Determine whether a restore has been requested and is pending
+is_restore_pending() {
+    local run_dir="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+    local sentinel="$run_dir/pgbackrest-restore.pending"
+    [ -f "$sentinel" ]
 }
 
 # Backup original configuration files

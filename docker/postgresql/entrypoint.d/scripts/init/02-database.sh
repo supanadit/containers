@@ -13,6 +13,11 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 # Set password modification timeout (default 5 seconds)
 TIMEOUT_CHANGE_PASSWORD=${TIMEOUT_CHANGE_PASSWORD:-5}
 
+# Restore coordination files
+RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+RESTORE_SENTINEL="${RESTORE_STATE_DIR}/pgbackrest-restore.pending"
+RESTORE_COMPLETE_MARK="${RESTORE_STATE_DIR}/pgbackrest-restore.complete"
+
 # Sanitize password for SQL usage (escape single quotes)
 sanitize_password() {
     local password="$1"
@@ -29,8 +34,34 @@ main() {
         return 1
     fi
 
-    # Check if cluster already exists
+    # Clear any previous restore state marks to avoid confusion on fresh startups
+    cleanup_stale_restore_markers
+
+    local cluster_exists=false
     if check_cluster_exists; then
+        cluster_exists=true
+    fi
+
+    if is_restore_requested; then
+        if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
+            log_error "PGBACKREST_RESTORE=true requires PGBACKREST_ENABLE=true"
+            return 1
+        fi
+        if ! prepare_restore_environment; then
+            log_error "Failed to prepare PostgreSQL data directory for restore"
+            return 1
+        fi
+        if ! mark_restore_pending; then
+            log_error "Failed to mark restore state"
+            return 1
+        fi
+        log_info "Restore requested; skipping cluster initialization until runtime restore completes"
+        log_script_end "02-database.sh"
+        return 0
+    fi
+
+    # Check if cluster already exists
+    if [ "$cluster_exists" = true ]; then
         log_info "PostgreSQL cluster already exists, skipping initialization"
         return 0
     fi
@@ -70,6 +101,64 @@ main() {
     verify_cluster_integrity
 
     log_script_end "02-database.sh"
+}
+
+# Determine whether a pgBackRest restore is requested
+is_restore_requested() {
+    local flag="${PGBACKREST_RESTORE:-false}"
+    case "${flag,,}" in
+        true|1|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Remove stale restore markers so that a previous run does not interfere
+cleanup_stale_restore_markers() {
+    mkdir -p "$RESTORE_STATE_DIR"
+    if [ -f "$RESTORE_SENTINEL" ]; then
+        log_debug "Removing stale restore sentinel: $RESTORE_SENTINEL"
+        rm -f "$RESTORE_SENTINEL"
+    fi
+}
+
+# Prepare data directory for pgBackRest restore
+prepare_restore_environment() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local postgres_user="${POSTGRES_USER:-postgres}"
+    local postgres_group="${POSTGRES_GROUP:-postgres}"
+
+    if [ -d "$data_dir" ] && [ -n "$(ls -A "$data_dir" 2>/dev/null)" ]; then
+        local backup_path="${data_dir}.pre-restore.$(date +%s)"
+        log_warn "Data directory $data_dir is not empty; moving existing contents to $backup_path"
+        if ! mv "$data_dir" "$backup_path"; then
+            log_warn "Standard move failed; attempting copy-and-clean fallback"
+            mkdir -p "$backup_path"
+            if cp -a "$data_dir/." "$backup_path/"; then
+                chown -R "$postgres_user:$postgres_group" "$backup_path"
+                find "$data_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            else
+                log_error "Failed to safeguard existing data directory contents"
+                return 1
+            fi
+        fi
+    fi
+
+    # Recreate empty data directory owned by postgres
+    mkdir -p "$data_dir"
+    chown "$postgres_user:$postgres_group" "$data_dir"
+    chmod 700 "$data_dir"
+
+    return 0
+}
+
+# Create a sentinel file indicating that restore should run during startup
+mark_restore_pending() {
+    mkdir -p "$RESTORE_STATE_DIR"
+    if printf 'requested_at=%s\n' "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" >"$RESTORE_SENTINEL"; then
+        chmod 600 "$RESTORE_SENTINEL"
+        return 0
+    fi
+    return 1
 }
 
 # Check if PostgreSQL cluster already exists
