@@ -440,6 +440,17 @@ generate_patroni_config() {
 
     local patroni_config="/etc/patroni.yml"
     local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local rest_listen_host="${PATRONI_REST_HOST:-0.0.0.0}"
+    local rest_port="${PATRONI_REST_PORT:-8008}"
+    local rest_connect_host="${PATRONI_REST_CONNECT_HOST:-${POSTGRESQL_CONNECT_HOST:-}}"
+
+    if [ -z "$rest_connect_host" ] || [ "$rest_connect_host" = "0.0.0.0" ]; then
+        rest_connect_host="$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo localhost)"
+    fi
+
+    local postgres_listen_host="${POSTGRESQL_LISTEN_HOST:-0.0.0.0}"
+    local postgres_port="${POSTGRESQL_PORT:-5432}"
+    local postgres_connect_host="${POSTGRESQL_CONNECT_HOST:-${rest_connect_host}}"
 
     local archive_mode="off"
     local archive_command=""
@@ -459,8 +470,8 @@ generate_patroni_config() {
 scope: ${PATRONI_SCOPE:-postgres-cluster}
 name: ${PATRONI_NAME:-postgres-node-1}
 restapi:
-    listen: ${PATRONI_REST_HOST:-0.0.0.0}:${PATRONI_REST_PORT:-8008}
-    connect_address: ${PATRONI_REST_HOST:-localhost}:${PATRONI_REST_PORT:-8008}
+    listen: ${rest_listen_host}:${rest_port}
+    connect_address: ${rest_connect_host}:${rest_port}
 etcd3:
     host: ${ETCD_HOST:-localhost}
     port: ${ETCD_PORT:-2379}
@@ -493,8 +504,8 @@ bootstrap:
                 - host replication replicator 0.0.0.0/0 md5
                 - host all all 0.0.0.0/0 md5
 postgresql:
-    listen: ${POSTGRESQL_LISTEN_HOST:-0.0.0.0}:${POSTGRESQL_PORT:-5432}
-    connect_address: ${POSTGRESQL_CONNECT_HOST:-localhost}:${POSTGRESQL_PORT:-5432}
+    listen: ${postgres_listen_host}:${postgres_port}
+    connect_address: ${postgres_connect_host}:${postgres_port}
     data_dir: ${data_dir}
     config_dir: ${data_dir}
     user: postgres
