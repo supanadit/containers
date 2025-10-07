@@ -453,59 +453,61 @@ generate_patroni_config() {
         archive_command="$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p${archive_extra}"
     fi
 
-    # Generate basic Patroni configuration
-    cat > "$patroni_config" << EOF
+        # Generate basic Patroni configuration
+        cat > "$patroni_config" <<EOF
 scope: ${PATRONI_SCOPE:-postgres-cluster}
 name: ${PATRONI_NAME:-postgres-node-1}
 restapi:
-  listen: ${PATRONI_REST_HOST:-0.0.0.0}:${PATRONI_REST_PORT:-8008}
-  connect_address: ${PATRONI_REST_HOST:-localhost}:${PATRONI_REST_PORT:-8008}
+    listen: ${PATRONI_REST_HOST:-0.0.0.0}:${PATRONI_REST_PORT:-8008}
+    connect_address: ${PATRONI_REST_HOST:-localhost}:${PATRONI_REST_PORT:-8008}
 etcd3:
-  host: ${ETCD_HOST:-localhost}
-  port: ${ETCD_PORT:-2379}
+    host: ${ETCD_HOST:-localhost}
+    port: ${ETCD_PORT:-2379}
 watchdog:
-  mode: ${PATRONI_WATCHDOG_MODE:-off}
-  device: ${PATRONI_WATCHDOG_DEVICE:-/dev/watchdog}
-  safety_margin: ${PATRONI_WATCHDOG_SAFETY_MARGIN:-5}
+    mode: ${PATRONI_WATCHDOG_MODE:-off}
+    device: ${PATRONI_WATCHDOG_DEVICE:-/dev/watchdog}
+    safety_margin: ${PATRONI_WATCHDOG_SAFETY_MARGIN:-5}
 bootstrap:
-  dcs:
-    ttl: ${PATRONI_TTL:-30}
-    loop_wait: ${PATRONI_LOOP_WAIT:-10}
-    retry_timeout: ${PATRONI_RETRY_TIMEOUT:-10}
-    maximum_lag_on_failover: ${PATRONI_MAX_LAG:-1048576}
-    postgresql:
-      use_pg_rewind: ${PATRONI_USE_PG_REWIND:-true}
-      use_slots: ${PATRONI_USE_SLOTS:-true}
-      parameters:
-        wal_level: replica
-        hot_standby: "on"
-        logging_collector: "on"
-        max_wal_senders: ${PATRONI_MAX_WAL_SENDERS:-10}
+    dcs:
+        ttl: ${PATRONI_TTL:-30}
+        loop_wait: ${PATRONI_LOOP_WAIT:-10}
+        retry_timeout: ${PATRONI_RETRY_TIMEOUT:-10}
+        maximum_lag_on_failover: ${PATRONI_MAX_LAG:-1048576}
+        postgresql:
+            use_pg_rewind: ${PATRONI_USE_PG_REWIND:-true}
+            use_slots: ${PATRONI_USE_SLOTS:-true}
+            parameters:
+                wal_level: replica
+                hot_standby: "on"
+                logging_collector: "on"
+                max_wal_senders: ${PATRONI_MAX_WAL_SENDERS:-10}
                 max_replication_slots: ${PATRONI_MAX_REPLICATION_SLOTS:-10}
-        wal_keep_segments: ${PATRONI_WAL_KEEP_SEGMENTS:-8}
+                wal_keep_segments: ${PATRONI_WAL_KEEP_SEGMENTS:-8}
                 archive_mode: "${archive_mode}"
-        archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
+                archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
                 archive_command: "${archive_command}"
-      pg_hba:
-        - host replication replicator 0.0.0.0/0 md5
-        - host all all 0.0.0.0/0 md5
+            pg_hba:
+                - local all postgres trust
+                - local all all md5
+                - host replication replicator 0.0.0.0/0 md5
+                - host all all 0.0.0.0/0 md5
 postgresql:
-  listen: ${POSTGRESQL_LISTEN_HOST:-0.0.0.0}:${POSTGRESQL_PORT:-5432}
-  connect_address: ${POSTGRESQL_CONNECT_HOST:-localhost}:${POSTGRESQL_PORT:-5432}
-  data_dir: ${data_dir}
-  config_dir: ${data_dir}
-  user: postgres
-  pgpass: /tmp/pgpass
-  authentication:
-    replication:
-      username: ${PATRONI_REPLICATION_USER:-replicator}
-      password: ${PATRONI_REPLICATION_PASSWORD:-replicator_password}
-    superuser:
-      username: ${POSTGRES_USER:-postgres}
-      password: ${POSTGRES_PASSWORD:-postgres_password}
-  parameters:
-    unix_socket_directories: '${PGRUN:-/usr/local/pgsql/run}'
-    timezone: '${POSTGRESQL_TIMEZONE:-UTC}'
+    listen: ${POSTGRESQL_LISTEN_HOST:-0.0.0.0}:${POSTGRESQL_PORT:-5432}
+    connect_address: ${POSTGRESQL_CONNECT_HOST:-localhost}:${POSTGRESQL_PORT:-5432}
+    data_dir: ${data_dir}
+    config_dir: ${data_dir}
+    user: postgres
+    pgpass: /tmp/pgpass
+    authentication:
+        replication:
+            username: ${PATRONI_REPLICATION_USER:-replicator}
+            password: ${PATRONI_REPLICATION_PASSWORD:-replicator_password}
+        superuser:
+            username: ${POSTGRES_USER:-postgres}
+            password: ${POSTGRES_PASSWORD:-postgres_password}
+    parameters:
+        unix_socket_directories: '${PGRUN:-/usr/local/pgsql/run}'
+        timezone: '${POSTGRESQL_TIMEZONE:-UTC}'
 EOF
 
     set_secure_permissions "$patroni_config"
@@ -514,6 +516,10 @@ EOF
     # Validate the generated configuration
     if ! validate_patroni_config "$patroni_config"; then
         log_error "Generated Patroni configuration is invalid"
+        log_info "Generated YAML content:"
+        cat "$patroni_config" | while IFS= read -r line; do
+            log_info "  $line"
+        done
         return 1
     fi
 }

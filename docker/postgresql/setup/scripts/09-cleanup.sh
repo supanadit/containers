@@ -14,7 +14,6 @@ apt-get remove --purge -y \
     automake \
     meson \
     git \
-    curl \
     wget \
     pkg-config \
     libreadline-dev \
@@ -36,6 +35,7 @@ apt-get remove --purge -y \
 
 # Install runtime libraries that are needed but development packages were removed
 apt-get install -y --no-install-recommends \
+    curl \
     libssl3 \
     libxml2 \
     liblz4-1 \

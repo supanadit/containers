@@ -431,15 +431,18 @@ initialize_pgbackrest_stanza() {
         if ! su -c "$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=\"$stanza\" stanza-upgrade" postgres; then
             log_error "Both stanza-create and stanza-upgrade failed for stanza: $stanza"
             log_info "This may indicate:"
-            log_info "  1. S3 connectivity issues"
-            log_info "  2. Permission problems with S3 bucket"
-            log_info "  3. Incompatible backup files in repository"
-            log_info "  4. Database system identifier mismatch"
+            log_info "  1. Authentication issues with PostgreSQL (check pg_hba.conf)"
+            log_info "  2. S3 connectivity issues"
+            log_info "  3. Permission problems with S3 bucket"
+            log_info "  4. Incompatible backup files in repository"
+            log_info "  5. Database system identifier mismatch"
             log_info "To resolve manually:"
+            log_info "  - Check PostgreSQL connectivity and authentication"
             log_info "  - Check S3 credentials and connectivity"
             log_info "  - Clear the S3 bucket if safe to do so"
             log_info "  - Run 'pgbackrest --stanza=$stanza info' for diagnostics"
-            return 1
+            log_warn "Continuing startup without pgBackRest stanza - create manually later"
+            return 0
         else
             log_info "Successfully upgraded pgBackRest stanza: $stanza"
         fi

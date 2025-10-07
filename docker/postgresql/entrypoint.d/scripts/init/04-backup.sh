@@ -222,6 +222,7 @@ EOF
 pg1-path=${data_dir}
 pg1-port=${POSTGRESQL_PORT:-5432}
 pg1-user=${POSTGRES_USER:-postgres}
+pg1-socket-path=${PGRUN:-/usr/local/pgsql/run}
 EOF
 
     # Add password if provided
@@ -287,6 +288,12 @@ enable_archiving() {
     fi
 
     log_info "Enabling WAL archiving in postgresql.conf"
+
+    # Skip if Patroni is enabled - it manages configs via patroni.yml
+    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+        log_info "Patroni mode enabled, skipping postgresql.conf archiving configuration - managed via patroni.yml"
+        return 0
+    fi
 
     # Check if config file exists
     if [ ! -f "$config_file" ]; then
