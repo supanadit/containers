@@ -32,6 +32,9 @@ export CITUS_ROLE="${CITUS_ROLE:-coordinator}"
 export CITUS_NODE_NAME="${CITUS_NODE_NAME:-}"
 export CITUS_BACKUP_SCOPE="${CITUS_BACKUP_SCOPE:-coordinator-only}"
 
+# Timezone configuration
+export POSTGRESQL_TIMEZONE="${POSTGRESQL_TIMEZONE:-UTC}"
+
 # Main function
 main() {
     log_script_start "entrypoint.sh v$SCRIPT_VERSION"

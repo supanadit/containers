@@ -117,6 +117,38 @@ Backup selection order per cycle (every 60s loop):
 
 Logs: `/var/log/pgbackrest-auto.log` inside container.
 
+### PostgreSQL Configuration Environment Variables
+
+The PostgreSQL container supports various configuration options through environment variables:
+
+```
+POSTGRESQL_TIMEZONE=UTC|Asia/Jakarta|+07    # Database timezone (default: UTC)
+POSTGRESQL_SHARED_BUFFERS=256MB             # Shared memory buffers
+POSTGRESQL_MAX_CONNECTIONS=100              # Maximum connections
+POSTGRESQL_WORK_MEM=4MB                     # Work memory per connection
+POSTGRESQL_MAINTENANCE_WORK_MEM=64MB        # Maintenance work memory
+POSTGRESQL_LISTEN_ADDRESSES=*               # Listen addresses
+POSTGRESQL_LOG_STATEMENT=ddl                # Log statement types
+POSTGRESQL_LOG_DURATION=on                  # Log query duration
+```
+
+#### Timezone Configuration
+
+By default, PostgreSQL uses UTC timezone. To set a different timezone, use the `POSTGRESQL_TIMEZONE` environment variable:
+
+```bash
+# Using timezone name
+POSTGRESQL_TIMEZONE=Asia/Jakarta
+
+# Using UTC offset
+POSTGRESQL_TIMEZONE=+07
+
+# Using UTC (default)
+POSTGRESQL_TIMEZONE=UTC
+```
+
+This setting applies to both regular PostgreSQL and Patroni-managed clusters.
+
 #### Citus backup scope
 
 When `CITUS_ENABLE=true`, the container defaults to running pgBackRest orchestration only on the Citus coordinator node. Control this behavior with:
