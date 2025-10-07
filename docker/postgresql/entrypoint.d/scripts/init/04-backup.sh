@@ -183,7 +183,7 @@ EOF
         if [ -n "$repo1_path_override" ]; then
             echo "repo1-path=${repo1_path_override}" >> "$config_file"
         else
-            echo "repo1-path=/var/lib/pgbackrest" >> "$config_file"
+            echo "repo1-path=/home/$PGBACKREST_REPO_SFTP_HOST_USER/pgbackrest" >> "$config_file"
         fi
     elif [ "$repo1_type" = "azure" ]; then
         # Azure-specific configuration
