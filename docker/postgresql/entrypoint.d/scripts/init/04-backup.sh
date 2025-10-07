@@ -161,6 +161,12 @@ EOF
                 [ -n "$_kh" ] && echo "repo1-sftp-known-host=$_kh" >> "$config_file"
             done
         fi
+        # Set the remote path for SFTP repository (prefer override if provided)
+        if [ -n "$repo1_path_override" ]; then
+            echo "repo1-path=${repo1_path_override}" >> "$config_file"
+        else
+            echo "repo1-path=/var/lib/pgbackrest" >> "$config_file"
+        fi
     else
         log_warn "Unknown PGBACKREST_REPO_TYPE='${repo1_type}', defaulting to posix behavior"
         echo "repo1-path=${backup_dir}" >> "$config_file"
