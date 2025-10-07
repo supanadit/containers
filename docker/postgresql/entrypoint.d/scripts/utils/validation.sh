@@ -492,8 +492,9 @@ validate_memory_value() {
 validate_cron_expression() {
     local cron_expr="$1"
     
-    # Split into fields
-    local fields=($cron_expr)
+    # Split into fields using read array
+    local fields
+    read -ra fields <<< "$cron_expr"
     if [ ${#fields[@]} -ne 5 ]; then
         return 1
     fi
