@@ -34,6 +34,7 @@ export CITUS_BACKUP_SCOPE="${CITUS_BACKUP_SCOPE:-coordinator-only}"
 
 # Timezone configuration
 export POSTGRESQL_TIMEZONE="${POSTGRESQL_TIMEZONE:-UTC}"
+export PGBACKREST_AUTO_TIMEZONE="${PGBACKREST_AUTO_TIMEZONE:-UTC}"
 
 # Main function
 main() {

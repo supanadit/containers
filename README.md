@@ -108,6 +108,7 @@ PGBACKREST_AUTO_INCR_INTERVAL=900           # Seconds between incremental backup
 PGBACKREST_AUTO_FIRST_INCR_DELAY=120        # Delay after container start before first incremental
 PGBACKREST_AUTO_PRIMARY_ONLY=true           # Only run on primary (recommended in HA)
 PGBACKREST_AUTO_STATE_DIR=/tmp/pgbackrest-auto  # State dir for last-run timestamps
+PGBACKREST_AUTO_TIMEZONE=UTC                # Timezone for backup scheduling (default: UTC)
 ```
 
 Backup selection order per cycle (every 60s loop):
@@ -116,6 +117,8 @@ Backup selection order per cycle (every 60s loop):
 3. Else incremental if incr interval elapsed
 
 Logs: `/var/log/pgbackrest-auto.log` inside container.
+
+Note: Backup scheduling uses the timezone specified by `PGBACKREST_AUTO_TIMEZONE` (default: UTC), which is independent of the PostgreSQL database timezone set by `POSTGRESQL_TIMEZONE`.
 
 ### PostgreSQL Configuration Environment Variables
 

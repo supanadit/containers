@@ -37,6 +37,8 @@ FIRST_INCR_DELAY=${PGBACKREST_AUTO_FIRST_INCR_DELAY:-120} # Wait a bit after sta
 PRIMARY_ONLY=${PGBACKREST_AUTO_PRIMARY_ONLY:-true}
 PROCESS_NAME="pgbackrest-auto"
 
+BACKUP_TIMEZONE="${PGBACKREST_AUTO_TIMEZONE:-UTC}"
+
 state_dir="${PGBACKREST_AUTO_STATE_DIR:-/tmp/pgbackrest-auto}" # ephemeral is fine; can be mounted if persistence desired
 mkdir -p "$state_dir"
 
@@ -52,11 +54,11 @@ cron_matches() {
 	local now_min now_hour now_day now_month now_wday
 	
 	# Get current time components
-	now_min=$(date +%M | sed 's/^0*//')   # Remove leading zeros
-	now_hour=$(date +%H | sed 's/^0*//')  # Remove leading zeros
-	now_day=$(date +%d | sed 's/^0*//')   # Remove leading zeros
-	now_month=$(date +%m | sed 's/^0*//')  # Remove leading zeros
-	now_wday=$(date +%w)                  # 0=Sunday, 1=Monday, etc.
+	now_min=$(TZ="$BACKUP_TIMEZONE" date +%M | sed 's/^0*//')   # Remove leading zeros
+	now_hour=$(TZ="$BACKUP_TIMEZONE" date +%H | sed 's/^0*//')  # Remove leading zeros
+	now_day=$(TZ="$BACKUP_TIMEZONE" date +%d | sed 's/^0*//')   # Remove leading zeros
+	now_month=$(TZ="$BACKUP_TIMEZONE" date +%m | sed 's/^0*//')  # Remove leading zeros
+	now_wday=$(TZ="$BACKUP_TIMEZONE" date +%w)                  # 0=Sunday, 1=Monday, etc.
 	
 	# Handle empty values (when sed removes leading zero from "00")
 	[ -z "$now_min" ] && now_min=0
@@ -173,11 +175,11 @@ backup_already_run_this_minute() {
 	local type="$1"
 	local state_file="$state_dir/last_${type}"
 	local current_minute
-	current_minute=$(date +"%Y-%m-%d %H:%M")
+	current_minute=$(TZ="$BACKUP_TIMEZONE" date +"%Y-%m-%d %H:%M")
 	
 	if [ -f "$state_file" ]; then
 		local last_run_minute
-		last_run_minute=$(date -d "@$(cat "$state_file" 2>/dev/null || echo 0)" +"%Y-%m-%d %H:%M" 2>/dev/null || echo "")
+		last_run_minute=$(TZ="$BACKUP_TIMEZONE" date -d "@$(cat "$state_file" 2>/dev/null || echo 0)" +"%Y-%m-%d %H:%M" 2>/dev/null || echo "")
 		if [ "$current_minute" = "$last_run_minute" ]; then
 			return 0  # Already run this minute
 		fi
@@ -203,6 +205,7 @@ log_info "[auto-backup] Scheduler starting with cron schedules:"
 log_info "[auto-backup]   Full backup: $FULL_CRON"
 log_info "[auto-backup]   Diff backup: $DIFF_CRON"  
 log_info "[auto-backup]   Incremental backup: $INCR_CRON"
+log_info "[auto-backup]   Backup timezone: $BACKUP_TIMEZONE"
 write_pid
 
 # Initial delay for incremental to avoid immediate load at container start
