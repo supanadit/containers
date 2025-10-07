@@ -10,6 +10,20 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
+# Helper function to generate env command that removes all PGBACKREST environment variables
+generate_clean_env_command() {
+    local env_cmd="env"
+    
+    # Get all PGBACKREST_* environment variables and add them to the unset list
+    while IFS='=' read -r var_name var_value; do
+        if [[ "$var_name" =~ ^PGBACKREST_ ]]; then
+            env_cmd="$env_cmd -u $var_name"
+        fi
+    done < <(env | grep '^PGBACKREST_')
+    
+    echo "$env_cmd"
+}
+
 # Main function
 main() {
     log_script_start "03-config.sh"
@@ -248,8 +262,10 @@ apply_environment_overrides() {
 
     # Archive settings
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+        local clean_env_cmd
+        clean_env_cmd="$(generate_clean_env_command)"
         apply_postgres_setting "archive_mode" "on"
-        apply_postgres_setting "archive_command" "env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
+        apply_postgres_setting "archive_command" "$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
     else
         apply_postgres_setting "archive_mode" "off"
     fi
@@ -414,7 +430,9 @@ generate_patroni_config() {
         if [ -n "${PGBACKREST_ARCHIVE_COMMAND_EXTRA:-}" ]; then
             archive_extra=" ${PGBACKREST_ARCHIVE_COMMAND_EXTRA}"
         fi
-        archive_command="env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p${archive_extra}"
+        local clean_env_cmd
+        clean_env_cmd="$(generate_clean_env_command)"
+        archive_command="$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p${archive_extra}"
     fi
 
     # Generate basic Patroni configuration

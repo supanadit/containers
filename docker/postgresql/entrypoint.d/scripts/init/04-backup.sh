@@ -10,9 +10,35 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
+# Helper function to generate env command that removes all PGBACKREST environment variables
+generate_clean_env_command() {
+    local env_cmd="env"
+    
+    # Get all PGBACKREST_* environment variables and add them to the unset list
+    while IFS='=' read -r var_name var_value; do
+        if [[ "$var_name" =~ ^PGBACKREST_ ]]; then
+            env_cmd="$env_cmd -u $var_name"
+        fi
+    done < <(env | grep '^PGBACKREST_')
+    
+    echo "$env_cmd"
+}
+
 # Helper function to run pgBackRest commands without problematic environment variables
 run_pgbackrest() {
-    env -u PGBACKREST_ENABLE pgbackrest "$@"
+    # Create a clean environment by removing all PGBACKREST_* variables
+    # This prevents conflicts between environment variables and config file settings
+    local env_args=()
+    
+    # Get all PGBACKREST_* environment variables and add them to the unset list
+    while IFS='=' read -r var_name var_value; do
+        if [[ "$var_name" =~ ^PGBACKREST_ ]]; then
+            env_args+=("-u" "$var_name")
+        fi
+    done < <(env | grep '^PGBACKREST_')
+    
+    # Run pgbackrest with a clean environment
+    env "${env_args[@]}" pgbackrest "$@"
 }
 
 # Main function
@@ -222,7 +248,9 @@ enable_archiving() {
             log_info "Patroni enabled; archive configuration will be managed via patroni.yml"
         else
             apply_postgres_setting "archive_mode" "on"
-            local archive_cmd="env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
+            local clean_env_cmd
+            clean_env_cmd="$(generate_clean_env_command)"
+            local archive_cmd="$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
             if [ -n "${PGBACKREST_ARCHIVE_COMMAND_EXTRA:-}" ]; then
                 archive_cmd="${archive_cmd} ${PGBACKREST_ARCHIVE_COMMAND_EXTRA}"
             fi
@@ -273,12 +301,31 @@ create_pgbackrest_stanza() {
     
     log_debug "PostgreSQL is ready, proceeding with stanza creation"
     
-    # Create the stanza
+    # Try to create the stanza first
     if run_pgbackrest --config=/etc/pgbackrest.conf --stanza="$stanza" stanza-create; then
         log_info "Successfully created pgBackRest stanza: $stanza"
     else
-        log_error "Failed to create pgBackRest stanza: $stanza"
-        return 1
+        local exit_code=$?
+        log_warn "Initial stanza-create failed (exit code: $exit_code), checking if stanza upgrade is needed"
+        
+        # Error code 28 typically indicates backup/archive info files exist but don't match
+        # Try stanza-upgrade to handle existing backup files
+        log_info "Attempting stanza upgrade to handle existing backup files"
+        if run_pgbackrest --config=/etc/pgbackrest.conf --stanza="$stanza" stanza-upgrade; then
+            log_info "Successfully upgraded pgBackRest stanza: $stanza"
+        else
+            log_error "Both stanza-create and stanza-upgrade failed for stanza: $stanza"
+            log_info "This may indicate:"
+            log_info "  1. S3 connectivity issues"
+            log_info "  2. Permission problems with S3 bucket"
+            log_info "  3. Incompatible backup files in repository"
+            log_info "  4. Database system identifier mismatch"
+            log_info "To resolve manually:"
+            log_info "  - Check S3 credentials and connectivity"
+            log_info "  - Clear the S3 bucket if safe to do so"
+            log_info "  - Run 'pgbackrest --stanza=$stanza info' for diagnostics"
+            return 1
+        fi
     fi
     
     # Verify stanza was created successfully

@@ -3,3 +3,5 @@ wordpress/apache/plugins/*
 
 wordpress/apache/themes/*
 !wordpress/apache/themes/.gitkeep
+
+data

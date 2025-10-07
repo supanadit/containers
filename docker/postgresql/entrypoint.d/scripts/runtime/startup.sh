@@ -11,6 +11,20 @@ source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
+# Helper function to generate env command that removes all PGBACKREST environment variables
+generate_clean_env_command() {
+    local env_cmd="env"
+    
+    # Get all PGBACKREST_* environment variables and add them to the unset list
+    while IFS='=' read -r var_name var_value; do
+        if [[ "$var_name" =~ ^PGBACKREST_ ]]; then
+            env_cmd="$env_cmd -u $var_name"
+        fi
+    done < <(env | grep '^PGBACKREST_')
+    
+    echo "$env_cmd"
+}
+
 # Set up signal handlers for graceful shutdown
 setup_signal_handlers() {
     log_debug "Setting up signal handlers in startup script"
@@ -296,13 +310,33 @@ initialize_pgbackrest_stanza() {
     fi
 
     # Create the stanza as postgres user (unset problematic environment variables)
+    local clean_env_cmd
+    clean_env_cmd="$(generate_clean_env_command)"
     log_info "Creating pgBackRest stanza: $stanza"
-    if ! su -c "env -u PGBACKREST_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=\"$stanza\" stanza-create" postgres; then
-        log_error "Failed to create pgBackRest stanza: $stanza"
-        return 1
+    if ! su -c "$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=\"$stanza\" stanza-create" postgres; then
+        local exit_code=$?
+        log_warn "Initial stanza-create failed (exit code: $exit_code), checking if stanza upgrade is needed"
+        
+        # Try stanza-upgrade to handle existing backup files
+        log_info "Attempting stanza upgrade to handle existing backup files"
+        if ! su -c "$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=\"$stanza\" stanza-upgrade" postgres; then
+            log_error "Both stanza-create and stanza-upgrade failed for stanza: $stanza"
+            log_info "This may indicate:"
+            log_info "  1. S3 connectivity issues"
+            log_info "  2. Permission problems with S3 bucket"
+            log_info "  3. Incompatible backup files in repository"
+            log_info "  4. Database system identifier mismatch"
+            log_info "To resolve manually:"
+            log_info "  - Check S3 credentials and connectivity"
+            log_info "  - Clear the S3 bucket if safe to do so"
+            log_info "  - Run 'pgbackrest --stanza=$stanza info' for diagnostics"
+            return 1
+        else
+            log_info "Successfully upgraded pgBackRest stanza: $stanza"
+        fi
+    else
+        log_info "Successfully created pgBackRest stanza: $stanza"
     fi
-
-    log_info "Successfully created pgBackRest stanza: $stanza"
 }
 
 # Launch pgBackRest automatic backup scheduler (non-blocking)

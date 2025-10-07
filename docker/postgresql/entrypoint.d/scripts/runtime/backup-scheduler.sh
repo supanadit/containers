@@ -10,6 +10,20 @@ source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 STANZA="${PGBACKREST_STANZA:-default}"
 CFG="/etc/pgbackrest.conf"
 
+# Helper function to generate env command that removes all PGBACKREST environment variables
+generate_clean_env_command() {
+    local env_cmd="env"
+    
+    # Get all PGBACKREST_* environment variables and add them to the unset list
+    while IFS='=' read -r var_name var_value; do
+        if [[ "$var_name" =~ ^PGBACKREST_ ]]; then
+            env_cmd="$env_cmd -u $var_name"
+        fi
+    done < <(env | grep '^PGBACKREST_')
+    
+    echo "$env_cmd"
+}
+
 # Intervals (seconds); defaults chosen to be conservative if enabled without overrides
 FULL_INT=${PGBACKREST_AUTO_FULL_INTERVAL:-86400}          # 24h
 DIFF_INT=${PGBACKREST_AUTO_DIFF_INTERVAL:-21600}          # 6h
@@ -28,8 +42,10 @@ write_pid() { echo $$ >"$state_dir/${PROCESS_NAME}.pid"; }
 
 run_backup() {
 	local type="$1"
+	local clean_env_cmd
+	clean_env_cmd="$(generate_clean_env_command)"
 	log_info "[auto-backup] Starting ${type} backup for stanza=${STANZA}"
-	if env -u PGBACKREST_ENABLE pgbackrest --config="$CFG" --stanza="$STANZA" backup --type="$type"; then
+	if $clean_env_cmd pgbackrest --config="$CFG" --stanza="$STANZA" backup --type="$type"; then
 		log_info "[auto-backup] ${type} backup completed successfully"
 		echo $(ts_now) >"$state_dir/last_${type}"
 		return 0
