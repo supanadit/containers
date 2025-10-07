@@ -53,6 +53,9 @@ configure_pgbackrest() {
     local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
     local data_dir="${PGDATA:-/usr/local/pgsql/data}"
     local config_file="/etc/pgbackrest.conf"
+    # Get postgres user/group (with defaults)
+    local POSTGRES_USER="${POSTGRES_USER:-postgres}"
+    local POSTGRES_GROUP="${POSTGRES_GROUP:-postgres}"
     # Backward compatibility: accept legacy *REPO1_* variable names if new generic names not provided
     local repo1_type="${PGBACKREST_REPO_TYPE:-${PGBACKREST_REPO1_TYPE:-posix}}"
     local repo1_path_override="${PGBACKREST_REPO_PATH:-${PGBACKREST_REPO1_PATH:-}}" # Optional explicit override
@@ -137,6 +140,9 @@ EOF
         echo "repo1-path=${backup_dir}" >> "$config_file"
     fi
 
+    # Add stanza configuration section
+    cat >> "$config_file" << EOF
+
 [${PGBACKREST_STANZA:-default}]
 pg1-path=${data_dir}
 pg1-port=${POSTGRESQL_PORT:-5432}
@@ -153,19 +159,43 @@ EOF
 
     log_info "Created pgBackRest configuration: $config_file"
 
+    # Ensure the main backup directory exists and has correct permissions
+    mkdir -p "$backup_dir"
+    chmod 750 "$backup_dir"
+    if id "$POSTGRES_USER" >/dev/null 2>&1; then
+        chown "$POSTGRES_USER:$POSTGRES_GROUP" "$backup_dir"
+        log_debug "Set main backup directory permissions 750 and ownership to $POSTGRES_USER:$POSTGRES_GROUP"
+    fi
+
     # Create local support directories (always needed for logs/locks/spool)
     local spool_subdir="${backup_dir}/spool"
     local log_subdir="${backup_dir}/log"
     local lock_subdir="${backup_dir}/lock"
     mkdir -p "$spool_subdir" "$log_subdir" "$lock_subdir"
-    set_secure_permissions "$spool_subdir" "$log_subdir" "$lock_subdir"
+    
+    # Set pgBackRest-specific permissions (need write access for postgres user)
+    chmod 750 "$spool_subdir" "$log_subdir" "$lock_subdir"
+    if id "$POSTGRES_USER" >/dev/null 2>&1; then
+        chown "$POSTGRES_USER:$POSTGRES_GROUP" "$spool_subdir" "$log_subdir" "$lock_subdir"
+        log_debug "Set pgBackRest directory permissions 750 and ownership to $POSTGRES_USER:$POSTGRES_GROUP"
+    else
+        log_warn "PostgreSQL user $POSTGRES_USER does not exist, using current user ownership"
+    fi
 
     # Only create local repository data directories if using a posix/filesystem repository
     if [ "$repo1_type" = "posix" ] || [ "$repo1_type" = "filesystem" ]; then
         local backup_subdir="$backup_dir/backup/${PGBACKREST_STANZA:-default}"
         local archive_subdir="$backup_dir/archive/${PGBACKREST_STANZA:-default}"
         mkdir -p "$backup_subdir" "$archive_subdir"
-        set_secure_permissions "$backup_subdir" "$archive_subdir"
+        
+        # Set pgBackRest-specific permissions for backup directories
+        chmod 750 "$backup_subdir" "$archive_subdir"
+        if id "$POSTGRES_USER" >/dev/null 2>&1; then
+            chown "$POSTGRES_USER:$POSTGRES_GROUP" "$backup_subdir" "$archive_subdir"
+            log_debug "Set pgBackRest backup directory permissions 750 and ownership to $POSTGRES_USER:$POSTGRES_GROUP"
+        else
+            log_warn "PostgreSQL user $POSTGRES_USER does not exist, using current user ownership"
+        fi
         log_debug "Created pgBackRest posix repository directories: backup, archive"
     else
         log_debug "Skipping creation of local backup/archive directories for repo1-type=${repo1_type}"
