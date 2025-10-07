@@ -111,16 +111,24 @@ validate_environment() {
                 exit_code=1
                 ;;
         esac
-        # Intervals must be positive integers if set
-        for interval_var in PGBACKREST_AUTO_FULL_INTERVAL PGBACKREST_AUTO_DIFF_INTERVAL PGBACKREST_AUTO_INCR_INTERVAL PGBACKREST_AUTO_FIRST_INCR_DELAY; do
-            local val="${!interval_var:-}"
+        # Validate cron expressions if set
+        for cron_var in PGBACKREST_AUTO_FULL_CRON PGBACKREST_AUTO_DIFF_CRON PGBACKREST_AUTO_INCR_CRON; do
+            local val="${!cron_var:-}"
             if [ -n "$val" ]; then
-                if ! [[ "$val" =~ ^[0-9]+$ ]] || [ "$val" -le 0 ]; then
-                    log_error "Invalid ${interval_var}: ${val} (must be positive integer seconds)"
+                if ! validate_cron_expression "$val"; then
+                    log_error "Invalid ${cron_var}: ${val} (must be valid 5-field cron expression)"
                     exit_code=1
                 fi
             fi
         done
+        
+        # First incremental delay must be positive integer if set
+        if [ -n "${PGBACKREST_AUTO_FIRST_INCR_DELAY:-}" ]; then
+            if ! [[ "${PGBACKREST_AUTO_FIRST_INCR_DELAY}" =~ ^[0-9]+$ ]] || [ "${PGBACKREST_AUTO_FIRST_INCR_DELAY}" -le 0 ]; then
+                log_error "Invalid PGBACKREST_AUTO_FIRST_INCR_DELAY: ${PGBACKREST_AUTO_FIRST_INCR_DELAY} (must be positive integer seconds)"
+                exit_code=1
+            fi
+        fi
 
         if [ -n "${PGBACKREST_STANZA_PRIMARY_WAIT:-}" ]; then
             if ! [[ "${PGBACKREST_STANZA_PRIMARY_WAIT}" =~ ^[0-9]+$ ]] || [ "${PGBACKREST_STANZA_PRIMARY_WAIT}" -lt 0 ]; then
@@ -480,6 +488,95 @@ validate_memory_value() {
     fi
 }
 
+# Validate cron expression (5-field format: minute hour day month weekday)
+validate_cron_expression() {
+    local cron_expr="$1"
+    
+    # Split into fields
+    local fields=($cron_expr)
+    if [ ${#fields[@]} -ne 5 ]; then
+        return 1
+    fi
+    
+    local minute="${fields[0]}"
+    local hour="${fields[1]}"
+    local day="${fields[2]}"
+    local month="${fields[3]}"
+    local weekday="${fields[4]}"
+    
+    # Validate each field
+    if ! validate_cron_field "$minute" 0 59; then return 1; fi
+    if ! validate_cron_field "$hour" 0 23; then return 1; fi
+    if ! validate_cron_field "$day" 1 31; then return 1; fi
+    if ! validate_cron_field "$month" 1 12; then return 1; fi
+    if ! validate_cron_field "$weekday" 0 6; then return 1; fi
+    
+    return 0
+}
+
+# Validate a single cron field
+validate_cron_field() {
+    local field="$1"
+    local min_val="$2"
+    local max_val="$3"
+    
+    # Handle asterisk
+    if [ "$field" = "*" ]; then
+        return 0
+    fi
+    
+    # Handle step values (e.g., */15)
+    if [[ "$field" =~ ^\*/([0-9]+)$ ]]; then
+        local step="${BASH_REMATCH[1]}"
+        if [ "$step" -gt 0 ] && [ "$step" -le "$max_val" ]; then
+            return 0
+        fi
+        return 1
+    fi
+    
+    # Handle ranges (e.g., 1-5)
+    if [[ "$field" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+        local start="${BASH_REMATCH[1]}"
+        local end="${BASH_REMATCH[2]}"
+        if [ "$start" -ge "$min_val" ] && [ "$end" -le "$max_val" ] && [ "$start" -le "$end" ]; then
+            return 0
+        fi
+        return 1
+    fi
+    
+    # Handle comma-separated values (e.g., 1,3,5)
+    if [[ "$field" =~ , ]]; then
+        local IFS=','
+        local values=($field)
+        for value in "${values[@]}"; do
+            if ! validate_cron_field "$value" "$min_val" "$max_val"; then
+                return 1
+            fi
+        done
+        return 0
+    fi
+    
+    # Handle step values with ranges (e.g., 1-10/2)
+    if [[ "$field" =~ ^([0-9]+)-([0-9]+)/([0-9]+)$ ]]; then
+        local start="${BASH_REMATCH[1]}"
+        local end="${BASH_REMATCH[2]}"
+        local step="${BASH_REMATCH[3]}"
+        if [ "$start" -ge "$min_val" ] && [ "$end" -le "$max_val" ] && [ "$start" -le "$end" ] && [ "$step" -gt 0 ]; then
+            return 0
+        fi
+        return 1
+    fi
+    
+    # Handle exact numeric value
+    if [[ "$field" =~ ^[0-9]+$ ]]; then
+        if [ "$field" -ge "$min_val" ] && [ "$field" -le "$max_val" ]; then
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
 # Export functions for use by other scripts
 export -f validate_environment
 export -f validate_config_files
@@ -490,3 +587,5 @@ export -f validate_postgresql_conf
 export -f validate_pg_hba_conf
 export -f validate_patroni_config
 export -f validate_memory_value
+export -f validate_cron_expression
+export -f validate_cron_field
