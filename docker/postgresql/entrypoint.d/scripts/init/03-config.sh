@@ -274,6 +274,7 @@ apply_environment_overrides() {
     apply_postgres_setting "work_mem" "${POSTGRESQL_WORK_MEM:-}"
     apply_postgres_setting "maintenance_work_mem" "${POSTGRESQL_MAINTENANCE_WORK_MEM:-}"
     apply_postgres_setting "listen_addresses" "${POSTGRESQL_LISTEN_ADDRESSES:-}"
+    apply_postgres_setting "unix_socket_directories" "${POSTGRESQL_UNIX_SOCKET_DIRECTORIES:-${PGRUN:-/usr/local/pgsql/run}}"
     apply_postgres_setting "log_statement" "${POSTGRESQL_LOG_STATEMENT:-}"
     apply_postgres_setting "log_duration" "${POSTGRESQL_LOG_DURATION:-}"
     apply_postgres_setting "timezone" "${POSTGRESQL_TIMEZONE:-}"
