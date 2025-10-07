@@ -73,6 +73,12 @@ main() {
 }
 
 # Configure pgBackRest
+# PGBACKREST_REPO_PATH: Override the default repo1-path for all repository types:
+#   - posix/filesystem: Uses PGBACKREST_REPO_PATH or defaults to ${backup_dir}
+#   - s3: Uses PGBACKREST_REPO_PATH or defaults to /pgbackrest
+#   - gcs: Uses PGBACKREST_REPO_PATH or defaults to /pgbackrest
+#   - azure: Uses PGBACKREST_REPO_PATH or defaults to /pgbackrest
+#   - sftp: Uses PGBACKREST_REPO_PATH or defaults to /var/lib/pgbackrest
 configure_pgbackrest() {
     log_info "Configuring pgBackRest"
 
@@ -134,6 +140,12 @@ EOF
         [ -n "${PGBACKREST_REPO_S3_TOKEN:-${PGBACKREST_REPO1_S3_TOKEN:-}}" ] && echo "repo1-s3-token=${PGBACKREST_REPO_S3_TOKEN:-${PGBACKREST_REPO1_S3_TOKEN}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_S3_CA_FILE:-${PGBACKREST_REPO1_S3_CA_FILE:-}}" ] && echo "repo1-s3-ca-file=${PGBACKREST_REPO_S3_CA_FILE:-${PGBACKREST_REPO1_S3_CA_FILE}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_S3_CA_PATH:-${PGBACKREST_REPO1_S3_CA_PATH:-}}" ] && echo "repo1-s3-ca-path=${PGBACKREST_REPO_S3_CA_PATH:-${PGBACKREST_REPO1_S3_CA_PATH}}" >> "$config_file"
+        # Set the S3 repository path (prefer override if provided)
+        if [ -n "$repo1_path_override" ]; then
+            echo "repo1-path=${repo1_path_override}" >> "$config_file"
+        else
+            echo "repo1-path=/pgbackrest" >> "$config_file"
+        fi
     elif [ "$repo1_type" = "gcs" ]; then
         # GCS-specific configuration
         [ -n "${PGBACKREST_REPO_GCS_BUCKET:-${PGBACKREST_REPO1_GCS_BUCKET:-}}" ] && echo "repo1-gcs-bucket=${PGBACKREST_REPO_GCS_BUCKET:-${PGBACKREST_REPO1_GCS_BUCKET}}" >> "$config_file"
@@ -141,6 +153,12 @@ EOF
         [ -n "${PGBACKREST_REPO_GCS_KEY:-${PGBACKREST_REPO1_GCS_KEY:-}}" ] && echo "repo1-gcs-key=${PGBACKREST_REPO_GCS_KEY:-${PGBACKREST_REPO1_GCS_KEY}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_GCS_KEY_TYPE:-${PGBACKREST_REPO1_GCS_KEY_TYPE:-}}" ] && echo "repo1-gcs-key-type=${PGBACKREST_REPO_GCS_KEY_TYPE:-${PGBACKREST_REPO1_GCS_KEY_TYPE}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_GCS_USER_PROJECT:-${PGBACKREST_REPO1_GCS_USER_PROJECT:-}}" ] && echo "repo1-gcs-user-project=${PGBACKREST_REPO_GCS_USER_PROJECT:-${PGBACKREST_REPO1_GCS_USER_PROJECT}}" >> "$config_file"
+        # Set the GCS repository path (prefer override if provided)
+        if [ -n "$repo1_path_override" ]; then
+            echo "repo1-path=${repo1_path_override}" >> "$config_file"
+        else
+            echo "repo1-path=/pgbackrest" >> "$config_file"
+        fi
     elif [ "$repo1_type" = "sftp" ]; then
         # SFTP-specific configuration
         local sftp_host="${PGBACKREST_REPO_SFTP_HOST:-${PGBACKREST_REPO1_SFTP_HOST:-}}"
@@ -167,9 +185,27 @@ EOF
         else
             echo "repo1-path=/var/lib/pgbackrest" >> "$config_file"
         fi
+    elif [ "$repo1_type" = "azure" ]; then
+        # Azure-specific configuration
+        [ -n "${PGBACKREST_REPO_AZURE_ACCOUNT:-${PGBACKREST_REPO1_AZURE_ACCOUNT:-}}" ] && echo "repo1-azure-account=${PGBACKREST_REPO_AZURE_ACCOUNT:-${PGBACKREST_REPO1_AZURE_ACCOUNT}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_AZURE_CONTAINER:-${PGBACKREST_REPO1_AZURE_CONTAINER:-}}" ] && echo "repo1-azure-container=${PGBACKREST_REPO_AZURE_CONTAINER:-${PGBACKREST_REPO1_AZURE_CONTAINER}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_AZURE_ENDPOINT:-${PGBACKREST_REPO1_AZURE_ENDPOINT:-}}" ] && echo "repo1-azure-endpoint=${PGBACKREST_REPO_AZURE_ENDPOINT:-${PGBACKREST_REPO1_AZURE_ENDPOINT}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_AZURE_KEY:-${PGBACKREST_REPO1_AZURE_KEY:-}}" ] && echo "repo1-azure-key=${PGBACKREST_REPO_AZURE_KEY:-${PGBACKREST_REPO1_AZURE_KEY}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_AZURE_KEY_TYPE:-${PGBACKREST_REPO1_AZURE_KEY_TYPE:-}}" ] && echo "repo1-azure-key-type=${PGBACKREST_REPO_AZURE_KEY_TYPE:-${PGBACKREST_REPO1_AZURE_KEY_TYPE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_AZURE_URI_STYLE:-${PGBACKREST_REPO1_AZURE_URI_STYLE:-}}" ] && echo "repo1-azure-uri-style=${PGBACKREST_REPO_AZURE_URI_STYLE:-${PGBACKREST_REPO1_AZURE_URI_STYLE}}" >> "$config_file"
+        # Set the Azure repository path (prefer override if provided)
+        if [ -n "$repo1_path_override" ]; then
+            echo "repo1-path=${repo1_path_override}" >> "$config_file"
+        else
+            echo "repo1-path=/pgbackrest" >> "$config_file"
+        fi
     else
         log_warn "Unknown PGBACKREST_REPO_TYPE='${repo1_type}', defaulting to posix behavior"
-        echo "repo1-path=${backup_dir}" >> "$config_file"
+        if [ -n "$repo1_path_override" ]; then
+            echo "repo1-path=${repo1_path_override}" >> "$config_file"
+        else
+            echo "repo1-path=${backup_dir}" >> "$config_file"
+        fi
     fi
 
     # Add stanza configuration section
