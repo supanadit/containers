@@ -24,6 +24,62 @@ generate_clean_env_command() {
     echo "$env_cmd"
 }
 
+# Collect custom pg_hba.conf entries from PG_HBA_ADD_* environment variables
+collect_custom_pg_hba_entries() {
+    local -n entries_ref=$1
+    entries_ref=()
+
+    declare -A entries_map=()
+
+    while IFS='=' read -r env_name env_value; do
+        if [[ $env_name =~ ^PG_HBA_ADD_([0-9]+)$ ]]; then
+            entries_map["${BASH_REMATCH[1]}"]="$env_value"
+        fi
+    done < <(env)
+
+    if [ ${#entries_map[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    local sorted_keys
+    IFS=$'\n' sorted_keys=($(printf '%s\n' "${!entries_map[@]}" | sort -n))
+
+    for key in "${sorted_keys[@]}"; do
+        local value="${entries_map[$key]}"
+        value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        if [ -n "$value" ]; then
+            entries_ref+=("${key}|${value}")
+        fi
+    done
+}
+
+# Remove a specific line from pg_hba.conf (exact match)
+remove_pg_hba_line() {
+    local hba_file="$1"
+    local line="$2"
+
+    if [ ! -f "$hba_file" ]; then
+        return 0
+    fi
+
+    local tmp_file
+    tmp_file="$(mktemp)"
+
+    awk -v target="$line" '
+        BEGIN { removed = 0 }
+        {
+            if (!removed && $0 == target) {
+                removed = 1
+                next
+            }
+            print $0
+        }
+    ' "$hba_file" > "$tmp_file"
+
+    mv "$tmp_file" "$hba_file"
+    set_secure_permissions "$hba_file"
+}
+
 # Main function
 main() {
     log_script_start "03-config.sh"
@@ -62,6 +118,13 @@ main() {
             apply_external_access_config
         else
             log_info "Patroni mode enabled, external access will be configured in patroni.yml"
+        fi
+
+        # Apply custom pg_hba.conf entries from environment variables
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            apply_custom_pg_hba_entries
+        else
+            log_info "Patroni mode enabled, custom pg_hba entries will be applied to patroni.yml"
         fi
 
         # Apply Citus configuration if enabled
@@ -465,8 +528,45 @@ generate_patroni_config() {
         archive_command="$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p${archive_extra}"
     fi
 
-        # Generate basic Patroni configuration
-        cat > "$patroni_config" <<EOF
+    local -a patroni_pg_hba_entries=(
+        "local all postgres trust"
+        "local all all md5"
+        "host replication replicator 0.0.0.0/0 md5"
+        "host all all 0.0.0.0/0 md5"
+    )
+
+    declare -A patroni_pg_hba_seen=(
+        ["local all postgres trust"]=1
+        ["local all all md5"]=1
+        ["host replication replicator 0.0.0.0/0 md5"]=1
+        ["host all all 0.0.0.0/0 md5"]=1
+    )
+
+    local custom_hba_entries=()
+    collect_custom_pg_hba_entries custom_hba_entries
+
+    if [ ${#custom_hba_entries[@]} -gt 0 ]; then
+        for entry in "${custom_hba_entries[@]}"; do
+            local index="${entry%%|*}"
+            local value="${entry#*|}"
+
+            if [ -n "${patroni_pg_hba_seen[$value]:-}" ]; then
+                log_debug "Skipping duplicate Patroni pg_hba rule from PG_HBA_ADD_${index}"
+                continue
+            fi
+
+            patroni_pg_hba_entries+=("$value")
+            patroni_pg_hba_seen["$value"]=1
+            log_info "Added Patroni pg_hba rule from PG_HBA_ADD_${index}"
+        done
+    fi
+
+    local patroni_pg_hba_yaml
+    patroni_pg_hba_yaml="$(printf '                - %s\n' "${patroni_pg_hba_entries[@]}")"
+
+    # Generate basic Patroni configuration
+    {
+        cat <<EOF_HEADER
 scope: ${PATRONI_SCOPE:-postgres-cluster}
 name: ${PATRONI_NAME:-postgres-node-1}
 restapi:
@@ -499,10 +599,9 @@ bootstrap:
                 archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
                 archive_command: "${archive_command}"
             pg_hba:
-                - local all postgres trust
-                - local all all md5
-                - host replication replicator 0.0.0.0/0 md5
-                - host all all 0.0.0.0/0 md5
+EOF_HEADER
+        printf '%s' "$patroni_pg_hba_yaml"
+        cat <<EOF_FOOTER
 postgresql:
     listen: ${postgres_listen_host}:${postgres_port}
     connect_address: ${postgres_connect_host}:${postgres_port}
@@ -520,7 +619,8 @@ postgresql:
     parameters:
         unix_socket_directories: '${PGRUN:-/usr/local/pgsql/run}'
         timezone: '${POSTGRESQL_TIMEZONE:-UTC}'
-EOF
+EOF_FOOTER
+    } > "$patroni_config"
 
     set_secure_permissions "$patroni_config"
     log_info "Generated Patroni configuration: $patroni_config"
@@ -575,6 +675,53 @@ apply_external_access_config() {
     fi
 
     log_info "External access configuration applied: enabled=$enable_external, method=$method"
+}
+
+# Apply custom pg_hba.conf entries based on PG_HBA_ADD_* environment variables
+apply_custom_pg_hba_entries() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local hba_file="$data_dir/pg_hba.conf"
+    local state_file="$data_dir/.pg_hba_env_entries"
+
+    if [ ! -f "$hba_file" ]; then
+        log_warn "pg_hba.conf not found at $hba_file; skipping PG_HBA_ADD_* entries"
+        return 0
+    fi
+
+    local entries=()
+    collect_custom_pg_hba_entries entries
+
+    if [ -f "$state_file" ]; then
+        log_debug "Removing previously managed PG_HBA_ADD entries from pg_hba.conf"
+        while IFS= read -r previous_entry; do
+            [ -z "$previous_entry" ] && continue
+            remove_pg_hba_line "$hba_file" "$previous_entry"
+        done < "$state_file"
+    fi
+
+    if [ ${#entries[@]} -eq 0 ]; then
+        log_info "No PG_HBA_ADD_* environment variables found; cleaned up managed pg_hba entries"
+        rm -f "$state_file"
+        return 0
+    fi
+
+    log_info "Applying ${#entries[@]} custom pg_hba.conf entries from PG_HBA_ADD_* variables"
+
+    local new_state_entries=()
+
+    for entry in "${entries[@]}"; do
+        local index="${entry%%|*}"
+        local value="${entry#*|}"
+
+        remove_pg_hba_line "$hba_file" "$value"
+        printf '%s\n' "$value" >> "$hba_file"
+        log_info "Appended pg_hba.conf rule from PG_HBA_ADD_${index}"
+        new_state_entries+=("$value")
+    done
+
+    printf '%s\n' "${new_state_entries[@]}" > "$state_file"
+    set_secure_permissions "$state_file"
+    set_secure_permissions "$hba_file"
 }
 
 # Execute main function
