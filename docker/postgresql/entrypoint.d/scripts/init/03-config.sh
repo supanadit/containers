@@ -709,15 +709,25 @@ apply_custom_pg_hba_entries() {
 
     local new_state_entries=()
 
+    local tmp_file
+    tmp_file="$(mktemp)"
+
     for entry in "${entries[@]}"; do
         local index="${entry%%|*}"
         local value="${entry#*|}"
 
         remove_pg_hba_line "$hba_file" "$value"
-        printf '%s\n' "$value" >> "$hba_file"
-        log_info "Appended pg_hba.conf rule from PG_HBA_ADD_${index}"
         new_state_entries+=("$value")
+        log_info "Prepared pg_hba.conf rule from PG_HBA_ADD_${index}"
     done
+
+    if [ ${#new_state_entries[@]} -gt 0 ]; then
+        printf '%s\n' "${new_state_entries[@]}" > "$tmp_file"
+        printf '\n' >> "$tmp_file"
+    fi
+
+    cat "$hba_file" >> "$tmp_file"
+    mv "$tmp_file" "$hba_file"
 
     printf '%s\n' "${new_state_entries[@]}" > "$state_file"
     set_secure_permissions "$state_file"
