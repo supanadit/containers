@@ -9,6 +9,7 @@ set -euo pipefail
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
+source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
 # Helper function to generate env command that removes all PGBACKREST environment variables
 generate_clean_env_command() {
@@ -55,6 +56,12 @@ main() {
     # Only proceed if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
         log_info "Backup not enabled, skipping backup setup"
+        return 0
+    fi
+
+    if ! is_citus_backup_allowed; then
+        log_info "Skipping pgBackRest setup due to CITUS_BACKUP_SCOPE=${CITUS_BACKUP_SCOPE:-coordinator-only} on role=${CITUS_ROLE:-unknown}"
+        disable_pgbackrest_archiving
         return 0
     fi
 
@@ -276,6 +283,30 @@ EOF
     else
         log_debug "Skipping creation of local backup/archive directories for repo1-type=${repo1_type}"
     fi
+}
+
+# Disable WAL archiving when pgBackRest is not allowed on this node
+disable_pgbackrest_archiving() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local config_file="$data_dir/postgresql.conf"
+
+    if [ ! -f "$config_file" ]; then
+        log_debug "postgresql.conf not found while disabling pgBackRest archiving; skipping"
+        return 0
+    fi
+
+    log_info "Disabling pgBackRest archive configuration for this node"
+
+    sed -i -E "/^[[:space:]]*#?[[:space:]]*archive_mode[[:space:]]*=.*/d" "$config_file"
+    sed -i -E "/^[[:space:]]*#?[[:space:]]*archive_command[[:space:]]*=.*/d" "$config_file"
+    sed -i -E "/^[[:space:]]*#?[[:space:]]*archive_timeout[[:space:]]*=.*/d" "$config_file"
+
+    {
+        echo "archive_mode = off"
+        echo "archive_command = ''"
+    } >> "$config_file"
+
+    set_secure_permissions "$config_file"
 }
 
 # Enable WAL archiving in postgresql.conf

@@ -226,6 +226,24 @@ validate_environment() {
                 exit_code=1
                 ;;
         esac
+
+        if [ -z "${CITUS_DATABASE:-}" ]; then
+            log_error "CITUS_DATABASE must be provided when CITUS_ENABLE=true"
+            exit_code=1
+        fi
+
+        if ! [[ "${CITUS_GROUP:-}" =~ ^[0-9]+$ ]]; then
+            log_error "Invalid CITUS_GROUP: ${CITUS_GROUP:-} (must be a non-negative integer)"
+            exit_code=1
+        fi
+
+        if [ "${CITUS_ROLE:-coordinator}" = "coordinator" ] && [ "${CITUS_GROUP}" -ne 0 ]; then
+            log_warn "CITUS_GROUP is ${CITUS_GROUP} for coordinator role; 0 is recommended"
+        fi
+
+        if [ "${CITUS_ROLE:-coordinator}" = "worker" ] && [ "${CITUS_GROUP}" -eq 0 ]; then
+            log_warn "CITUS_GROUP is 0 for worker role; set a positive group index to avoid conflicts"
+        fi
     fi
 
     # Validate PostgreSQL-specific variables

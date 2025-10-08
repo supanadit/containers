@@ -482,9 +482,22 @@ create_replication_user() {
     local escaped_password="${REPLICATION_PASSWORD//\'/''}"
 
     local sql
+    local host="${POSTGRESQL_CONNECT_HOST:-localhost}"
+    local port="${POSTGRESQL_PORT:-5432}"
+    local database="${POSTGRES_DB:-${POSTGRES_USER:-postgres}}"
+
+    if [ -z "$host" ] || [ "$host" = "0.0.0.0" ]; then
+        host="localhost"
+    fi
+
     printf -v sql "SET password_encryption = 'scram-sha-256'; DO \$do\$ BEGIN BEGIN EXECUTE format('ALTER ROLE %%I WITH LOGIN REPLICATION PASSWORD %%L', '%s', '%s'); EXCEPTION WHEN UNDEFINED_OBJECT THEN EXECUTE format('CREATE ROLE %%I WITH LOGIN REPLICATION PASSWORD %%L', '%s', '%s'); END; END; \$do\$;" "$escaped_role_name" "$escaped_password" "$escaped_role_name" "$escaped_password"
 
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command "$sql"
+    psql -v ON_ERROR_STOP=1 \
+        --host "$host" \
+        --port "$port" \
+        --username "${POSTGRES_USER:-postgres}" \
+        --dbname "$database" \
+        --command "$sql"
     
     log_info "Replication user created successfully"
 }
