@@ -32,6 +32,16 @@ export CITUS_ROLE="${CITUS_ROLE:-coordinator}"
 export CITUS_NODE_NAME="${CITUS_NODE_NAME:-}"
 export CITUS_BACKUP_SCOPE="${CITUS_BACKUP_SCOPE:-coordinator-only}"
 
+if [ -z "${CITUS_GROUP:-}" ]; then
+    if [ "${CITUS_ROLE}" = "worker" ]; then
+        CITUS_GROUP=1
+    else
+        CITUS_GROUP=0
+    fi
+fi
+export CITUS_GROUP
+export CITUS_DATABASE="${CITUS_DATABASE:-citus}"
+
 # Timezone configuration
 export POSTGRESQL_TIMEZONE="${POSTGRESQL_TIMEZONE:-UTC}"
 export PGBACKREST_AUTO_TIMEZONE="${PGBACKREST_AUTO_TIMEZONE:-UTC}"

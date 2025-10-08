@@ -515,6 +515,27 @@ generate_patroni_config() {
     local postgres_port="${POSTGRESQL_PORT:-5432}"
     local postgres_connect_host="${POSTGRESQL_CONNECT_HOST:-${rest_connect_host}}"
 
+    local citus_enabled=false
+    local citus_group=""
+    local citus_database=""
+    local citus_max_workers=""
+    local citus_executor=""
+    local citus_node_name=""
+    local citus_control=""
+    if [ "${CITUS_ENABLE:-false}" = "true" ]; then
+        citus_enabled=true
+        citus_group="${CITUS_GROUP:-0}"
+        citus_database="${CITUS_DATABASE:-citus}"
+        citus_max_workers="${CITUS_MAX_WORKER_PROCESSES:-8}"
+        citus_executor="${CITUS_DISTRIBUTED_EXECUTOR:-adaptive}"
+        citus_node_name="${CITUS_NODE_NAME:-}"
+        if [ "${CITUS_ROLE:-coordinator}" = "coordinator" ]; then
+            citus_control="true"
+        else
+            citus_control="false"
+        fi
+    fi
+
     local archive_mode="off"
     local archive_command=""
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ] && [ "${PGBACKREST_ARCHIVE_ENABLE:-true}" = "true" ]; then
@@ -595,11 +616,35 @@ bootstrap:
                 archive_mode: "${archive_mode}"
                 archive_timeout: ${ARCHIVE_TIMEOUT:-1800s}
                 archive_command: "${archive_command}"
-            pg_hba:
 EOF_HEADER
+        if [ "$citus_enabled" = true ]; then
+            cat <<EOF
+                shared_preload_libraries: 'citus'
+                citus.max_worker_processes: ${citus_max_workers}
+                citus.distributed_executor: '${citus_executor}'
+EOF
+            if [ -n "$citus_node_name" ]; then
+                cat <<EOF
+                citus.node_name: '${citus_node_name}'
+EOF
+            fi
+            cat <<EOF
+                citus.enable_control_commands: ${citus_control}
+EOF
+        fi
+        cat <<EOF_PG_HBA
+            pg_hba:
+EOF_PG_HBA
         for entry in "${patroni_pg_hba_entries[@]}"; do
             printf '                - %s\n' "$entry"
         done
+        if [ "$citus_enabled" = true ]; then
+            cat <<EOF
+        citus:
+            group: ${citus_group}
+            database: ${citus_database}
+EOF
+        fi
         cat <<EOF_FOOTER
 postgresql:
     listen: ${postgres_listen_host}:${postgres_port}
@@ -619,6 +664,30 @@ postgresql:
         unix_socket_directories: '${PGRUN:-/usr/local/pgsql/run}'
         timezone: '${POSTGRESQL_TIMEZONE:-UTC}'
 EOF_FOOTER
+        if [ "$citus_enabled" = true ]; then
+            cat <<EOF
+        shared_preload_libraries: 'citus'
+        citus.max_worker_processes: ${citus_max_workers}
+        citus.distributed_executor: '${citus_executor}'
+EOF
+            if [ -n "$citus_node_name" ]; then
+                cat <<EOF
+        citus.node_name: '${citus_node_name}'
+EOF
+            fi
+            cat <<EOF
+        citus.enable_control_commands: ${citus_control}
+EOF
+        fi
+        if [ "$citus_enabled" = true ]; then
+            printf '\n'
+            cat <<EOF
+citus:
+    group: ${citus_group}
+    database: ${citus_database}
+    port: ${postgres_port}
+EOF
+        fi
     } > "$patroni_config"
 
     set_secure_permissions "$patroni_config"
