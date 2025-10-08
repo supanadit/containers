@@ -561,9 +561,6 @@ generate_patroni_config() {
         done
     fi
 
-    local patroni_pg_hba_yaml
-    patroni_pg_hba_yaml="$(printf '                - %s\n' "${patroni_pg_hba_entries[@]}")"
-
     # Generate basic Patroni configuration
     {
         cat <<EOF_HEADER
@@ -600,7 +597,9 @@ bootstrap:
                 archive_command: "${archive_command}"
             pg_hba:
 EOF_HEADER
-        printf '%s' "$patroni_pg_hba_yaml"
+        for entry in "${patroni_pg_hba_entries[@]}"; do
+            printf '                - %s\n' "$entry"
+        done
         cat <<EOF_FOOTER
 postgresql:
     listen: ${postgres_listen_host}:${postgres_port}
