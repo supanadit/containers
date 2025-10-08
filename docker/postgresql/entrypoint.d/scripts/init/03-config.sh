@@ -515,6 +515,49 @@ generate_patroni_config() {
     local postgres_port="${POSTGRESQL_PORT:-5432}"
     local postgres_connect_host="${POSTGRESQL_CONNECT_HOST:-${rest_connect_host}}"
 
+    local etcd_host_source="${PATRONI_ETCD_HOSTS:-${ETCD_HOSTS:-${ETCD_HOST:-localhost}}}"
+    local etcd_port="${ETCD_PORT:-2379}"
+    local etcd_hosts_list=()
+
+    # Normalize separators to commas for easier splitting
+    local etcd_host_tokens="${etcd_host_source//;/,}"
+    etcd_host_tokens="${etcd_host_tokens//$'\n'/,}"
+
+    # Preserve original IFS while splitting
+    local old_ifs="$IFS"
+    local -a _etcd_host_array=()
+    IFS=',' read -r -a _etcd_host_array <<< "$etcd_host_tokens" || true
+    IFS="$old_ifs"
+
+    for raw_host in "${_etcd_host_array[@]}"; do
+        for host_part in $raw_host; do
+            # Trim surrounding whitespace
+            host_part="${host_part#${host_part%%[![:space:]]*}}"
+            host_part="${host_part%${host_part##*[![:space:]]}}"
+
+            if [ -z "$host_part" ]; then
+                continue
+            fi
+
+            if [[ "$host_part" == *":"* ]]; then
+                etcd_hosts_list+=("$host_part")
+            else
+                etcd_hosts_list+=("${host_part}:${etcd_port}")
+            fi
+        done
+    done
+
+    if [ ${#etcd_hosts_list[@]} -eq 0 ]; then
+        etcd_hosts_list=("localhost:${etcd_port}")
+    fi
+
+    local etcd_hosts_yaml=""
+    for host_entry in "${etcd_hosts_list[@]}"; do
+        etcd_hosts_yaml+="        - ${host_entry}"$'\n'
+    done
+
+    log_info "Configured Patroni etcd hosts: ${etcd_hosts_list[*]}"
+
     local citus_enabled=false
     local citus_group=""
     local citus_database=""
@@ -591,8 +634,8 @@ restapi:
     listen: ${rest_listen_host}:${rest_port}
     connect_address: ${rest_connect_host}:${rest_port}
 etcd3:
-    host: ${ETCD_HOST:-localhost}
-    port: ${ETCD_PORT:-2379}
+    hosts:
+${etcd_hosts_yaml}watchdog:
 watchdog:
     mode: ${PATRONI_WATCHDOG_MODE:-off}
     device: ${PATRONI_WATCHDOG_DEVICE:-/dev/watchdog}
