@@ -24,6 +24,22 @@ generate_clean_env_command() {
     echo "$env_cmd"
 }
 
+# Normalize boolean-like environment values to YAML friendly strings
+normalize_bool() {
+    local value="${1:-}"
+    case "${value,,}" in
+        true|1|yes|on)
+            echo "true"
+            ;;
+        false|0|no|off)
+            echo "false"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
 # Collect custom pg_hba.conf entries from PG_HBA_ADD_* environment variables
 collect_custom_pg_hba_entries() {
     local -n entries_ref=$1
@@ -592,6 +608,26 @@ generate_patroni_config() {
         archive_command="$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p${archive_extra}"
     fi
 
+    local synchronous_mode="$(normalize_bool "${PATRONI_SYNCHRONOUS_MODE:-}")"
+    local synchronous_mode_strict="$(normalize_bool "${PATRONI_SYNCHRONOUS_MODE_STRICT:-}")"
+    local synchronous_mode_timeout="${PATRONI_SYNCHRONOUS_MODE_TIMEOUT:-}"
+    local synchronous_mode_type=""
+    if [ -n "${PATRONI_SYNCHRONOUS_MODE_TYPE:-}" ]; then
+        synchronous_mode_type="$(printf '%s' "${PATRONI_SYNCHRONOUS_MODE_TYPE}" | tr '[:upper:]' '[:lower:]')"
+        case "$synchronous_mode_type" in
+            sync|quorum|any)
+                ;;
+            *)
+                log_warn "Invalid PATRONI_SYNCHRONOUS_MODE_TYPE '${PATRONI_SYNCHRONOUS_MODE_TYPE}', ignoring"
+                synchronous_mode_type=""
+                ;;
+        esac
+    fi
+    if [ -n "$synchronous_mode_timeout" ] && ! [[ "$synchronous_mode_timeout" =~ ^[0-9]+$ ]]; then
+        log_warn "Invalid PATRONI_SYNCHRONOUS_MODE_TIMEOUT '${synchronous_mode_timeout}', ignoring"
+        synchronous_mode_timeout=""
+    fi
+
     local -a patroni_pg_hba_entries=(
         "local all postgres trust"
         "local all all md5"
@@ -646,6 +682,20 @@ bootstrap:
         loop_wait: ${PATRONI_LOOP_WAIT:-10}
         retry_timeout: ${PATRONI_RETRY_TIMEOUT:-10}
         maximum_lag_on_failover: ${PATRONI_MAX_LAG:-1048576}
+EOF_HEADER
+        if [ -n "$synchronous_mode" ]; then
+            printf '        synchronous_mode: %s\n' "$synchronous_mode"
+        fi
+        if [ -n "$synchronous_mode_strict" ]; then
+            printf '        synchronous_mode_strict: %s\n' "$synchronous_mode_strict"
+        fi
+        if [ -n "$synchronous_mode_type" ]; then
+            printf '        synchronous_mode_type: %s\n' "$synchronous_mode_type"
+        fi
+        if [ -n "$synchronous_mode_timeout" ]; then
+            printf '        synchronous_mode_timeout: %s\n' "$synchronous_mode_timeout"
+        fi
+        cat <<EOF_HEADER
         postgresql:
             use_pg_rewind: ${PATRONI_USE_PG_REWIND:-true}
             use_slots: ${PATRONI_USE_SLOTS:-true}
