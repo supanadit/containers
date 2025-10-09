@@ -24,6 +24,7 @@ apt-get remove --purge -y \
 # - curl (for health checks and API calls)
 # - postgresql-client (for database connectivity)
 # - libpq5 (runtime PostgreSQL library - installed as dependency of postgresql-client)
+# - gosu (for proper user switching)
 
 # Remove unnecessary packages first
 apt-get autoremove --purge -y
