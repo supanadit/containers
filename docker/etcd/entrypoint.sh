@@ -36,16 +36,38 @@ start_etcd() {
     echo "  Cluster: $ETCD_INITIAL_CLUSTER"
     echo ""
     
+    # Store configuration values in local variables to avoid environment variable conflicts
+    local name="$ETCD_NAME"
+    local data_dir="$ETCD_DATA_DIR"
+    local listen_peer_urls="$ETCD_LISTEN_PEER_URLS"
+    local listen_client_urls="$ETCD_LISTEN_CLIENT_URLS"
+    local advertise_client_urls="$ETCD_ADVERTISE_CLIENT_URLS"
+    local initial_advertise_peer_urls="$ETCD_INITIAL_ADVERTISE_PEER_URLS"
+    local initial_cluster="$ETCD_INITIAL_CLUSTER"
+    local initial_cluster_state="$ETCD_INITIAL_CLUSTER_STATE"
+    local initial_cluster_token="$ETCD_INITIAL_CLUSTER_TOKEN"
+    
+    # Unset environment variables to avoid conflicts with command-line flags
+    unset ETCD_NAME
+    unset ETCD_DATA_DIR
+    unset ETCD_LISTEN_PEER_URLS
+    unset ETCD_LISTEN_CLIENT_URLS
+    unset ETCD_ADVERTISE_CLIENT_URLS
+    unset ETCD_INITIAL_ADVERTISE_PEER_URLS
+    unset ETCD_INITIAL_CLUSTER
+    unset ETCD_INITIAL_CLUSTER_STATE
+    unset ETCD_INITIAL_CLUSTER_TOKEN
+    
     exec etcd \
-        --name="$ETCD_NAME" \
-        --data-dir="$ETCD_DATA_DIR" \
-        --listen-peer-urls="$ETCD_LISTEN_PEER_URLS" \
-        --listen-client-urls="$ETCD_LISTEN_CLIENT_URLS" \
-        --advertise-client-urls="$ETCD_ADVERTISE_CLIENT_URLS" \
-        --initial-advertise-peer-urls="$ETCD_INITIAL_ADVERTISE_PEER_URLS" \
-        --initial-cluster="$ETCD_INITIAL_CLUSTER" \
-        --initial-cluster-state="$ETCD_INITIAL_CLUSTER_STATE" \
-        --initial-cluster-token="$ETCD_INITIAL_CLUSTER_TOKEN" \
+        --name="$name" \
+        --data-dir="$data_dir" \
+        --listen-peer-urls="$listen_peer_urls" \
+        --listen-client-urls="$listen_client_urls" \
+        --advertise-client-urls="$advertise_client_urls" \
+        --initial-advertise-peer-urls="$initial_advertise_peer_urls" \
+        --initial-cluster="$initial_cluster" \
+        --initial-cluster-state="$initial_cluster_state" \
+        --initial-cluster-token="$initial_cluster_token" \
         --heartbeat-interval=1000 \
         --election-timeout=5000
 }
