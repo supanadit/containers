@@ -12,14 +12,27 @@ apt-get remove --purge -y \
     gcc \
     autoconf \
     automake \
-    git
+    libtool \
+    pkg-config \
+    libpq-dev \
+    flex \
+    bison \
+    git \
+    wget
+
+# Keep runtime dependencies:
+# - curl (for health checks and API calls)
+# - postgresql-client (for database connectivity)
+# - libpq5 (runtime PostgreSQL library - installed as dependency of postgresql-client)
+
+# Remove unnecessary packages first
+apt-get autoremove --purge -y
 
 # Clean up apt cache
 apt-get clean
 rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
 
-# Remove unnecessary packages
-apt-get autoremove --purge -y
+# Final autoclean
 apt-get autoclean -y
 
 echo "=== Cleanup completed successfully ==="
