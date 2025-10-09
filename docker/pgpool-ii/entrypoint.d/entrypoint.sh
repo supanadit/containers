@@ -44,6 +44,10 @@ export PGPOOL_HEALTH_CHECK_PERIOD="${PGPOOL_HEALTH_CHECK_PERIOD:-0}"
 export PGPOOL_HEALTH_CHECK_USER="${PGPOOL_HEALTH_CHECK_USER:-postgres}"
 export PGPOOL_HEALTH_CHECK_DATABASE="${PGPOOL_HEALTH_CHECK_DATABASE:-postgres}"
 
+# Master slave mode
+export PGPOOL_MASTER_SLAVE_MODE="${PGPOOL_MASTER_SLAVE_MODE:-on}"
+export PGPOOL_MASTER_SLAVE_SUB_MODE="${PGPOOL_MASTER_SLAVE_SUB_MODE:-stream}"
+
 # Logging functions
 log_info() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $*" >&2
@@ -127,10 +131,16 @@ parse_backends() {
     if [ -n "${PGPOOL_BACKEND_FLAGS:-}" ]; then
         IFS=',' read -ra FLAG_ARRAY <<< "$PGPOOL_BACKEND_FLAGS"
     else
-        # Default flags (ALLOW_TO_FAILOVER)
+        # Default flags based on master slave mode
         FLAG_ARRAY=()
         for ((i=0; i<${#BACKEND_ARRAY[@]}; i++)); do
-            FLAG_ARRAY[i]="ALLOW_TO_FAILOVER"
+            if [ "$PGPOOL_MASTER_SLAVE_MODE" = "on" ] && [ $i -eq 0 ]; then
+                FLAG_ARRAY[i]="ALLOW_TO_FAILOVER"
+            elif [ "$PGPOOL_MASTER_SLAVE_MODE" = "on" ]; then
+                FLAG_ARRAY[i]="DISALLOW_TO_FAILOVER"
+            else
+                FLAG_ARRAY[i]="ALLOW_TO_FAILOVER"
+            fi
         done
     fi
     
@@ -251,6 +261,10 @@ child_max_connections = $PGPOOL_CHILD_MAX_CONNECTIONS
 load_balance_mode = $PGPOOL_LOAD_BALANCE_MODE
 ignore_leading_white_space = $PGPOOL_IGNORE_LEADING_WHITE_SPACE
 
+# Master slave mode
+master_slave_mode = $PGPOOL_MASTER_SLAVE_MODE
+master_slave_sub_mode = '$PGPOOL_MASTER_SLAVE_SUB_MODE'
+
 # Connection pooling
 connection_cache = on
 reset_query_list = 'ABORT; DISCARD ALL'
@@ -266,6 +280,7 @@ health_check_user = '$PGPOOL_HEALTH_CHECK_USER'
 health_check_database = 'postgres'
 
 # Streaming replication check
+sr_check_period = $PGPOOL_HEALTH_CHECK_PERIOD
 sr_check_user = '$PGPOOL_HEALTH_CHECK_USER'
 sr_check_database = 'postgres'
 
