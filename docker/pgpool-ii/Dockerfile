@@ -29,6 +29,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
+# Set PATH for pgpool-II binaries
+ENV PATH="/usr/local/pgpool/bin:$PATH"
+
 # Runtime layer - copy volatile files later
 FROM setup AS runtime
 # Create postgres user for security (already created in setup stage)
