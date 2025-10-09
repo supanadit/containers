@@ -64,6 +64,10 @@ export PGPOOL_LOG_STANDBY_DELAY="${PGPOOL_LOG_STANDBY_DELAY:-if_over_threshold}"
 export PGPOOL_MASTER_SLAVE_MODE="${PGPOOL_MASTER_SLAVE_MODE:-on}"
 export PGPOOL_MASTER_SLAVE_SUB_MODE="${PGPOOL_MASTER_SLAVE_SUB_MODE:-stream}"
 
+# Connection pooling
+export PGPOOL_CONNECTION_CACHE="${PGPOOL_CONNECTION_CACHE:-on}"
+export PGPOOL_RESET_QUERY_LIST="${PGPOOL_RESET_QUERY_LIST:-'ABORT; DISCARD ALL'}"
+
 # Logging functions
 log_info() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $*" >&2
@@ -282,8 +286,8 @@ master_slave_mode = $PGPOOL_MASTER_SLAVE_MODE
 master_slave_sub_mode = '$PGPOOL_MASTER_SLAVE_SUB_MODE'
 
 # Connection pooling
-connection_cache = on
-reset_query_list = 'ABORT; DISCARD ALL'
+connection_cache = $PGPOOL_CONNECTION_CACHE
+reset_query_list = '$PGPOOL_RESET_QUERY_LIST'
 
 # Authentication
 enable_pool_hba = $PGPOOL_ENABLE_POOL_HBA
