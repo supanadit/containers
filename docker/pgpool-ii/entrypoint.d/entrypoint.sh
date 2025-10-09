@@ -280,7 +280,7 @@ health_check_user = '$PGPOOL_HEALTH_CHECK_USER'
 health_check_database = 'postgres'
 
 # Streaming replication check
-sr_check_period = $PGPOOL_HEALTH_CHECK_PERIOD
+sr_check_period = 0
 sr_check_user = '$PGPOOL_HEALTH_CHECK_USER'
 sr_check_database = 'postgres'
 
