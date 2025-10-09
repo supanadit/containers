@@ -11,7 +11,7 @@ ARG VCS_REF
 LABEL org.opencontainers.image.created=$BUILD_DATE \
     org.opencontainers.image.revision=$VCS_REF \
     org.opencontainers.image.title="pgpool-ii" \
-    org.opencontainers.image.description="Optimized pgpool-ii container with any PostgreSQL instance" \
+    org.opencontainers.image.description="Optimized pgpool-ii container for any PostgreSQL instance" \
     org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>"
 
 # Setup layer - copy stable files first for better caching

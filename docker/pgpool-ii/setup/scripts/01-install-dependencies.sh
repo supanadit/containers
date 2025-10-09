@@ -11,6 +11,10 @@ apt-get update -y && apt-get install -y \
     autoconf \
     automake \
     libtool \
-    pkg-config
+    pkg-config \
+    libpq-dev \
+    postgresql-client \
+    flex \
+    bison
 
 echo "=== Dependencies installed successfully ==="

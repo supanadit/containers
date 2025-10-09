@@ -13,7 +13,7 @@ cd /temp/sources
 git clone --branch V${PGPOOLII_VERSION//./_} --depth 1 https://github.com/pgpool/pgpool2.git && cd pgpool2
 
 # Install pgpool-II
-./autogen.sh
+autoreconf -fi
 ./configure --prefix=/usr/local/pgpool
 make
 make install
