@@ -21,6 +21,10 @@ export PGPOOL_BACKENDS="${PGPOOL_BACKENDS:-}"
 export PGPOOL_BACKEND_WEIGHTS="${PGPOOL_BACKEND_WEIGHTS:-}"
 export PGPOOL_BACKEND_FLAGS="${PGPOOL_BACKEND_FLAGS:-}"
 
+# Patroni integration
+export PGPOOL_PATRONI_ENDPOINTS="${PGPOOL_PATRONI_ENDPOINTS:-}"
+export PGPOOL_PATRONI_TIMEOUT="${PGPOOL_PATRONI_TIMEOUT:-10}"
+
 # Pool configuration
 export PGPOOL_NUM_INIT_CHILDREN="${PGPOOL_NUM_INIT_CHILDREN:-32}"
 export PGPOOL_MAX_POOL="${PGPOOL_MAX_POOL:-4}"
@@ -95,6 +99,19 @@ validate_environment() {
         log_error "PGPOOL_BACKENDS environment variable is required"
         log_error "Example: PGPOOL_BACKENDS='172.10.10.5:5432,172.10.10.6:5432,172.10.10.7:5432'"
         exit 1
+    fi
+    
+    # Validate Patroni configuration
+    if [ -n "${PGPOOL_PATRONI_ENDPOINTS:-}" ]; then
+        log_info "Patroni integration enabled"
+        if ! command -v curl >/dev/null 2>&1; then
+            log_error "curl is required for Patroni integration but not found"
+            exit 1
+        fi
+        if ! command -v jq >/dev/null 2>&1; then
+            log_error "jq is required for Patroni integration but not found"
+            exit 1
+        fi
     fi
     
     # Validate pgpool-II installation
@@ -217,6 +234,79 @@ generate_pool_passwd() {
     log_info "pool_passwd file generated at: $passwd_file"
 }
 
+# Generate follow_master_command script for Patroni integration
+generate_follow_master_command() {
+    log_info "Generating follow_master_command script for Patroni"
+    
+    local script_file="$PGPOOL_CONFIG_DIR/follow_master.sh"
+    
+    cat > "$script_file" << 'EOF'
+#!/bin/bash
+# follow_master.sh - Determine the current primary from Patroni cluster
+# This script queries Patroni REST API endpoints to find the leader
+
+set -euo pipefail
+
+# Configuration from environment
+PATRONI_ENDPOINTS="${PGPOOL_PATRONI_ENDPOINTS:-}"
+TIMEOUT="${PGPOOL_PATRONI_TIMEOUT:-10}"
+
+# Check if endpoints are configured
+if [ -z "$PATRONI_ENDPOINTS" ]; then
+    echo "Error: PGPOOL_PATRONI_ENDPOINTS not configured" >&2
+    exit 1
+fi
+
+# Function to query a single Patroni endpoint
+query_patroni() {
+    local endpoint="$1"
+    local response
+    
+    # Remove trailing slash
+    endpoint="${endpoint%/}"
+    
+    # Query /cluster endpoint
+    if response=$(curl -s --max-time "$TIMEOUT" "$endpoint/cluster" 2>/dev/null); then
+        # Parse JSON to find leader
+        local leader
+        leader=$(echo "$response" | jq -r '.leader // empty' 2>/dev/null || echo "")
+        
+        if [ -n "$leader" ]; then
+            # Find the leader's connection info
+            local members
+            members=$(echo "$response" | jq -r '.members[] | select(.name == "'"$leader"'") | .host + ":" + (.port | tostring)' 2>/dev/null || echo "")
+            
+            if [ -n "$members" ]; then
+                echo "$members"
+                return 0
+            fi
+        fi
+    fi
+    
+    return 1
+}
+
+# Try each endpoint until we find the leader
+IFS=',' read -ra ENDPOINT_ARRAY <<< "$PATRONI_ENDPOINTS"
+for endpoint in "${ENDPOINT_ARRAY[@]}"; do
+    if primary=$(query_patroni "$endpoint"); then
+        echo "$primary"
+        exit 0
+    fi
+done
+
+# If no leader found, exit with error
+echo "Error: Could not determine primary from Patroni endpoints" >&2
+exit 1
+EOF
+    
+    # Make script executable
+    chmod +x "$script_file"
+    chown "$PGPOOL_USER:$PGPOOL_USER" "$script_file" 2>/dev/null || true
+    
+    log_info "follow_master_command script generated at: $script_file"
+}
+
 # Set up signal handlers for graceful shutdown
 setup_signal_handlers() {
     log_debug "Setting up signal handlers"
@@ -240,6 +330,11 @@ main() {
     
     # Parse backend configuration
     parse_backends
+    
+    # Generate follow_master_command script if Patroni is enabled
+    if [ -n "${PGPOOL_PATRONI_ENDPOINTS:-}" ]; then
+        generate_follow_master_command
+    fi
     
     # Generate pgpool configuration
     generate_pgpool_config
@@ -284,6 +379,9 @@ ignore_leading_white_space = $PGPOOL_IGNORE_LEADING_WHITE_SPACE
 # Master slave mode
 master_slave_mode = $PGPOOL_MASTER_SLAVE_MODE
 master_slave_sub_mode = '$PGPOOL_MASTER_SLAVE_SUB_MODE'
+
+# Add follow_master_command if Patroni is enabled
+follow_master_command = '$PGPOOL_CONFIG_DIR/follow_master.sh'
 
 # Connection pooling
 connection_cache = $PGPOOL_CONNECTION_CACHE

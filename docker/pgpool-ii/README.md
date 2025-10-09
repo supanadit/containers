@@ -9,6 +9,7 @@ A Docker container for PgPool-II that provides connection pooling and load balan
 - **Health Monitoring**: Automatic health checks for backend PostgreSQL instances
 - **Flexible Configuration**: Environment variable-based configuration
 - **Multi-Backend Support**: Support for multiple PostgreSQL instances with different weights and flags
+- **Patroni Integration**: Dynamic primary detection for Patroni-managed clusters
 
 ## Quick Start
 
@@ -88,6 +89,12 @@ See `docker-compose.example.yml` for a complete example with multiple PostgreSQL
 | `PGPOOL_USER` | `postgres` | User to run PgPool-II as |
 | `PGPOOL_DEBUG` | `false` | Enable debug logging |
 
+#### Patroni Integration
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PGPOOL_PATRONI_ENDPOINTS` | `""` | Comma-separated Patroni REST API endpoints for dynamic primary detection |
+| `PGPOOL_PATRONI_TIMEOUT` | `10` | Timeout for Patroni API queries in seconds |
+
 ## Usage Examples
 
 ### Basic Load Balancing
@@ -121,6 +128,20 @@ docker run -d \
   -e PGPOOL_HEALTH_CHECK_PERIOD="30" \
   -e PGPOOL_HEALTH_CHECK_TIMEOUT="10" \
   -e PGPOOL_HEALTH_CHECK_USER="healthcheck" \
+  supanadit/pgpool-ii:4.6.3
+```
+
+### With Patroni Integration
+
+For dynamic primary detection with Patroni-managed PostgreSQL clusters:
+
+```bash
+docker run -d \
+  --name pgpool \
+  -p 5432:5432 \
+  -e PGPOOL_BACKENDS="patroni1:5432,patroni2:5432,patroni3:5432" \
+  -e PGPOOL_PATRONI_ENDPOINTS="http://patroni1:8008,http://patroni2:8008,http://patroni3:8008" \
+  -e PGPOOL_PATRONI_TIMEOUT="15" \
   supanadit/pgpool-ii:4.6.3
 ```
 

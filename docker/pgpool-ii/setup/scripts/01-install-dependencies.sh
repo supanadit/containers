@@ -16,6 +16,7 @@ apt-get update -y && apt-get install -y \
     postgresql-client \
     flex \
     bison \
+    jq \
     gosu
 
 echo "=== Creating postgres user ==="
