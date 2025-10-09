@@ -42,6 +42,7 @@ export PGPOOL_BACKEND_PASSWORD="${PGPOOL_BACKEND_PASSWORD:-}"
 export PGPOOL_HEALTH_CHECK_TIMEOUT="${PGPOOL_HEALTH_CHECK_TIMEOUT:-20}"
 export PGPOOL_HEALTH_CHECK_PERIOD="${PGPOOL_HEALTH_CHECK_PERIOD:-0}"
 export PGPOOL_HEALTH_CHECK_USER="${PGPOOL_HEALTH_CHECK_USER:-postgres}"
+export PGPOOL_HEALTH_CHECK_DATABASE="${PGPOOL_HEALTH_CHECK_DATABASE:-postgres}"
 
 # Logging functions
 log_info() {
@@ -99,7 +100,7 @@ setup_directories() {
     done
     
     # Set proper ownership
-    chown -R "$PGPOOL_USER:$PGPOOL_USER" "$PGPOOL_LOG_DIR" "$PGPOOL_RUN_DIR" 2>/dev/null || true
+    chown -R "$PGPOOL_USER:$PGPOOL_USER" "$PGPOOL_CONFIG_DIR" "$PGPOOL_LOG_DIR" "$PGPOOL_RUN_DIR" 2>/dev/null || true
     
     log_info "Directory setup completed"
 }
@@ -160,6 +161,32 @@ EOF
     log_info "pool_hba.conf configuration generated at: $hba_file"
 }
 
+# Generate pool_passwd file
+generate_pool_passwd() {
+    log_info "Generating pool_passwd file"
+    
+    local passwd_file="$PGPOOL_CONFIG_DIR/pool_passwd"
+    
+    # Check if PGPOOL_BACKEND_PASSWORD is provided
+    if [ -z "${PGPOOL_BACKEND_PASSWORD:-}" ]; then
+        log_warn "PGPOOL_BACKEND_PASSWORD not set, skipping pool_passwd generation"
+        return
+    fi
+    
+    # Generate MD5 hash (PostgreSQL format: md5(password + username))
+    local hash
+    hash=$(echo -n "${PGPOOL_BACKEND_PASSWORD}${PGPOOL_HEALTH_CHECK_USER}" | md5sum | cut -d' ' -f1)
+    
+    # Create pool_passwd file
+    echo "${PGPOOL_HEALTH_CHECK_USER}:md5${hash}" > "$passwd_file"
+    
+    # Set proper permissions
+    chmod 600 "$passwd_file"
+    chown "$PGPOOL_USER:$PGPOOL_USER" "$passwd_file" 2>/dev/null || true
+    
+    log_info "pool_passwd file generated at: $passwd_file"
+}
+
 # Set up signal handlers for graceful shutdown
 setup_signal_handlers() {
     log_debug "Setting up signal handlers"
@@ -186,6 +213,9 @@ main() {
     
     # Generate pgpool configuration
     generate_pgpool_config
+    
+    # Generate pool_passwd file
+    generate_pool_passwd
     
     # Set up signal handlers
     setup_signal_handlers
@@ -221,6 +251,10 @@ child_max_connections = $PGPOOL_CHILD_MAX_CONNECTIONS
 load_balance_mode = $PGPOOL_LOAD_BALANCE_MODE
 ignore_leading_white_space = $PGPOOL_IGNORE_LEADING_WHITE_SPACE
 
+# Connection pooling
+connection_cache = on
+reset_query_list = 'ABORT; DISCARD ALL'
+
 # Authentication
 enable_pool_hba = $PGPOOL_ENABLE_POOL_HBA
 pool_passwd = '$PGPOOL_POOL_PASSWD'
@@ -229,6 +263,11 @@ pool_passwd = '$PGPOOL_POOL_PASSWD'
 health_check_timeout = $PGPOOL_HEALTH_CHECK_TIMEOUT
 health_check_period = $PGPOOL_HEALTH_CHECK_PERIOD
 health_check_user = '$PGPOOL_HEALTH_CHECK_USER'
+health_check_database = 'postgres'
+
+# Streaming replication check
+sr_check_user = '$PGPOOL_HEALTH_CHECK_USER'
+sr_check_database = 'postgres'
 
 # Logging
 log_destination = 'stderr'
@@ -269,6 +308,11 @@ EOF
     # Create pool_hba.conf if authentication is enabled
     if [ "$PGPOOL_ENABLE_POOL_HBA" = "on" ]; then
         generate_pool_hba_config
+    fi
+    
+    # Create pool_passwd if backend password is set
+    if [ -n "$PGPOOL_BACKEND_PASSWORD" ]; then
+        generate_pool_passwd
     fi
 }
 
