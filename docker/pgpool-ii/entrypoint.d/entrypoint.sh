@@ -383,9 +383,7 @@ EOF
 
     # Add follow_master_command if the script exists
     if [ -f "$PGPOOL_CONFIG_DIR/follow_master.sh" ]; then
-        cat >> "$config_file" << EOF
-follow_master_command = $PGPOOL_CONFIG_DIR/follow_master.sh
-EOF
+        echo "follow_master_command = '$PGPOOL_CONFIG_DIR/follow_master.sh'" >> "$config_file"
     fi
 
     cat >> "$config_file" << EOF
