@@ -17,6 +17,10 @@ cd /temp/sources/postgresql-${POSTGRESQL_VERSION}
 # Install PostgreSQL
 ./configure --prefix=/usr/local/pgsql && make && make install
 
+# Install contrib modules (includes uuid-ossp and other extensions)
+cd contrib
+make && make install
+
 mkdir -p /usr/local/pgsql/data
 
 useradd -m postgres
