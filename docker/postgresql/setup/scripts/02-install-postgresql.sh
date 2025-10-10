@@ -14,12 +14,28 @@ tar -xzf postgresql-${POSTGRESQL_VERSION}.tar.gz
 
 cd /temp/sources/postgresql-${POSTGRESQL_VERSION}
 
-# Install PostgreSQL
-./configure --prefix=/usr/local/pgsql && make && make install
+# Configure PostgreSQL with all needed options
+./configure --prefix=/usr/local/pgsql \
+    --with-openssl \
+    --with-libxml \
+    --with-uuid=ossp
 
-# Install contrib modules (includes uuid-ossp and other extensions)
+# Build and install PostgreSQL core
+make && make install
+
+# Build and install contrib modules (includes uuid-ossp and other extensions)
+echo "=== Building contrib modules ==="
 cd contrib
 make && make install
+
+# Verify that uuid-ossp extension files are installed
+echo "=== Verifying uuid-ossp extension installation ==="
+if [ -f "/usr/local/pgsql/share/extension/uuid-ossp.control" ]; then
+    echo "uuid-ossp extension installed successfully"
+else
+    echo "ERROR: uuid-ossp extension not found!"
+    exit 1
+fi
 
 mkdir -p /usr/local/pgsql/data
 

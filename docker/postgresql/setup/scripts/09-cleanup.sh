@@ -31,7 +31,9 @@ apt-get remove --purge -y \
     libpq-dev \
     python3-distutils \
     protobuf-c-compiler \
-    libprotobuf-c-dev
+    libprotobuf-c-dev \
+    uuid-dev \
+    libossp-uuid-dev
 
 # Install runtime libraries that are needed but development packages were removed
 apt-get install -y --no-install-recommends \
@@ -46,7 +48,8 @@ apt-get install -y --no-install-recommends \
     libssh2-1 \
     libcurl4 \
     libffi8 \
-    libreadline8
+    libreadline8 \
+    libossp-uuid16
 
 # Clean up apt cache
 apt-get clean
