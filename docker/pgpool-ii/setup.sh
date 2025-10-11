@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================="
-echo "Starting PostgreSQL Setup"
+echo "Starting pgpool-ii Setup"
 echo "=========================================="
 
 # Set script directory
