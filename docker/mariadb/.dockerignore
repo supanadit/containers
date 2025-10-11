@@ -1,0 +1,29 @@
+# Build artifacts
+*.log
+*.tmp
+build/
+dist/
+target/
+
+# Version control
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.bak
+*.old
+*~
