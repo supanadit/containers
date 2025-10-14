@@ -8,6 +8,7 @@ This container provides Apache Airflow, a platform to programmatically author, s
 - SQLite database (for simple deployments)
 - Web UI on port 8080
 - Basic providers included (PostgreSQL, MySQL, HTTP, Docker)
+- SimpleAuthManager with default admin user
 
 ## Usage
 
