@@ -1,0 +1,21 @@
+FROM debian:bookworm
+
+ARG GRAFANA_MIMIR_VERSION="2.17.1"
+
+COPY setup.sh /opt/setup.sh
+COPY setup/ /opt/setup/
+COPY config/mimir.yaml /etc/mimir-sample.yaml
+
+# Run the complete setup in a single layer
+RUN chmod +x /opt/setup.sh && \
+    /opt/setup.sh && \
+    rm /opt/setup.sh && \
+    rm -rf /opt/setup
+
+WORKDIR /opt/grafana
+
+# Copy entrypoint script
+COPY entrypoint.sh /opt/grafana/entrypoint.sh
+RUN chmod +x /opt/grafana/entrypoint.sh
+
+ENTRYPOINT ["/opt/grafana/entrypoint.sh"]

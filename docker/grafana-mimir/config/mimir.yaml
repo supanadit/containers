@@ -1,0 +1,54 @@
+server:
+  log_level: info
+  http_listen_port: 9009
+
+common:
+  path_prefix: /var/lib/mimir
+  replication_factor: 1
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /var/lib/mimir/tsdb
+  ring:
+    kvstore:
+      store: memberlist
+
+ingester:
+  ring:
+    replication_factor: 1
+
+blocks_storage:
+  backend: filesystem
+  bucket_store:
+    sync_dir: /var/lib/mimir/tsdb-sync
+  filesystem:
+    dir: /var/lib/mimir/tsdb
+
+schema_config:
+  configs:
+    - from: 2020-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v12
+      index:
+        prefix: index_
+        period: 24h
+
+alertmanager:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /var/lib/mimir/alertmanager
+
+ruler:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /var/lib/mimir/rules
+
+compactor:
+  data_dir: /var/lib/mimir/compactor
+
+memberlist:
+  join_members:
+    - 127.0.0.1
