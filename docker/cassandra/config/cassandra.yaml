@@ -1,0 +1,19 @@
+# Cassandra configuration
+cluster_name: 'Test Cluster'
+listen_address: 127.0.0.1
+rpc_address: 0.0.0.0
+broadcast_rpc_address: 127.0.0.1
+seed_provider:
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: "127.0.0.1"
+data_file_directories:
+  - /opt/cassandra/data
+commitlog_directory: /opt/cassandra/commitlog
+saved_caches_directory: /opt/cassandra/saved_caches
+hints_directory: /opt/cassandra/hints
+cdc_raw_directory: /opt/cassandra/cdc_raw
+commitlog_sync: periodic
+commitlog_sync_period: 10000ms
+partitioner: org.apache.cassandra.dht.Murmur3Partitioner
+endpoint_snitch: SimpleSnitch
