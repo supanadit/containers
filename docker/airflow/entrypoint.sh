@@ -11,6 +11,6 @@ if [ ! -f /opt/airflow/airflow.db ]; then
     airflow db migrate
 fi
 
-# Start Airflow webserver
-echo "Starting Airflow webserver..."
-exec airflow webserver --port 8080 --host 0.0.0.0
+# Start Airflow API server (which serves the web UI)
+echo "Starting Airflow API server..."
+exec airflow api-server --port 8080 --host 0.0.0.0
