@@ -8,7 +8,7 @@ This container provides Apache Airflow, a platform to programmatically author, s
 - SQLite database (for simple deployments)
 - Web UI on port 8080
 - Basic providers included (PostgreSQL, MySQL, HTTP, Docker)
-- SimpleAuthManager with default admin user
+- Authentication disabled (all users are admins)
 
 ## Usage
 
@@ -24,7 +24,7 @@ docker build -t supanadit/airflow:3.1.0 .
 docker run -p 8080:8080 supanadit/airflow:3.1.0
 ```
 
-Access the web UI at http://localhost:8080 with username `admin` and password `admin`.
+Access the web UI at http://localhost:8080 (no login required - authentication is disabled).
 
 ### Volumes
 
