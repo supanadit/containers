@@ -347,6 +347,16 @@ apply_environment_overrides() {
 
     log_info "Applying environment variable overrides"
 
+    # Restore from backup to reset to original configuration before applying overrides
+    # This allows reverting when POSTGRESQL_CONFIG_* variables are removed
+    local config_file="$data_dir/postgresql.conf"
+    local backup_file="$data_dir/postgresql.conf.original"
+    if [ -f "$backup_file" ]; then
+        cp "$backup_file" "$config_file"
+        set_secure_permissions "$config_file"
+        log_debug "Restored postgresql.conf from backup for fresh override application"
+    fi
+
     # PostgreSQL settings overrides
     apply_postgres_setting "shared_buffers" "${POSTGRESQL_SHARED_BUFFERS:-}"
     apply_postgres_setting "max_connections" "${POSTGRESQL_MAX_CONNECTIONS:-}"
@@ -357,6 +367,15 @@ apply_environment_overrides() {
     apply_postgres_setting "log_statement" "${POSTGRESQL_LOG_STATEMENT:-}"
     apply_postgres_setting "log_duration" "${POSTGRESQL_LOG_DURATION:-}"
     apply_postgres_setting "timezone" "${POSTGRESQL_TIMEZONE:-}"
+
+    # Additional PostgreSQL config settings via POSTGRESQL_CONFIG_ prefix
+    # Apply all POSTGRESQL_CONFIG_* environment variables dynamically
+    while IFS='=' read -r env_name env_value; do
+        if [[ $env_name =~ ^POSTGRESQL_CONFIG_(.+)$ ]]; then
+            local setting="${BASH_REMATCH[1],,}"  # Convert to lowercase
+            apply_postgres_setting "$setting" "$env_value"
+        fi
+    done < <(env | grep '^POSTGRESQL_CONFIG_')
 
     # Archive settings
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
