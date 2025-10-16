@@ -262,6 +262,19 @@ generate_secure_defaults() {
         chmod 755 "$custom_config_dir"
     fi
 
+    # Create custom HBA directory for user-provided HBA configurations
+    local custom_hba_dir="/usr/local/pgsql/hba"
+    if [ ! -d "$custom_hba_dir" ]; then
+        mkdir -p "$custom_hba_dir"
+        log_debug "Created custom HBA directory: $custom_hba_dir"
+    fi
+    
+    # If the directory exists, ensure correct ownership and permissions
+    if [ -d "$custom_hba_dir" ]; then
+        chown postgres:postgres "$custom_hba_dir"
+        chmod 755 "$custom_hba_dir"
+    fi
+
     # Generate postgresql.conf if it doesn't exist
     if [ ! -f "$data_dir/postgresql.conf" ]; then
         generate_postgresql_conf "$data_dir/postgresql.conf"
@@ -351,6 +364,9 @@ host    all             all             ::/0                    md5
 
 # Replication connections (if needed)
 # host    replication     replicator      0.0.0.0/0               md5
+
+# Include custom HBA configuration files from volume mount
+include_dir '/usr/local/pgsql/hba'
 EOF
 
     set_secure_permissions "$config_file"
