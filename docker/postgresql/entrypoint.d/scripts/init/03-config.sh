@@ -249,6 +249,19 @@ generate_secure_defaults() {
         return 0
     fi
 
+    # Create custom config directory for user-provided configurations
+    local custom_config_dir="/usr/local/pgsql/custom"
+    if [ ! -d "$custom_config_dir" ]; then
+        mkdir -p "$custom_config_dir"
+        log_debug "Created custom config directory: $custom_config_dir"
+    fi
+    
+    # If the directory exists, ensure correct ownership and permissions
+    if [ -d "$custom_config_dir" ]; then
+        chown postgres:postgres "$custom_config_dir"
+        chmod 755 "$custom_config_dir"
+    fi
+
     # Generate postgresql.conf if it doesn't exist
     if [ ! -f "$data_dir/postgresql.conf" ]; then
         generate_postgresql_conf "$data_dir/postgresql.conf"
@@ -309,6 +322,9 @@ lc_messages = 'C'
 lc_monetary = 'C'
 lc_numeric = 'C'
 lc_time = 'C'
+
+# Include custom configuration files from volume mount
+include_dir '/usr/local/pgsql/custom'
 EOF
 
     set_secure_permissions "$config_file"
