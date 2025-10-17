@@ -20,7 +20,8 @@ ${SCRIPT_DIR}/05-install-citus.sh
 ${SCRIPT_DIR}/06-install-pgstatmonitor.sh
 ${SCRIPT_DIR}/07-install-decoderbufs.sh
 ${SCRIPT_DIR}/08-install-patroni.sh
-${SCRIPT_DIR}/09-cleanup.sh
+${SCRIPT_DIR}/09-install-pgbadger.sh
+${SCRIPT_DIR}/10-cleanup.sh
 
 echo "=========================================="
 echo "Setup completed successfully!"
