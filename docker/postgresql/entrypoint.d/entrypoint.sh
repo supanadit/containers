@@ -17,8 +17,15 @@ SCRIPT_VERSION="1.0.0"
 export DEFAULT_PGDATA="${DEFAULT_PGDATA:-/usr/local/pgsql/data}"
 export DEFAULT_PGCONFIG="${DEFAULT_PGCONFIG:-/usr/local/pgsql/config}"
 export DEFAULT_PGLOG="${DEFAULT_PGLOG:-/usr/local/pgsql/log}"
-export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/usr/local/pgsql/run}"
+export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/tmp}"
 export DEFAULT_PGBACKUP="${DEFAULT_PGBACKUP:-/usr/local/pgsql/backup}"
+
+# Set actual variables used by scripts
+export PGDATA="$DEFAULT_PGDATA"
+export PGCONFIG="$DEFAULT_PGCONFIG"
+export PGLOG="$DEFAULT_PGLOG"
+export PGRUN="$DEFAULT_PGRUN"
+export PGBACKUP="$DEFAULT_PGBACKUP"
 
 export POSTGRES_USER="${POSTGRES_USER:-postgres}"
 export POSTGRES_DB="${POSTGRES_DB:-postgres}"

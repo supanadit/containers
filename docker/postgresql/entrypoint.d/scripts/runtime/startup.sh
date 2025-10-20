@@ -206,7 +206,7 @@ start_pgbouncer() {
     if [ -n "${POSTGRES_PASSWORD:-}" ]; then
         # Get the MD5 hash from PostgreSQL
         local md5_hash
-        md5_hash=$(PGPASSWORD="${POSTGRES_PASSWORD}" su - postgres -c "/usr/local/pgsql/bin/psql -v ON_ERROR_STOP=1 -tA -h /usr/local/pgsql/run -d postgres -U postgres -c \"SELECT passwd FROM pg_shadow WHERE usename = '${POSTGRES_USER:-postgres}';\"" 2>/dev/null | tr -d '\n')
+        md5_hash=$(PGPASSWORD="${POSTGRES_PASSWORD}" su - postgres -c "/usr/local/pgsql/bin/psql -v ON_ERROR_STOP=1 -tA -h ${PGRUN} -d postgres -U postgres -c \"SELECT passwd FROM pg_shadow WHERE usename = '${POSTGRES_USER:-postgres}';\"" 2>/dev/null | tr -d '\n')
         if [ -n "$md5_hash" ]; then
             echo "\"${POSTGRES_USER:-postgres}\" \"$md5_hash\"" > "$userlist_file"
         else
