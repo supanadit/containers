@@ -7,7 +7,7 @@ echo "=== Cleaning up build artifacts and temporary files ==="
 rm -rf /tmp/downloads
 
 echo "=== Removing development packages ==="
-apt-get remove -y \
+apt-get remove --purge -y \
     build-essential \
     autoconf \
     automake \
@@ -61,6 +61,25 @@ apt-get remove -y \
     libjpeg-dev \
     libpng-dev \
     libfreetype6-dev
+
+# Install runtime libraries that are needed but development packages were removed
+apt-get install -y --no-install-recommends \
+    libexpat1 \
+    libpcre3 \
+    libssl3 \
+    libxml2 \
+    libsqlite3-0 \
+    libonig5 \
+    zlib1g \
+    libmemcached11 \
+    libzip4 \
+    libicu72 \
+    libgd3 \
+    libjpeg62-turbo \
+    libpng16-16 \
+    libfreetype6 \
+    libcurl4 \
+    curl
 
 # Clean up apt cache
 apt-get clean
