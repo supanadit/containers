@@ -48,6 +48,18 @@ make install
 echo "extension=memcached.so" >> /usr/local/lib/php.ini
 rm -rf /tmp/php-memcached
 
+# Download and install PHP Imagick extension
+echo "Installing Imagick extension..."
+cd /tmp
+git clone https://github.com/Imagick/imagick.git /tmp/imagick
+cd /tmp/imagick
+/usr/local/bin/phpize
+./configure --with-php-config=/usr/local/bin/php-config
+make
+make install
+echo "extension=imagick.so" >> /usr/local/lib/php.ini
+rm -rf /tmp/imagick
+
 # Now clean up the PHP source directory
 echo "Cleaning up PHP source..."
 cd /tmp

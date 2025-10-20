@@ -60,7 +60,8 @@ apt-get remove --purge -y \
     libgd-dev \
     libjpeg-dev \
     libpng-dev \
-    libfreetype6-dev
+    libfreetype6-dev \
+    libmagickwand-dev
 
 # Install runtime libraries that are needed but development packages were removed
 apt-get install -y --no-install-recommends \
@@ -79,7 +80,9 @@ apt-get install -y --no-install-recommends \
     libpng16-16 \
     libfreetype6 \
     libcurl4 \
-    curl
+    curl \
+    libmagickcore-6.q16-6 \
+    libmagickwand-6.q16-6
 
 # Clean up apt cache
 apt-get clean
