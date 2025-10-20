@@ -66,6 +66,14 @@ comprehensive_health_check() {
         fi
     fi
 
+    # Check PgBouncer status if available
+    if command -v pgbouncer >/dev/null 2>&1; then
+        if ! check_pgbouncer_status; then
+            overall_status=$HEALTH_CRITICAL
+            issues+=("pgbouncer_status")
+        fi
+    fi
+
     # Check disk space
     if ! check_disk_space; then
         overall_status=$HEALTH_WARNING
@@ -144,6 +152,23 @@ check_patroni_status() {
         log_warn "curl not available, skipping Patroni REST API check"
         # Consider Patroni healthy if process is running
         return 0
+    fi
+}
+
+# Check PgBouncer status
+check_pgbouncer_status() {
+    log_debug "Checking PgBouncer status"
+
+    local pgbouncer_port="${PGBOUNCER_PORT:-6432}"
+    local pgbouncer_host="${PGBOUNCER_HOST:-localhost}"
+
+    # Try to connect to PgBouncer admin interface
+    if echo "SHOW POOLS;" | psql -h "$pgbouncer_host" -p "$pgbouncer_port" -U "$POSTGRES_USER" -d postgres >/dev/null 2>&1; then
+        log_debug "PgBouncer is accepting connections"
+        return 0
+    else
+        log_error "PgBouncer is not accepting connections"
+        return 1
     fi
 }
 

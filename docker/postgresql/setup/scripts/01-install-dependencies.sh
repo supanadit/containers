@@ -30,7 +30,9 @@ apt-get update -y && apt-get install -y \
     procps \
     gosu \
     uuid-dev \
-    libossp-uuid-dev
+    libossp-uuid-dev \
+    libevent-dev \
+    libc-ares-dev
     
 apt-get update && apt-get install -y locales
 

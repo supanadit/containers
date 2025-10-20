@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
-ENV PATH="/usr/local/pgsql/bin:$PATH"
+ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
 
 # Runtime layer - copy volatile files later
 FROM setup AS runtime
@@ -45,6 +45,9 @@ FROM setup AS runtime
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
+
+# Copy configuration files
+COPY config/ /etc/pgbouncer/
 
 # Set proper ownership
 RUN chown -R postgres:postgres /opt/container/ && \
@@ -61,7 +64,7 @@ STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
 
-# Expose PostgreSQL port
-EXPOSE 5432
+# Expose PostgreSQL and PgBouncer ports
+EXPOSE 5432 6432
 
 ENTRYPOINT ["/entrypoint.sh"]

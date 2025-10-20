@@ -152,6 +152,56 @@ perform_pgbackrest_restore() {
     return 0
 }
 
+# Start PgBouncer
+start_pgbouncer() {
+    log_info "Starting PgBouncer"
+
+    # Check if PgBouncer is installed
+    if ! command -v pgbouncer >/dev/null 2>&1; then
+        log_warn "PgBouncer is not installed, skipping"
+        return 0
+    fi
+
+    # Check if config exists
+    local config_file="/etc/pgbouncer/pgbouncer.ini"
+    if [ ! -f "$config_file" ]; then
+        log_error "PgBouncer config not found: $config_file"
+        return 1
+    fi
+
+    # Generate userlist.txt with postgres user
+    local userlist_file="/etc/pgbouncer/userlist.txt"
+    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+        # Generate MD5 hash for postgres user
+        local md5_hash
+        md5_hash=$(echo -n "${POSTGRES_PASSWORD}${POSTGRES_USER:-postgres}" | md5sum | cut -d' ' -f1)
+        echo "\"${POSTGRES_USER:-postgres}\" \"md5${md5_hash}\"" > "$userlist_file"
+    else
+        # No password set, use empty password (trust auth)
+        echo "\"${POSTGRES_USER:-postgres}\" \"\"" > "$userlist_file"
+    fi
+    chown postgres:postgres "$userlist_file"
+    chmod 600 "$userlist_file"
+
+    # Start PgBouncer as a background process
+    su -c "pgbouncer -d $config_file" postgres &
+    local pgb_pid=$!
+
+    log_info "PgBouncer started with PID: $pgb_pid"
+
+    # Wait a moment for PgBouncer to start
+    sleep 2
+
+    # Check if it's running
+    if ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
+        log_error "PgBouncer failed to start"
+        return 1
+    fi
+
+    log_info "PgBouncer is ready"
+    return 0
+}
+
 # Main function
 main() {
     log_script_start "startup.sh"
@@ -251,6 +301,9 @@ start_postgresql_direct() {
     # Wait for PostgreSQL to be ready
     wait_for_postgresql_ready
 
+    # Start PgBouncer
+    start_pgbouncer
+
     # Create replication user if in native HA primary mode
     if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "primary" ]]; then
         create_replication_user
@@ -306,6 +359,9 @@ start_patroni() {
 
     # Wait for Patroni to be ready (it will start PostgreSQL)
     wait_for_postgresql_ready
+
+    # Start PgBouncer
+    start_pgbouncer
 
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
