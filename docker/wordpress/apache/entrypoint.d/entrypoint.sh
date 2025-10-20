@@ -40,7 +40,7 @@ main() {
     run_initialization
 
     # Start runtime management
-    start_runtime
+    start_runtime "$@"
 
     log_script_end "entrypoint.sh"
 }
@@ -110,7 +110,7 @@ start_runtime() {
 
     if [ -f "$startup_script" ] && [ -x "$startup_script" ]; then
         log_info "Starting WordPress via startup script"
-        exec "$startup_script"
+        exec "$startup_script" "$@"
     else
         log_error "Startup script not found or not executable: $startup_script"
         exit 1
