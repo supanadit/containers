@@ -160,7 +160,7 @@ run_backup() {
 	local clean_env_cmd
 	clean_env_cmd="$(generate_clean_env_command)"
 	log_info "[auto-backup] Starting ${type} backup for stanza=${STANZA}"
-	if $clean_env_cmd pgbackrest --config="$CFG" --stanza="$STANZA" backup --type="$type"; then
+	if su -c "$clean_env_cmd pgbackrest --config=\"$CFG\" --stanza=\"$STANZA\" backup --type=\"$type\"" postgres; then
 		log_info "[auto-backup] ${type} backup completed successfully"
 		echo $(ts_now) >"$state_dir/last_${type}"
 		return 0
