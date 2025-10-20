@@ -31,5 +31,14 @@ apt-get update -y && apt-get install -y \
     gosu \
     uuid-dev \
     libossp-uuid-dev
+    
+apt-get update && apt-get install -y locales
+
+# Ensure en_US.UTF-8 is in /etc/locale.gen and generate it
+echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+locale-gen
+
+# Set the default locale
+update-locale LANG=en_US.UTF-8
 
 echo "=== Dependencies installed successfully ==="
