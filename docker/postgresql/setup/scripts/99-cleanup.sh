@@ -33,7 +33,10 @@ apt-get remove --purge -y \
     protobuf-c-compiler \
     libprotobuf-c-dev \
     uuid-dev \
-    libossp-uuid-dev
+    libossp-uuid-dev \
+    libevent-dev \
+    libc-ares-dev \
+    gettext-base
 
 # Install runtime libraries that are needed but development packages were removed
 apt-get install -y --no-install-recommends \
@@ -49,7 +52,9 @@ apt-get install -y --no-install-recommends \
     libcurl4 \
     libffi8 \
     libreadline8 \
-    libossp-uuid16
+    libossp-uuid16 \
+    libevent-2.1-7 \
+    libc-ares2
 
 # Clean up apt cache
 apt-get clean
