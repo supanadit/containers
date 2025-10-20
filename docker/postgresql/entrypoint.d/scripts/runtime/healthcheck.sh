@@ -66,8 +66,8 @@ comprehensive_health_check() {
         fi
     fi
 
-    # Check PgBouncer status if available
-    if command -v pgbouncer >/dev/null 2>&1; then
+    # Check PgBouncer status if enabled
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
         if ! check_pgbouncer_status; then
             overall_status=$HEALTH_CRITICAL
             issues+=("pgbouncer_status")
@@ -159,11 +159,18 @@ check_patroni_status() {
 check_pgbouncer_status() {
     log_debug "Checking PgBouncer status"
 
+    # Check if PgBouncer is running
+    if ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
+        log_error "PgBouncer process is not running"
+        return 1
+    fi
+
     local pgbouncer_port="${PGBOUNCER_PORT:-6432}"
     local pgbouncer_host="${PGBOUNCER_HOST:-localhost}"
 
     # Try to connect to PgBouncer admin interface
-    if echo "SHOW POOLS;" | psql -h "$pgbouncer_host" -p "$pgbouncer_port" -U "$POSTGRES_USER" -d postgres >/dev/null 2>&1; then
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+    if echo "SHOW POOLS;" | psql -h "$pgbouncer_host" -p "$pgbouncer_port" -U "$POSTGRES_USER" -d pgbouncer >/dev/null 2>&1; then
         log_debug "PgBouncer is accepting connections"
         return 0
     else

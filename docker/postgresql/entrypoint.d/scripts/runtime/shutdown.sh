@@ -74,16 +74,18 @@ initiate_graceful_shutdown() {
     fi
 
     # Also try PgBouncer if it might be running
-    local pgbouncer_pids
-    pgbouncer_pids=$(pgrep -f "pgbouncer" || true)
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        local pgbouncer_pids
+        pgbouncer_pids=$(pgrep -f "pgbouncer" || true)
 
-    if [ -n "$pgbouncer_pids" ]; then
-        echo "$pgbouncer_pids" | while read -r pid; do
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                log_debug "Sending SIGTERM to PgBouncer process: $pid"
-                kill -TERM "$pid" || true
-            fi
-        done
+        if [ -n "$pgbouncer_pids" ]; then
+            echo "$pgbouncer_pids" | while read -r pid; do
+                if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                    log_debug "Sending SIGTERM to PgBouncer process: $pid"
+                    kill -TERM "$pid" || true
+                fi
+            done
+        fi
     fi
 }
 
@@ -110,8 +112,8 @@ wait_for_shutdown() {
         if ! pgrep -f "postgres" >/dev/null 2>&1; then
             # Check for Patroni processes
             if ! pgrep -f "patroni" >/dev/null 2>&1; then
-                # Check for PgBouncer processes
-                if ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
+                # Check for PgBouncer processes if enabled
+                if [ "${PGBOUNCER_ENABLE:-false}" != "true" ] || ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
                     log_info "All processes have shut down gracefully"
                     return 0
                 fi
@@ -155,16 +157,18 @@ force_shutdown_if_needed() {
     fi
 
     # Find any remaining PgBouncer processes
-    remaining_pids=$(pgrep -f "pgbouncer" || true)
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        remaining_pids=$(pgrep -f "pgbouncer" || true)
 
-    if [ -n "$remaining_pids" ]; then
-        log_warn "Sending SIGKILL to remaining PgBouncer processes"
-        echo "$remaining_pids" | while read -r pid; do
-            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                log_error "Force killing PgBouncer process: $pid"
-                kill -KILL "$pid" || true
-            fi
-        done
+        if [ -n "$remaining_pids" ]; then
+            log_warn "Sending SIGKILL to remaining PgBouncer processes"
+            echo "$remaining_pids" | while read -r pid; do
+                if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                    log_error "Force killing PgBouncer process: $pid"
+                    kill -KILL "$pid" || true
+                fi
+            done
+        fi
     fi
 
     # Log final cleanup

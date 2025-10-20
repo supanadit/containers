@@ -57,6 +57,18 @@ case "${citus_enable_raw,,}" in
 esac
 export CITUS_ENABLE
 
+# PgBouncer configuration environment variables
+pgbouncer_enable_raw="${PGBOUNCER_ENABLE:-false}"
+case "${pgbouncer_enable_raw,,}" in
+    true|1|yes|on)
+        PGBOUNCER_ENABLE="true"
+        ;;
+    *)
+        PGBOUNCER_ENABLE="false"
+        ;;
+esac
+export PGBOUNCER_ENABLE
+
 # Timezone configuration
 export POSTGRESQL_TIMEZONE="${POSTGRESQL_TIMEZONE:-UTC}"
 export PGBACKREST_AUTO_TIMEZONE="${PGBACKREST_AUTO_TIMEZONE:-UTC}"

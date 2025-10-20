@@ -172,10 +172,15 @@ start_pgbouncer() {
     # Generate userlist.txt with postgres user
     local userlist_file="/etc/pgbouncer/userlist.txt"
     if [ -n "${POSTGRES_PASSWORD:-}" ]; then
-        # Generate MD5 hash for postgres user
+        # Get the MD5 hash from PostgreSQL
         local md5_hash
-        md5_hash=$(echo -n "${POSTGRES_PASSWORD}${POSTGRES_USER:-postgres}" | md5sum | cut -d' ' -f1)
-        echo "\"${POSTGRES_USER:-postgres}\" \"md5${md5_hash}\"" > "$userlist_file"
+        md5_hash=$(PGPASSWORD="${POSTGRES_PASSWORD}" su - postgres -c "/usr/local/pgsql/bin/psql -v ON_ERROR_STOP=1 -tA -h /usr/local/pgsql/run -d postgres -U postgres -c \"SELECT passwd FROM pg_shadow WHERE usename = '${POSTGRES_USER:-postgres}';\"" 2>/dev/null | tr -d '\n')
+        if [ -n "$md5_hash" ]; then
+            echo "\"${POSTGRES_USER:-postgres}\" \"$md5_hash\"" > "$userlist_file"
+        else
+            log_error "Failed to get password hash from PostgreSQL"
+            return 1
+        fi
     else
         # No password set, use empty password (trust auth)
         echo "\"${POSTGRES_USER:-postgres}\" \"\"" > "$userlist_file"
@@ -301,12 +306,14 @@ start_postgresql_direct() {
     # Wait for PostgreSQL to be ready
     wait_for_postgresql_ready
 
-    # Start PgBouncer
-    start_pgbouncer
-
     # Create replication user if in native HA primary mode
     if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "primary" ]]; then
         create_replication_user
+    fi
+
+    # Start PgBouncer
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        start_pgbouncer
     fi
 
     # Initialize pgBackRest stanza if backup is enabled
@@ -361,7 +368,9 @@ start_patroni() {
     wait_for_postgresql_ready
 
     # Start PgBouncer
-    start_pgbouncer
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        start_pgbouncer
+    fi
 
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
