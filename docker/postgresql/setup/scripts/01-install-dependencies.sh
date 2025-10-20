@@ -32,7 +32,8 @@ apt-get update -y && apt-get install -y \
     uuid-dev \
     libossp-uuid-dev \
     libevent-dev \
-    libc-ares-dev
+    libc-ares-dev \
+    gettext-base
     
 apt-get update && apt-get install -y locales
 

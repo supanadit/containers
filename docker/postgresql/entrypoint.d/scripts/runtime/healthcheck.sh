@@ -9,6 +9,7 @@ set -euo pipefail
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
+source /opt/container/entrypoint.d/scripts/utils/pgbouncer.sh
 
 # Exit codes for health checks
 HEALTH_OK=0
@@ -71,6 +72,9 @@ comprehensive_health_check() {
         if ! check_pgbouncer_status; then
             overall_status=$HEALTH_CRITICAL
             issues+=("pgbouncer_status")
+        else
+            # Check for configuration changes and reload if needed
+            reload_pgbouncer_config || true
         fi
     fi
 
