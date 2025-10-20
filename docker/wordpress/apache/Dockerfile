@@ -52,12 +52,12 @@ RUN chmod +x /opt/addons.sh && \
     rm -rf /opt/addons
 
 # Copy entrypoint script
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY entrypoint.d /opt/container/entrypoint.d
+RUN find /opt/container/entrypoint.d -name "*.sh" -exec chmod +x {} \;
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/opt/container/entrypoint.d/entrypoint.sh"]
 CMD ["/usr/local/apache2/bin/httpd", "-D", "FOREGROUND"]
 EXPOSE 80 9117
