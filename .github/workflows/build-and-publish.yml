@@ -47,6 +47,9 @@ jobs:
               MATRIX='[{"version": "latest"}]'
               CONTEXT="docker/wordpress/$VARIANT"
             fi
+          elif [ "$CONTAINER" = "mariadb" ]; then
+            MATRIX='[{"version": "11.8.3", "mariadb_version": "11.8.3"}]'
+            CONTEXT="docker/mariadb"
           else
             MATRIX='[{"version": "latest"}]'
             CONTEXT="docker/$CONTAINER"
@@ -99,6 +102,7 @@ jobs:
             ${{ matrix.patroni_version && format('PATRONI_VERSION={0}', matrix.patroni_version) || '' }}
             ${{ matrix.wordpress_version && format('WORDPRESS_VERSION={0}', matrix.wordpress_version) || '' }}
             ${{ matrix.php_version && format('PHP_VERSION={0}', matrix.php_version) || '' }}
+            ${{ matrix.mariadb_version && format('MARIADB_VERSION={0}', matrix.mariadb_version) || '' }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
