@@ -27,9 +27,7 @@ jobs:
         run: |
           CONTAINER=${{ steps.extract.outputs.container }}
           if [ "$CONTAINER" = "postgresql" ]; then
-            build_args="POSTGRESQL_VERSION=13.22
-          CITUS_VERSION=11.3.1
-          PATRONI_VERSION=v3.0.2"
+            build_args="POSTGRESQL_VERSION=13.22\\nCITUS_VERSION=11.3.1\\nPATRONI_VERSION=v3.0.2"
             MATRIX="[{"version": "13.22", "build_args": "$build_args"}]"
             CONTEXT="docker/postgresql"
           elif [ "$CONTAINER" = "wordpress" ]; then
