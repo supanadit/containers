@@ -71,17 +71,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set image tag
+      - name: Set image tag and repository
         id: tag
         run: |
           VERSION=${{ matrix.version }}
           VARIANT=${{ needs.setup.outputs.variant }}
           REVISION=${{ needs.setup.outputs.revision }}
+          CONTAINER=${{ needs.setup.outputs.container }}
           if [ -n "$VARIANT" ]; then
-            TAG="$VERSION-$VARIANT-$REVISION"
+            REPO="$CONTAINER-$VARIANT"
+            TAG="$VERSION-$REVISION"
           else
+            REPO="$CONTAINER"
             TAG="$VERSION-$REVISION"
           fi
+          echo "repo=$REPO" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
@@ -103,6 +107,6 @@ jobs:
             ${{ matrix.wordpress_version && format('WORDPRESS_VERSION={0}', matrix.wordpress_version) || '' }}
             ${{ matrix.php_version && format('PHP_VERSION={0}', matrix.php_version) || '' }}
             ${{ matrix.mariadb_version && format('MARIADB_VERSION={0}', matrix.mariadb_version) || '' }}
-          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ steps.tag.outputs.tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ steps.tag.outputs.repo }}:${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
