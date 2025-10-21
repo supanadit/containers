@@ -28,7 +28,7 @@ jobs:
           CONTAINER=${{ steps.extract.outputs.container }}
           if [ "$CONTAINER" = "postgresql" ]; then
             MATRIX='[
-              {"version": "13.5", "build_args": "POSTGRESQL_VERSION=13.5\nCITUS_VERSION=11.3.1\nPATRONI_VERSION=v3.0.2"},
+              {"version": "13.22", "build_args": "POSTGRESQL_VERSION=13.22\nCITUS_VERSION=11.3.1\nPATRONI_VERSION=v3.0.2"},
             ]'
             CONTEXT="docker/postgresql"
           elif [ "$CONTAINER" = "wordpress" ]; then
