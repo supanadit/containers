@@ -447,10 +447,11 @@ start_sleep_mode() {
 
 # Wait for PostgreSQL to be ready
 wait_for_postgresql_ready() {
-    local max_attempts=30
+    local max_attempts="${POSTGRESQL_READY_MAX_ATTEMPTS:-30}"
+    local attempt_interval="${POSTGRESQL_READY_ATTEMPT_INTERVAL:-1}"
     local attempt=1
 
-    log_debug "Waiting for PostgreSQL to be ready"
+    log_debug "Waiting for PostgreSQL to be ready (max attempts: $max_attempts, interval: ${attempt_interval}s)"
 
     while [ $attempt -le $max_attempts ]; do
         if pg_isready -h localhost -p "${POSTGRESQL_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
@@ -459,7 +460,7 @@ wait_for_postgresql_ready() {
         fi
 
         log_debug "PostgreSQL not ready yet (attempt $attempt/$max_attempts)"
-        sleep 1
+        sleep "$attempt_interval"
         ((attempt++))
     done
 
