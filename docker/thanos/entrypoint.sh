@@ -9,8 +9,14 @@ THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 # Build base arguments
 THANOS_ARG_LIST=(
     --http-address=${THANOS_HTTP_ADDRESS}
-    --grpc-address=${THANOS_GRPC_ADDRESS}
 )
+
+# Add gRPC address for components that support it
+case ${THANOS_COMPONENT} in
+    query|sidecar|store)
+        THANOS_ARG_LIST+=(--grpc-address=${THANOS_GRPC_ADDRESS})
+        ;;
+esac
 
 case ${THANOS_COMPONENT} in
     query)
@@ -35,6 +41,12 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --data-dir=${THANOS_DATA_DIR}
         )
+        ;;
+    query-frontend)
+        # Add downstream query URL if provided
+        if [ -n "${THANOS_QUERY_FRONTEND_DOWNSTREAM_URL}" ]; then
+            THANOS_ARG_LIST+=(--query-frontend.downstream-url=${THANOS_QUERY_FRONTEND_DOWNSTREAM_URL})
+        fi
         ;;
     *)
         echo "Unknown component: ${THANOS_COMPONENT}"

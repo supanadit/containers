@@ -7,6 +7,7 @@ This image packages Thanos for long-term storage and querying of Prometheus metr
 Thanos consists of multiple components that can be run in this container:
 
 - **query**: The main query endpoint that federates queries across multiple Prometheus instances and Thanos stores.
+- **query-frontend**: Provides query caching, retry logic, and query splitting in front of the query component.
 - **sidecar**: Runs alongside Prometheus to upload metrics to object storage and expose a gRPC endpoint for the query component.
 - **store**: Exposes a gRPC endpoint for querying metrics stored in object storage.
 
@@ -29,12 +30,20 @@ docker run \
   -e THANOS_COMPONENT=sidecar \
   -v prometheus-data:/opt/thanos/data \
   thanos
+
+# Run Thanos Query Frontend
+docker run \
+  -p 10902:10902 \
+  -e THANOS_COMPONENT=query-frontend \
+  -e THANOS_QUERY_FRONTEND_DOWNSTREAM_URL=http://thanos-query:9090 \
+  thanos
 ```
 
 ## Environment Variables
 
-- `THANOS_COMPONENT`: Component to run (query, sidecar, store). Default: query
+- `THANOS_COMPONENT`: Component to run (query, query-frontend, sidecar, store). Default: query
 - `THANOS_HTTP_ADDRESS`: HTTP listen address. Default: 0.0.0.0:10902
-- `THANOS_GRPC_ADDRESS`: gRPC listen address. Default: 0.0.0.0:10901
+- `THANOS_GRPC_ADDRESS`: gRPC listen address for query, sidecar, and store components. Default: 0.0.0.0:10901
 - `THANOS_QUERY_STORES`: Comma-separated list of store endpoints for query component
+- `THANOS_QUERY_FRONTEND_DOWNSTREAM_URL`: Downstream query URL for query-frontend component (e.g., http://thanos-query:9090)
 - `THANOS_DATA_DIR`: Data directory path. Default: /opt/thanos/data
