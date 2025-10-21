@@ -34,6 +34,9 @@ if [ ! -f /var/www/html/wp-config.php ]; then
         ' /var/www/html/wp-config.php > /var/www/html/wp-config.php.tmp && mv /var/www/html/wp-config.php.tmp /var/www/html/wp-config.php
     fi
 
+    # Add loopback request fix
+    add_loopback_fix /var/www/html/wp-config.php
+
     # If not stateless, copy to /content for persistence
     if [ ! -f /content/wp-config.php ] && [ "${IS_STATELESS:-false}" != "true" ]; then
         log_info "Creating /content directory for persistence"
@@ -42,13 +45,13 @@ if [ ! -f /var/www/html/wp-config.php ]; then
         cp /var/www/html/wp-config.php /content/wp-config.php
         chown www-data:www-data /content/wp-config.php
     fi
-fi
 
-# If wp-config.php exists in /content, symlink it to /var/www/html
-if [ -f /content/wp-config.php ] && [ "${IS_STATELESS:-false}" != "true" ]; then
-    log_info "Symlinking wp-config.php from /content"
-    ln -sf /content/wp-config.php /var/www/html/wp-config.php
-    chown www-data:www-data /var/www/html/wp-config.php
-fi
+    # If wp-config.php exists in /content, symlink it to /var/www/html
+    if [ -f /content/wp-config.php ] && [ "${IS_STATELESS:-false}" != "true" ]; then
+        log_info "Symlinking wp-config.php from /content"
+        ln -sf /content/wp-config.php /var/www/html/wp-config.php
+        chown www-data:www-data /var/www/html/wp-config.php
+    fi
 
-log_info "WordPress configuration initialization completed"
+    log_info "WordPress configuration initialization completed"
+fi

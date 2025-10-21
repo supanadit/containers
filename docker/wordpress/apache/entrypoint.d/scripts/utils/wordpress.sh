@@ -111,3 +111,26 @@ remove_https_config() {
         sed -i "/if ( isset( \$_SERVER\['HTTP_X_FORWARDED_PROTO'\] ) && 'https' == \$_SERVER\['HTTP_X_FORWARDED_PROTO'\] ) {/,/}/d" "$config_file"
     fi
 }
+
+# Add loopback fix to wp-config.php
+add_loopback_fix() {
+    local config_file="$1"
+
+    log_info "Adding loopback request fix to wp-config.php"
+
+    if ! grep -q "add_filter( 'pre_http_request'" "$config_file"; then
+        cat >> "$config_file" << 'EOF'
+
+// Fix loopback requests for Docker containers
+add_filter( 'pre_http_request', function( $preempt, $parsed_args, $url ) {
+    if ( strpos( $url, 'localhost' ) !== false ) {
+        $parsed = parse_url( $url );
+        $new_url = $parsed['scheme'] . '://127.0.0.1' . ( isset( $parsed['path'] ) ? $parsed['path'] : '/' ) . ( isset( $parsed['query'] ) ? '?' . $parsed['query'] : '' );
+        return wp_remote_request( $new_url, $parsed_args );
+    }
+    return $preempt;
+}, 10, 3 );
+
+EOF
+    fi
+}
