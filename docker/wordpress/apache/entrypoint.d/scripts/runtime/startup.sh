@@ -69,13 +69,31 @@ fi
 # Force create all required WordPress directories with correct permissions
 log_info "Ensuring all WordPress directories exist and have correct permissions"
 
+# For stateful mode, create directories on the mounted volume first
+if [ "${IS_STATELESS:-false}" = "false" ]; then
+    MOUNTED_REQUIRED_DIRS=(
+        "/content/wp-content/uploads"
+        "/content/wp-content/uploads/fonts"
+        "/content/wp-content/plugins"
+        "/content/wp-content/themes"
+        "/content/wp-content/upgrade"
+    )
+    
+    for dir in "${MOUNTED_REQUIRED_DIRS[@]}"; do
+        if [ ! -d "$dir" ]; then
+            log_info "Creating directory on mounted volume: $dir"
+            mkdir -p "$dir" 2>/dev/null || log_warn "Failed to create directory: $dir"
+        fi
+    done
+fi
+
 # Create directories in the expected locations (through symlink)
 WP_REQUIRED_DIRS=(
     "/var/www/html/wp-content"
     "/var/www/html/wp-content/uploads"
+    "/var/www/html/wp-content/uploads/fonts"
     "/var/www/html/wp-content/plugins"
     "/var/www/html/wp-content/themes"
-    "/var/www/html/wp-content/fonts"
     "/var/www/html/wp-content/upgrade"
 )
 
@@ -133,6 +151,17 @@ if [ -d "/content/wp-content" ]; then
     # Ensure group write access
     find /content/wp-content -type d -exec chmod g+w {} \; 2>/dev/null || true
     find /content/wp-content -type f -exec chmod g+w {} \; 2>/dev/null || true
+    
+    # Special check for fonts directory - ensure it exists and has proper permissions
+    if [ ! -d "/content/wp-content/uploads/fonts" ]; then
+        log_warn "Fonts directory missing on mounted volume, creating it"
+        mkdir -p /content/wp-content/uploads/fonts 2>/dev/null || log_error "Failed to create fonts directory"
+    fi
+    if [ -d "/content/wp-content/uploads/fonts" ]; then
+        chown www-data:www-data /content/wp-content/uploads/fonts 2>/dev/null || true
+        chmod 775 /content/wp-content/uploads/fonts 2>/dev/null || true
+        log_info "Fonts directory verified at /content/wp-content/uploads/fonts"
+    fi
 fi
 
 # Ensure the /content directory itself has proper permissions
