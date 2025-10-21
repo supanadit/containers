@@ -13,7 +13,7 @@ THANOS_ARG_LIST=(
 
 # Add gRPC address for components that support it
 case ${THANOS_COMPONENT} in
-    query|sidecar|store)
+    query|sidecar|store|receive)
         THANOS_ARG_LIST+=(--grpc-address=${THANOS_GRPC_ADDRESS})
         ;;
 esac
@@ -52,6 +52,17 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --data-dir=${THANOS_DATA_DIR}
             --wait
+        )
+        # Add object store config if provided
+        if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
+            THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
+        elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
+            THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
+        fi
+        ;;
+    receive)
+        THANOS_ARG_LIST+=(
+            --tsdb.path=${THANOS_DATA_DIR}
         )
         # Add object store config if provided
         if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
