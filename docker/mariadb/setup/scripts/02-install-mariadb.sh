@@ -37,3 +37,10 @@ make -j$(nproc)
 make install
 
 echo "=== MariaDB installed successfully ==="
+
+# Create mysql user and group for MariaDB
+echo "=== Creating mysql user ==="
+groupadd -r mysql
+useradd -r -g mysql -s /bin/false mysql
+
+echo "=== MySQL user created successfully ==="

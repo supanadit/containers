@@ -109,12 +109,6 @@ start_mariadb() {
 main() {
     log "MariaDB container entrypoint starting"
     
-    # Create mysql user if it doesn't exist (do this every time)
-    if ! id mysql >/dev/null 2>&1; then
-        log "Creating mysql user"
-        useradd -r -s /bin/false mysql
-    fi
-    
     if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
         # Initialize database if needed
         initialize_database
