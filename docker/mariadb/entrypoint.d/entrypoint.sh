@@ -5,7 +5,7 @@ set -euo pipefail
 # Initializes and starts MariaDB server
 
 # Add MariaDB to PATH
-export PATH="/usr/local/mariadb/bin:$PATH"
+export PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
 
 # Default data directory
 MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"

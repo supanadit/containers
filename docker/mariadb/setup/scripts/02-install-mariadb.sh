@@ -30,7 +30,8 @@ cmake .. \
     -DENABLED_PROFILING=OFF \
     -DENABLE_DTRACE=OFF \
     -DWITH_SAFEMALLOC=OFF \
-    -DWITH_VALGRIND=OFF
+    -DWITH_VALGRIND=OFF \
+    -DINSTALL_SCRIPTS=ON
 
 make -j$(nproc)
 make install
