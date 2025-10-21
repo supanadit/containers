@@ -150,11 +150,5 @@ if [ ! -w "/var/www/html" ]; then
     chmod g+w /var/www/html 2>/dev/null || true
 fi
 
-# Final verification
-log_info "Verifying permissions..."
-ls -la /var/www/html/wp-content/ 2>/dev/null || log_warn "Cannot list wp-content directory"
-
-log_info "Final permission setup completed"
-
 # Execute the main command (typically Apache)
 exec "$@"
