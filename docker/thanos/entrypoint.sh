@@ -13,7 +13,7 @@ THANOS_ARG_LIST=(
 
 # Add gRPC address for components that support it
 case ${THANOS_COMPONENT} in
-    query|sidecar|store|receive)
+    query|sidecar|store|receive|rule)
         THANOS_ARG_LIST+=(--grpc-address=${THANOS_GRPC_ADDRESS})
         ;;
 esac
@@ -64,6 +64,38 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --tsdb.path=${THANOS_DATA_DIR}
         )
+        # Add object store config if provided
+        if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
+            THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
+        elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
+            THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
+        fi
+        ;;
+    rule)
+        THANOS_ARG_LIST+=(
+            --data-dir=${THANOS_DATA_DIR}
+        )
+        # Add query endpoints if provided
+        if [ -n "${THANOS_QUERY_ENDPOINTS}" ]; then
+            IFS=',' read -ra ENDPOINTS <<< "${THANOS_QUERY_ENDPOINTS}"
+            for endpoint in "${ENDPOINTS[@]}"; do
+                THANOS_ARG_LIST+=(--query=${endpoint})
+            done
+        fi
+        # Add rule files if provided
+        if [ -n "${THANOS_RULE_FILES}" ]; then
+            IFS=',' read -ra RULE_FILES <<< "${THANOS_RULE_FILES}"
+            for rule_file in "${RULE_FILES[@]}"; do
+                THANOS_ARG_LIST+=(--rule-file=${rule_file})
+            done
+        fi
+        # Add alertmanager URLs if provided
+        if [ -n "${THANOS_ALERTMANAGERS_URL}" ]; then
+            IFS=',' read -ra AM_URLS <<< "${THANOS_ALERTMANAGERS_URL}"
+            for am_url in "${AM_URLS[@]}"; do
+                THANOS_ARG_LIST+=(--alertmanagers.url=${am_url})
+            done
+        fi
         # Add object store config if provided
         if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
             THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})

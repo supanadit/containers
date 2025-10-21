@@ -12,6 +12,7 @@ Thanos consists of multiple components that can be run in this container:
 - **store**: Exposes a gRPC endpoint for querying metrics stored in object storage.
 - **compact**: Continuously compacts blocks in an object store bucket to improve query performance.
 - **receive**: Accepts Prometheus remote write API requests and writes to local TSDB.
+- **rule**: Evaluates Prometheus rules against given Query nodes, exposing Store API and storing old blocks in bucket.
 
 ## Usage
 
@@ -54,15 +55,30 @@ docker run \
   -e THANOS_COMPONENT=receive \
   -v thanos-data:/opt/thanos/data \
   thanos
+
+# Run Thanos Ruler
+docker run \
+  -p 10902:10902 \
+  -p 10901:10901 \
+  -e THANOS_COMPONENT=rule \
+  -e THANOS_QUERY_ENDPOINTS=http://thanos-query:9090 \
+  -e THANOS_RULE_FILES=/etc/thanos/rules/*.yaml \
+  -e THANOS_ALERTMANAGERS_URL=http://alertmanager:9093 \
+  -v /path/to/rules:/etc/thanos/rules \
+  -v thanos-data:/opt/thanos/data \
+  thanos
 ```
 
 ## Environment Variables
 
-- `THANOS_COMPONENT`: Component to run (query, query-frontend, sidecar, store, compact, receive). Default: query
+- `THANOS_COMPONENT`: Component to run (query, query-frontend, sidecar, store, compact, receive, rule). Default: query
 - `THANOS_HTTP_ADDRESS`: HTTP listen address. Default: 0.0.0.0:10902
-- `THANOS_GRPC_ADDRESS`: gRPC listen address for query, sidecar, store, and receive components. Default: 0.0.0.0:10901
+- `THANOS_GRPC_ADDRESS`: gRPC listen address for query, sidecar, store, receive, and rule components. Default: 0.0.0.0:10901
 - `THANOS_QUERY_STORES`: Comma-separated list of store endpoints for query component
 - `THANOS_QUERY_FRONTEND_DOWNSTREAM_URL`: Downstream query URL for query-frontend component (e.g., http://thanos-query:9090)
 - `THANOS_DATA_DIR`: Data directory path. Default: /opt/thanos/data
-- `THANOS_OBJSTORE_CONFIG`: Object store configuration as YAML content for compact component
-- `THANOS_OBJSTORE_CONFIG_FILE`: Path to object store configuration file for compact component
+- `THANOS_OBJSTORE_CONFIG`: Object store configuration as YAML content for compact, receive, and rule components
+- `THANOS_OBJSTORE_CONFIG_FILE`: Path to object store configuration file for compact, receive, and rule components
+- `THANOS_QUERY_ENDPOINTS`: Comma-separated list of query endpoints for rule component
+- `THANOS_RULE_FILES`: Comma-separated list of rule files/directories for rule component
+- `THANOS_ALERTMANAGERS_URL`: Comma-separated list of Alertmanager URLs for rule component
