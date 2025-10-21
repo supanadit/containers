@@ -27,19 +27,26 @@ jobs:
         run: |
           CONTAINER=${{ steps.extract.outputs.container }}
           if [ "$CONTAINER" = "postgresql" ]; then
-            build_args="POSTGRESQL_VERSION=13.22\\nCITUS_VERSION=11.3.1\\nPATRONI_VERSION=v3.0.2"
-            MATRIX="[{"version": "13.22", "build_args": "$build_args"}]"
+            MATRIX=$(cat <<'EOF'
+          [
+            {
+              "version": "13.22",
+              "postgresql_version": "13.22",
+              "citus_version": "11.3.1",
+              "patroni_version": "v3.0.2"
+            }
+          ]
+          EOF
+          )
             CONTEXT="docker/postgresql"
           elif [ "$CONTAINER" = "wordpress" ]; then
-            build_args=""
-            MATRIX="[{"version": "latest", "build_args": "$build_args"}]"
+            MATRIX='[{"version": "latest"}]'
             CONTEXT="docker/wordpress/apache"
           else
-            build_args=""
-            MATRIX="[{"version": "latest", "build_args": "$build_args"}]"
+            MATRIX='[{"version": "latest"}]'
             CONTEXT="docker/$CONTAINER"
           fi
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "matrix=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
           echo "context=$CONTEXT" >> $GITHUB_OUTPUT
 
   build:
@@ -68,7 +75,10 @@ jobs:
         with:
           context: ${{ needs.setup.outputs.context }}
           push: true
-          build-args: ${{ matrix.build_args }}
+          build-args: |
+            POSTGRESQL_VERSION=${{ matrix.postgresql_version || matrix.version }}
+            CITUS_VERSION=${{ matrix.citus_version || '' }}
+            PATRONI_VERSION=${{ matrix.patroni_version || '' }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ matrix.version }}-${{ needs.setup.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
