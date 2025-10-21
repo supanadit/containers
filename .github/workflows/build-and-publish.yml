@@ -12,20 +12,30 @@ jobs:
       revision: ${{ steps.extract.outputs.revision }}
       matrix: ${{ steps.versions.outputs.matrix }}
       context: ${{ steps.versions.outputs.context }}
+      variant: ${{ steps.extract.outputs.variant }}
     steps:
-      - name: Extract container and revision
+      - name: Extract container, variant and revision
         id: extract
         run: |
           TAG=${{ github.event.release.tag_name }}
-          CONTAINER=${TAG%%-*}
-          REVISION=${TAG#*-}
+          IFS='-' read -ra parts <<< "$TAG"
+          CONTAINER=${parts[0]}
+          if [ ${#parts[@]} -eq 2 ]; then
+            VARIANT=""
+            REVISION=${parts[1]}
+          else
+            VARIANT=${parts[1]}
+            REVISION=${parts[2]}
+          fi
           echo "container=$CONTAINER" >> $GITHUB_OUTPUT
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
           echo "revision=$REVISION" >> $GITHUB_OUTPUT
 
       - name: Set matrix and context
         id: versions
         run: |
           CONTAINER=${{ steps.extract.outputs.container }}
+          VARIANT=${{ steps.extract.outputs.variant }}
           if [ "$CONTAINER" = "postgresql" ]; then
             MATRIX=$(cat <<'EOF'
           [
@@ -40,8 +50,22 @@ jobs:
           )
             CONTEXT="docker/postgresql"
           elif [ "$CONTAINER" = "wordpress" ]; then
-            MATRIX='[{"version": "latest"}]'
-            CONTEXT="docker/wordpress/apache"
+            if [ "$VARIANT" = "apache" ]; then
+              MATRIX=$(cat <<'EOF'
+            [
+              {
+                "version": "6.8.3",
+                "wordpress_version": "6.8.3",
+                "php_version": "8.2"
+              }
+            ]
+            EOF
+            )
+              CONTEXT="docker/wordpress/apache"
+            else
+              MATRIX='[{"version": "latest"}]'
+              CONTEXT="docker/wordpress/$VARIANT"
+            fi
           else
             MATRIX='[{"version": "latest"}]'
             CONTEXT="docker/$CONTAINER"
@@ -63,6 +87,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set image tag
+        id: tag
+        run: |
+          VERSION=${{ matrix.version }}
+          VARIANT=${{ needs.setup.outputs.variant }}
+          REVISION=${{ needs.setup.outputs.revision }}
+          if [ -n "$VARIANT" ]; then
+            TAG="$VERSION-$VARIANT-$REVISION"
+          else
+            TAG="$VERSION-$REVISION"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -79,6 +116,8 @@ jobs:
             ${{ matrix.postgresql_version && format('POSTGRESQL_VERSION={0}', matrix.postgresql_version) || '' }}
             ${{ matrix.citus_version && format('CITUS_VERSION={0}', matrix.citus_version) || '' }}
             ${{ matrix.patroni_version && format('PATRONI_VERSION={0}', matrix.patroni_version) || '' }}
-          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ matrix.version }}-${{ needs.setup.outputs.revision }}
+            ${{ matrix.wordpress_version && format('WORDPRESS_VERSION={0}', matrix.wordpress_version) || '' }}
+            ${{ matrix.php_version && format('PHP_VERSION={0}', matrix.php_version) || '' }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
