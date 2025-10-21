@@ -41,7 +41,7 @@ jobs:
             CONTEXT="docker/postgresql"
           elif [ "$CONTAINER" = "wordpress" ]; then
             if [ "$VARIANT" = "apache" ]; then
-              MATRIX='[{"version": "6.8.3", "wordpress_version": "6.8.3", "php_version": "8.2"}]'
+              MATRIX='[{"version": "6.8.3", "wordpress_version": "6.8.3"}]'
               CONTEXT="docker/wordpress/apache"
             else
               MATRIX='[{"version": "latest"}]'
