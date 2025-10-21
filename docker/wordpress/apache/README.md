@@ -1,11 +1,10 @@
 # This is Custom Wordpress Apache Dockerfile
 
-It's made to have flexibility to install themes and plugins, including select custom PHP, Apache, and WordPress versions.
+The only wordpress image with flexibility, we provide the ability to select custom PHP, Apache, and WordPress versions. Also, you can include custom themes and plugins at build time.
 
 ## FAQ
 
 - Why not use official WordPress image?
-
   - The official WordPress image is great, but it lacks flexibility to include custom themes and plugins at build time, and also lacks the ability to select specific versions of PHP and Apache.
 
 - Why including plugins and themes in the image?
@@ -14,10 +13,8 @@ It's made to have flexibility to install themes and plugins, including select cu
 ## Notes
 
 - If you download plugins from WordPress.org, usually it has a version number in the filename, e.g. `plugin-name-1.2.3.zip`. You can remove the version number to make it easier to update the plugin in the future, e.g. `plugin-name.zip`. ( This rules applies to themes as well. )
-- This docker is smart enough to detect the plugin and theme, if you put the directory in the plugins it will automatically move to the wordpress plugins directory, and if it's archive `.zip` it will automatically extract the archive to the plugins directory.
+- This docker is smart enough to detect the plugin and theme, if you put the directory in the plugins it will automatically move to the wordpress plugins directory, and if it's archive `.zip` it will automatically extract the archive to the plugins or theme directory.
 
 ## TODO
 
-1. Include `imagemagick` and `ghostscript` for image processing.
-2. Custom copy file for certain plugins on the fly for Stateless mode.
-3. Custom rate limiting for Apache.
+1. Custom rate limiting for Apache.
