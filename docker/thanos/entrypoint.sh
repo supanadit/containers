@@ -48,6 +48,18 @@ case ${THANOS_COMPONENT} in
             THANOS_ARG_LIST+=(--query-frontend.downstream-url=${THANOS_QUERY_FRONTEND_DOWNSTREAM_URL})
         fi
         ;;
+    compact)
+        THANOS_ARG_LIST+=(
+            --data-dir=${THANOS_DATA_DIR}
+            --wait
+        )
+        # Add object store config if provided
+        if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
+            THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
+        elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
+            THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
+        fi
+        ;;
     *)
         echo "Unknown component: ${THANOS_COMPONENT}"
         exit 1
