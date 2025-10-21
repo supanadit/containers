@@ -17,7 +17,8 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
     org.opencontainers.image.revision=$VCS_REF \
     org.opencontainers.image.title="WordPress with Apache and PHP" \
     org.opencontainers.image.description="Optimized WordPress container with Apache, PHP, and monitoring" \
-    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>"
+    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>" \
+    org.opencontainers.image.source=https://github.com/supanadit/containers
 
 # Setup layer - copy stable files first for better caching
 FROM base AS setup
