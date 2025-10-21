@@ -28,6 +28,22 @@ echo "=== Building contrib modules ==="
 cd contrib
 make && make install
 
+# Install pgaudit extension
+echo "=== Installing pgaudit ==="
+cd /temp/sources
+curl -L -o pgaudit-${PGAUDIT_VERSION}.tar.gz https://github.com/pgaudit/pgaudit/archive/${PGAUDIT_VERSION}.tar.gz
+tar -xzf pgaudit-${PGAUDIT_VERSION}.tar.gz
+cd pgaudit-${PGAUDIT_VERSION}
+make PG_CONFIG=/usr/local/pgsql/bin/pg_config USE_PGXS=1 && make PG_CONFIG=/usr/local/pgsql/bin/pg_config USE_PGXS=1 install
+
+# Verify pgaudit extension
+if [ -f "/usr/local/pgsql/share/extension/pgaudit.control" ]; then
+    echo "pgaudit extension installed successfully"
+else
+    echo "ERROR: pgaudit extension not found!"
+    exit 1
+fi
+
 # Verify that uuid-ossp extension files are installed
 echo "=== Verifying uuid-ossp extension installation ==="
 if [ -f "/usr/local/pgsql/share/extension/uuid-ossp.control" ]; then
