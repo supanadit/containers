@@ -37,6 +37,8 @@ apt-get update && apt-get install -y \
     libgd-dev \
     libjpeg-dev \
     libpng-dev \
-    libfreetype6-dev
+    libfreetype6-dev \
+    libmagickwand-dev \
+    imagemagick
 
 echo "=== Dependencies installed successfully ==="

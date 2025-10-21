@@ -1,14 +1,8 @@
-# Multi-stage build for PostgreSQL with optimized layer caching
+# Multi-stage build for MariaDB with optimized layer caching
 # syntax=docker/dockerfile:1.4
-FROM debian:bookworm AS base
+FROM debian:bookworm-slim AS base
 
-ARG POSTGRESQL_VERSION=13.5
-ARG PGBACKREST_VERSION=2.56.0
-ARG CITUS_VERSION=11.3.1
-ARG PG_STAT_MONITOR_VERSION=2.2.0
-ARG DECODERBUFS_VERSION=v3.2.2.Final
-ARG PYTHON_VERSION=v3.11.2
-ARG PATRONI_VERSION=v3.0.2
+ARG MARIADB_VERSION=11.8.3
 
 # Build metadata
 ARG BUILD_DATE
@@ -16,11 +10,9 @@ ARG VCS_REF
 
 LABEL org.opencontainers.image.created=$BUILD_DATE \
     org.opencontainers.image.revision=$VCS_REF \
-    org.opencontainers.image.title="PostgreSQL with Build Optimization" \
-    org.opencontainers.image.description="Optimized PostgreSQL container with Patroni, pgBackRest, and Citus" \
+    org.opencontainers.image.title="MariaDB" \
+    org.opencontainers.image.description="Optimized MariaDB container" \
     org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>"
-
-ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 
 # Setup layer - copy stable files first for better caching
 FROM base AS setup
@@ -37,7 +29,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
-ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
+ENV PATH="/usr/local/mariadb/bin:$PATH"
 
 # Runtime layer - copy volatile files later
 FROM setup AS runtime
@@ -46,25 +38,11 @@ FROM setup AS runtime
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
 
-# Copy configuration files
-COPY config/ /etc/pgbouncer/
-
-# Set proper ownership
-RUN chown -R postgres:postgres /opt/container/ && \
-    chmod -R 755 /opt/container/
-
 # Copy main entrypoint script
 COPY entrypoint.d/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Set the stop signal for proper container shutdown
-STOPSIGNAL SIGTERM
-
-# Health check configuration
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
-
-# Expose PostgreSQL and PgBouncer ports
-EXPOSE 5432 6432
+# Expose MariaDB port
+EXPOSE 3306
 
 ENTRYPOINT ["/entrypoint.sh"]

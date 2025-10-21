@@ -72,6 +72,21 @@ initiate_graceful_shutdown() {
             fi
         done
     fi
+
+    # Also try PgBouncer if it might be running
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        local pgbouncer_pids
+        pgbouncer_pids=$(pgrep -f "pgbouncer" || true)
+
+        if [ -n "$pgbouncer_pids" ]; then
+            echo "$pgbouncer_pids" | while read -r pid; do
+                if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                    log_debug "Sending SIGTERM to PgBouncer process: $pid"
+                    kill -TERM "$pid" || true
+                fi
+            done
+        fi
+    fi
 }
 
 # Wait for shutdown to complete
@@ -97,8 +112,11 @@ wait_for_shutdown() {
         if ! pgrep -f "postgres" >/dev/null 2>&1; then
             # Check for Patroni processes
             if ! pgrep -f "patroni" >/dev/null 2>&1; then
-                log_info "All processes have shut down gracefully"
-                return 0
+                # Check for PgBouncer processes if enabled
+                if [ "${PGBOUNCER_ENABLE:-false}" != "true" ] || ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
+                    log_info "All processes have shut down gracefully"
+                    return 0
+                fi
             fi
         fi
 
@@ -138,30 +156,20 @@ force_shutdown_if_needed() {
         done
     fi
 
-    # Give processes a moment to die
-    sleep 2
+    # Find any remaining PgBouncer processes
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        remaining_pids=$(pgrep -f "pgbouncer" || true)
 
-    # Final check
-    if pgrep -f "postgres\|patroni" >/dev/null 2>&1; then
-        log_error "Some processes still running after force kill"
-        return 1
-    else
-        log_warn "All processes successfully terminated"
+        if [ -n "$remaining_pids" ]; then
+            log_warn "Sending SIGKILL to remaining PgBouncer processes"
+            echo "$remaining_pids" | while read -r pid; do
+                if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                    log_error "Force killing PgBouncer process: $pid"
+                    kill -KILL "$pid" || true
+                fi
+            done
+        fi
     fi
-}
-
-# Cleanup resources after shutdown
-cleanup_resources() {
-    log_info "Cleaning up resources"
-
-    # Remove PID files
-    cleanup_pid_files
-
-    # Remove socket files
-    cleanup_socket_files
-
-    # Remove temporary files
-    cleanup_temp_files
 
     # Log final cleanup
     log_info "Resource cleanup completed"
