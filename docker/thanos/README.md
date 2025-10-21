@@ -67,6 +67,25 @@ docker run \
   -v /path/to/rules:/etc/thanos/rules \
   -v thanos-data:/opt/thanos/data \
   thanos
+
+# Run Thanos Compact with Minio S3
+docker run \
+  -e THANOS_COMPONENT=compact \
+  -e THANOS_S3_BUCKET=thanos \
+  -e THANOS_S3_ENDPOINT=http://minio:9000 \
+  -e THANOS_S3_ACCESS_KEY=minioadmin \
+  -e THANOS_S3_SECRET_KEY=minioadmin \
+  -e THANOS_S3_INSECURE=true \
+  thanos
+
+# Run Thanos Compact with AWS S3
+docker run \
+  -e THANOS_COMPONENT=compact \
+  -e THANOS_S3_BUCKET=my-thanos-bucket \
+  -e THANOS_S3_ENDPOINT=https://s3.us-west-2.amazonaws.com \
+  -e THANOS_S3_ACCESS_KEY=<aws-access-key> \
+  -e THANOS_S3_SECRET_KEY=<aws-secret-key> \
+  thanos
 ```
 
 ## Environment Variables
@@ -79,6 +98,12 @@ docker run \
 - `THANOS_DATA_DIR`: Data directory path. Default: /opt/thanos/data
 - `THANOS_OBJSTORE_CONFIG`: Object store configuration as YAML content for compact, receive, and rule components
 - `THANOS_OBJSTORE_CONFIG_FILE`: Path to object store configuration file for compact, receive, and rule components
+- `THANOS_S3_BUCKET`: S3 bucket name for automatic S3 configuration
+- `THANOS_S3_ENDPOINT`: S3 endpoint URL (e.g., https://s3.amazonaws.com or http://minio:9000)
+- `THANOS_S3_ACCESS_KEY`: S3 access key
+- `THANOS_S3_SECRET_KEY`: S3 secret key
+- `THANOS_S3_INSECURE`: Use insecure connection (true/false, default: false) - useful for Minio
+- `THANOS_S3_SIGNATURE_V2`: Use signature version 2 (true/false, default: false) - useful for Minio
 - `THANOS_QUERY_ENDPOINTS`: Comma-separated list of query endpoints for rule component
 - `THANOS_RULE_FILES`: Comma-separated list of rule files/directories for rule component
 - `THANOS_ALERTMANAGERS_URL`: Comma-separated list of Alertmanager URLs for rule component

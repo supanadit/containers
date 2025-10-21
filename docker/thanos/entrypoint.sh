@@ -6,6 +6,43 @@ THANOS_HTTP_ADDRESS=${THANOS_HTTP_ADDRESS:-0.0.0.0:10902}
 THANOS_GRPC_ADDRESS=${THANOS_GRPC_ADDRESS:-0.0.0.0:10901}
 THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 
+# S3 Object Store Configuration
+THANOS_S3_BUCKET=${THANOS_S3_BUCKET:-}
+THANOS_S3_ENDPOINT=${THANOS_S3_ENDPOINT:-}
+THANOS_S3_ACCESS_KEY=${THANOS_S3_ACCESS_KEY:-}
+THANOS_S3_SECRET_KEY=${THANOS_S3_SECRET_KEY:-}
+THANOS_S3_INSECURE=${THANOS_S3_INSECURE:-false}
+THANOS_S3_SIGNATURE_V2=${THANOS_S3_SIGNATURE_V2:-false}
+
+# Function to generate S3 objstore config
+generate_s3_config() {
+    if [ -n "${THANOS_S3_BUCKET}" ] && [ -n "${THANOS_S3_ENDPOINT}" ] && [ -n "${THANOS_S3_ACCESS_KEY}" ] && [ -n "${THANOS_S3_SECRET_KEY}" ]; then
+        cat <<EOF
+type: S3
+config:
+  bucket: "${THANOS_S3_BUCKET}"
+  endpoint: "${THANOS_S3_ENDPOINT}"
+  access_key: "${THANOS_S3_ACCESS_KEY}"
+  secret_key: "${THANOS_S3_SECRET_KEY}"
+  insecure: ${THANOS_S3_INSECURE}
+  signature_version2: ${THANOS_S3_SIGNATURE_V2}
+EOF
+    fi
+}
+
+# Function to add objstore config to arguments
+add_objstore_config() {
+    if [ -n "${THANOS_S3_BUCKET}" ] && [ -n "${THANOS_S3_ENDPOINT}" ] && [ -n "${THANOS_S3_ACCESS_KEY}" ] && [ -n "${THANOS_S3_SECRET_KEY}" ]; then
+        local s3_config
+        s3_config=$(generate_s3_config)
+        THANOS_ARG_LIST+=(--objstore.config="${s3_config}")
+    elif [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
+        THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
+    elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
+        THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
+    fi
+}
+
 # Build base arguments
 THANOS_ARG_LIST=(
     --http-address=${THANOS_HTTP_ADDRESS}
@@ -54,22 +91,14 @@ case ${THANOS_COMPONENT} in
             --wait
         )
         # Add object store config if provided
-        if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
-            THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
-        elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
-            THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
-        fi
+        add_objstore_config
         ;;
     receive)
         THANOS_ARG_LIST+=(
             --tsdb.path=${THANOS_DATA_DIR}
         )
         # Add object store config if provided
-        if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
-            THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
-        elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
-            THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
-        fi
+        add_objstore_config
         ;;
     rule)
         THANOS_ARG_LIST+=(
@@ -97,11 +126,7 @@ case ${THANOS_COMPONENT} in
             done
         fi
         # Add object store config if provided
-        if [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
-            THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
-        elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
-            THANOS_ARG_LIST+=(--objstore.config-file=${THANOS_OBJSTORE_CONFIG_FILE})
-        fi
+        add_objstore_config
         ;;
     *)
         echo "Unknown component: ${THANOS_COMPONENT}"
