@@ -4,4 +4,4 @@ This is a collection of Docker containers that I have created for various purpos
 
 ## License
 
-MIT License
+[MIT License](./LICENSE)
