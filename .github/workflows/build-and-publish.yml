@@ -76,9 +76,9 @@ jobs:
           context: ${{ needs.setup.outputs.context }}
           push: true
           build-args: |
-            POSTGRESQL_VERSION=${{ matrix.postgresql_version || matrix.version }}
-            CITUS_VERSION=${{ matrix.citus_version || '' }}
-            PATRONI_VERSION=${{ matrix.patroni_version || '' }}
+            ${{ matrix.postgresql_version && format('POSTGRESQL_VERSION={0}', matrix.postgresql_version) || '' }}
+            ${{ matrix.citus_version && format('CITUS_VERSION={0}', matrix.citus_version) || '' }}
+            ${{ matrix.patroni_version && format('PATRONI_VERSION={0}', matrix.patroni_version) || '' }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ matrix.version }}-${{ needs.setup.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
