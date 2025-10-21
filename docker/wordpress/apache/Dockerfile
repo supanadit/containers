@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1.4
 FROM debian:bookworm AS base
 
-ARG WORDPRESS_VERSION="6.8.2"
+ARG WORDPRESS_VERSION="6.8.3"
 ARG APACHE_VERSION="2.4.65"
 ARG PHP_VERSION="8.3.23"
 ARG APR_VERSION="1.7.6"
