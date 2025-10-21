@@ -10,6 +10,7 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
+source /opt/container/entrypoint.d/scripts/utils/pgbouncer.sh
 
 # Restore coordination files
 RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
@@ -152,6 +153,92 @@ perform_pgbackrest_restore() {
     return 0
 }
 
+# Start PgBouncer
+start_pgbouncer() {
+    log_info "Starting PgBouncer"
+
+    # Ensure PgBouncer environment variables are set
+    export PGBOUNCER_LISTEN_ADDR="${PGBOUNCER_LISTEN_ADDR:-0.0.0.0}"
+    export PGBOUNCER_LISTEN_PORT="${PGBOUNCER_LISTEN_PORT:-6432}"
+    export PGBOUNCER_AUTH_TYPE="${PGBOUNCER_AUTH_TYPE:-md5}"
+    export PGBOUNCER_ADMIN_USERS="${PGBOUNCER_ADMIN_USERS:-postgres}"
+    export PGBOUNCER_STATS_USERS="${PGBOUNCER_STATS_USERS:-postgres}"
+    export PGBOUNCER_POOL_MODE="${PGBOUNCER_POOL_MODE:-transaction}"
+    export PGBOUNCER_MAX_CLIENT_CONN="${PGBOUNCER_MAX_CLIENT_CONN:-100}"
+    export PGBOUNCER_DEFAULT_POOL_SIZE="${PGBOUNCER_DEFAULT_POOL_SIZE:-20}"
+
+    # Check if PgBouncer is installed
+    if ! command -v pgbouncer >/dev/null 2>&1; then
+        log_warn "PgBouncer is not installed, skipping"
+        return 0
+    fi
+
+    # Check if config exists
+    local config_file="/etc/pgbouncer/pgbouncer.ini"
+    if [ ! -f "$config_file" ]; then
+        log_error "PgBouncer config not found: $config_file"
+        return 1
+    fi
+
+    # Process environment variables in config file
+    local processed_config_file="/etc/pgbouncer/pgbouncer-processed.ini"
+    
+    # Use sed to replace environment variables
+    cp "$config_file" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_LISTEN_ADDR}|${PGBOUNCER_LISTEN_ADDR}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_LISTEN_PORT}|${PGBOUNCER_LISTEN_PORT}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_AUTH_TYPE}|${PGBOUNCER_AUTH_TYPE}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_ADMIN_USERS}|${PGBOUNCER_ADMIN_USERS}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_STATS_USERS}|${PGBOUNCER_STATS_USERS}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_POOL_MODE}|${PGBOUNCER_POOL_MODE}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_MAX_CLIENT_CONN}|${PGBOUNCER_MAX_CLIENT_CONN}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_DEFAULT_POOL_SIZE}|${PGBOUNCER_DEFAULT_POOL_SIZE}|g" "$processed_config_file"
+    
+    chown postgres:postgres "$processed_config_file"
+    chmod 600 "$processed_config_file"
+
+    # Store current configuration hash for change detection
+    local config_hash_file="/etc/pgbouncer/config.hash"
+    sha256sum "$processed_config_file" | awk '{print $1}' > "$config_hash_file"
+
+    # Generate userlist.txt with postgres user
+    local userlist_file="/etc/pgbouncer/userlist.txt"
+    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+        # Get the MD5 hash from PostgreSQL
+        local md5_hash
+        md5_hash=$(PGPASSWORD="${POSTGRES_PASSWORD}" su - postgres -c "/usr/local/pgsql/bin/psql -v ON_ERROR_STOP=1 -tA -h ${PGRUN} -d postgres -U postgres -c \"SELECT passwd FROM pg_shadow WHERE usename = '${POSTGRES_USER:-postgres}';\"" 2>/dev/null | tr -d '\n')
+        if [ -n "$md5_hash" ]; then
+            echo "\"${POSTGRES_USER:-postgres}\" \"$md5_hash\"" > "$userlist_file"
+        else
+            log_error "Failed to get password hash from PostgreSQL"
+            return 1
+        fi
+    else
+        # No password set, use empty password (trust auth)
+        echo "\"${POSTGRES_USER:-postgres}\" \"\"" > "$userlist_file"
+    fi
+    chown postgres:postgres "$userlist_file"
+    chmod 600 "$userlist_file"
+
+    # Start PgBouncer as a background process
+    su -c "pgbouncer -d $processed_config_file" postgres &
+    local pgb_pid=$!
+
+    log_info "PgBouncer started with PID: $pgb_pid"
+
+    # Wait a moment for PgBouncer to start
+    sleep 2
+
+    # Check if it's running
+    if ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
+        log_error "PgBouncer failed to start"
+        return 1
+    fi
+
+    log_info "PgBouncer is ready"
+    return 0
+}
+
 # Main function
 main() {
     log_script_start "startup.sh"
@@ -256,6 +343,11 @@ start_postgresql_direct() {
         create_replication_user
     fi
 
+    # Start PgBouncer
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        start_pgbouncer
+    fi
+
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
         initialize_pgbackrest_stanza
@@ -306,6 +398,11 @@ start_patroni() {
 
     # Wait for Patroni to be ready (it will start PostgreSQL)
     wait_for_postgresql_ready
+
+    # Start PgBouncer
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        start_pgbouncer
+    fi
 
     # Initialize pgBackRest stanza if backup is enabled
     if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then

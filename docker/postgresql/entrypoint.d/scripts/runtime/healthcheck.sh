@@ -9,6 +9,7 @@ set -euo pipefail
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
+source /opt/container/entrypoint.d/scripts/utils/pgbouncer.sh
 
 # Exit codes for health checks
 HEALTH_OK=0
@@ -63,6 +64,17 @@ comprehensive_health_check() {
         if ! check_patroni_status; then
             overall_status=$HEALTH_CRITICAL
             issues+=("patroni_status")
+        fi
+    fi
+
+    # Check PgBouncer status if enabled
+    if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+        if ! check_pgbouncer_status; then
+            overall_status=$HEALTH_CRITICAL
+            issues+=("pgbouncer_status")
+        else
+            # Check for configuration changes and reload if needed
+            reload_pgbouncer_config || true
         fi
     fi
 
@@ -144,6 +156,30 @@ check_patroni_status() {
         log_warn "curl not available, skipping Patroni REST API check"
         # Consider Patroni healthy if process is running
         return 0
+    fi
+}
+
+# Check PgBouncer status
+check_pgbouncer_status() {
+    log_debug "Checking PgBouncer status"
+
+    # Check if PgBouncer is running
+    if ! pgrep -f "pgbouncer" >/dev/null 2>&1; then
+        log_error "PgBouncer process is not running"
+        return 1
+    fi
+
+    local pgbouncer_port="${PGBOUNCER_PORT:-6432}"
+    local pgbouncer_host="${PGBOUNCER_HOST:-localhost}"
+
+    # Try to connect to PgBouncer admin interface
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+    if echo "SHOW POOLS;" | psql -h "$pgbouncer_host" -p "$pgbouncer_port" -U "$POSTGRES_USER" -d pgbouncer >/dev/null 2>&1; then
+        log_debug "PgBouncer is accepting connections"
+        return 0
+    else
+        log_error "PgBouncer is not accepting connections"
+        return 1
     fi
 }
 

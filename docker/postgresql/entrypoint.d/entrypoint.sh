@@ -17,8 +17,15 @@ SCRIPT_VERSION="1.0.0"
 export DEFAULT_PGDATA="${DEFAULT_PGDATA:-/usr/local/pgsql/data}"
 export DEFAULT_PGCONFIG="${DEFAULT_PGCONFIG:-/usr/local/pgsql/config}"
 export DEFAULT_PGLOG="${DEFAULT_PGLOG:-/usr/local/pgsql/log}"
-export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/usr/local/pgsql/run}"
+export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/tmp}"
 export DEFAULT_PGBACKUP="${DEFAULT_PGBACKUP:-/usr/local/pgsql/backup}"
+
+# Set actual variables used by scripts
+export PGDATA="$DEFAULT_PGDATA"
+export PGCONFIG="$DEFAULT_PGCONFIG"
+export PGLOG="$DEFAULT_PGLOG"
+export PGRUN="$DEFAULT_PGRUN"
+export PGBACKUP="$DEFAULT_PGBACKUP"
 
 export POSTGRES_USER="${POSTGRES_USER:-postgres}"
 export POSTGRES_DB="${POSTGRES_DB:-postgres}"
@@ -56,6 +63,28 @@ case "${citus_enable_raw,,}" in
         ;;
 esac
 export CITUS_ENABLE
+
+# PgBouncer configuration environment variables
+pgbouncer_enable_raw="${PGBOUNCER_ENABLE:-false}"
+case "${pgbouncer_enable_raw,,}" in
+    true|1|yes|on)
+        PGBOUNCER_ENABLE="true"
+        ;;
+    *)
+        PGBOUNCER_ENABLE="false"
+        ;;
+esac
+export PGBOUNCER_ENABLE
+
+# PgBouncer runtime configuration environment variables
+export PGBOUNCER_LISTEN_ADDR="${PGBOUNCER_LISTEN_ADDR:-0.0.0.0}"
+export PGBOUNCER_LISTEN_PORT="${PGBOUNCER_LISTEN_PORT:-6432}"
+export PGBOUNCER_AUTH_TYPE="${PGBOUNCER_AUTH_TYPE:-md5}"
+export PGBOUNCER_ADMIN_USERS="${PGBOUNCER_ADMIN_USERS:-postgres}"
+export PGBOUNCER_STATS_USERS="${PGBOUNCER_STATS_USERS:-postgres}"
+export PGBOUNCER_POOL_MODE="${PGBOUNCER_POOL_MODE:-transaction}"
+export PGBOUNCER_MAX_CLIENT_CONN="${PGBOUNCER_MAX_CLIENT_CONN:-100}"
+export PGBOUNCER_DEFAULT_POOL_SIZE="${PGBOUNCER_DEFAULT_POOL_SIZE:-20}"
 
 # Timezone configuration
 export POSTGRESQL_TIMEZONE="${POSTGRESQL_TIMEZONE:-UTC}"
