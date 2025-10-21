@@ -14,6 +14,12 @@ THANOS_S3_SECRET_KEY=${THANOS_S3_SECRET_KEY:-}
 THANOS_S3_INSECURE=${THANOS_S3_INSECURE:-false}
 THANOS_S3_SIGNATURE_V2=${THANOS_S3_SIGNATURE_V2:-false}
 
+# S3 SSL/TLS Configuration
+THANOS_S3_CA_FILE=${THANOS_S3_CA_FILE:-}
+THANOS_S3_CERT_FILE=${THANOS_S3_CERT_FILE:-}
+THANOS_S3_KEY_FILE=${THANOS_S3_KEY_FILE:-}
+THANOS_S3_INSECURE_SKIP_VERIFY=${THANOS_S3_INSECURE_SKIP_VERIFY:-false}
+
 # Function to generate S3 objstore config
 generate_s3_config() {
     if [ -n "${THANOS_S3_BUCKET}" ] && [ -n "${THANOS_S3_ENDPOINT}" ] && [ -n "${THANOS_S3_ACCESS_KEY}" ] && [ -n "${THANOS_S3_SECRET_KEY}" ]; then
@@ -27,6 +33,19 @@ config:
   insecure: ${THANOS_S3_INSECURE}
   signature_version2: ${THANOS_S3_SIGNATURE_V2}
 EOF
+        # Add SSL/TLS configuration if provided
+        if [ -n "${THANOS_S3_CA_FILE}" ]; then
+            echo "  ca_file: \"${THANOS_S3_CA_FILE}\""
+        fi
+        if [ -n "${THANOS_S3_CERT_FILE}" ]; then
+            echo "  cert_file: \"${THANOS_S3_CERT_FILE}\""
+        fi
+        if [ -n "${THANOS_S3_KEY_FILE}" ]; then
+            echo "  key_file: \"${THANOS_S3_KEY_FILE}\""
+        fi
+        if [ "${THANOS_S3_INSECURE_SKIP_VERIFY}" = "true" ]; then
+            echo "  insecure_skip_verify: true"
+        fi
     fi
 }
 

@@ -83,8 +83,42 @@ docker run \
   -e THANOS_COMPONENT=compact \
   -e THANOS_S3_BUCKET=my-thanos-bucket \
   -e THANOS_S3_ENDPOINT=https://s3.us-west-2.amazonaws.com \
-  -e THANOS_S3_ACCESS_KEY=<aws-access-key> \
-  -e THANOS_S3_SECRET_KEY=<aws-secret-key> \
+  -e THANOS_S3_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE \
+  -e THANOS_S3_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+  thanos
+
+# Run Thanos Compact with Minio and self-signed certificate
+docker run \
+  -e THANOS_COMPONENT=compact \
+  -e THANOS_S3_BUCKET=thanos \
+  -e THANOS_S3_ENDPOINT=https://minio:9000 \
+  -e THANOS_S3_ACCESS_KEY=minioadmin \
+  -e THANOS_S3_SECRET_KEY=minioadmin \
+  -e THANOS_S3_INSECURE_SKIP_VERIFY=true \
+  thanos
+
+# Run Thanos Compact with Minio and custom CA certificate
+docker run \
+  -e THANOS_COMPONENT=compact \
+  -e THANOS_S3_BUCKET=thanos \
+  -e THANOS_S3_ENDPOINT=https://minio:9000 \
+  -e THANOS_S3_ACCESS_KEY=minioadmin \
+  -e THANOS_S3_SECRET_KEY=minioadmin \
+  -e THANOS_S3_CA_FILE=/etc/ssl/certs/minio-ca.pem \
+  -v /path/to/minio-ca.pem:/etc/ssl/certs/minio-ca.pem \
+  thanos
+
+# Run Thanos Compact with mutual TLS (client certificates)
+docker run \
+  -e THANOS_COMPONENT=compact \
+  -e THANOS_S3_BUCKET=thanos \
+  -e THANOS_S3_ENDPOINT=https://secure-minio:9000 \
+  -e THANOS_S3_ACCESS_KEY=minioadmin \
+  -e THANOS_S3_SECRET_KEY=minioadmin \
+  -e THANOS_S3_CA_FILE=/etc/ssl/certs/ca.pem \
+  -e THANOS_S3_CERT_FILE=/etc/ssl/certs/client.crt \
+  -e THANOS_S3_KEY_FILE=/etc/ssl/certs/client.key \
+  -v /path/to/certs:/etc/ssl/certs \
   thanos
 ```
 
@@ -104,6 +138,10 @@ docker run \
 - `THANOS_S3_SECRET_KEY`: S3 secret key
 - `THANOS_S3_INSECURE`: Use insecure connection (true/false, default: false) - useful for Minio
 - `THANOS_S3_SIGNATURE_V2`: Use signature version 2 (true/false, default: false) - useful for Minio
+- `THANOS_S3_CA_FILE`: Path to CA certificate file for SSL verification
+- `THANOS_S3_CERT_FILE`: Path to client certificate file for mutual TLS
+- `THANOS_S3_KEY_FILE`: Path to client key file for mutual TLS
+- `THANOS_S3_INSECURE_SKIP_VERIFY`: Skip SSL certificate verification (true/false, default: false) - useful for self-signed certificates
 - `THANOS_QUERY_ENDPOINTS`: Comma-separated list of query endpoints for rule component
 - `THANOS_RULE_FILES`: Comma-separated list of rule files/directories for rule component
 - `THANOS_ALERTMANAGERS_URL`: Comma-separated list of Alertmanager URLs for rule component
