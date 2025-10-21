@@ -3,11 +3,22 @@ set -e
 
 echo "=== Configuring Apache ==="
 
+# Ensure www-data user and group exist
+if ! id -u www-data >/dev/null 2>&1; then
+    echo "Creating www-data user and group"
+    groupadd -r www-data
+    useradd -r -g www-data www-data
+fi
+
 # Change the default Apache document root
 sed -i 's|DocumentRoot "/usr/local/apache2/htdocs"|DocumentRoot "/var/www/html"|' /usr/local/apache2/conf/httpd.conf
 sed -i 's|<Directory "/usr/local/apache2/htdocs">|<Directory "/var/www/html">|' /usr/local/apache2/conf/httpd.conf
 sed -i 's|AllowOverride None|AllowOverride All|' /usr/local/apache2/conf/httpd.conf
 sed -i 's|Require all denied|Require all granted|' /usr/local/apache2/conf/httpd.conf
+
+# Set Apache to run as www-data user and group
+sed -i 's/User daemon/User www-data/' /usr/local/apache2/conf/httpd.conf
+sed -i 's/Group daemon/Group www-data/' /usr/local/apache2/conf/httpd.conf
 
 # Set index.php as the default index file
 sed -i 's/DirectoryIndex index.html/DirectoryIndex index.php index.html/' /usr/local/apache2/conf/httpd.conf
