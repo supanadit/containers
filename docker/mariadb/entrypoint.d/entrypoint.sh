@@ -24,12 +24,6 @@ log() {
 
 # Function to initialize database if data directory is empty
 initialize_database() {
-    # Create mysql user if it doesn't exist
-    if ! id mysql >/dev/null 2>&1; then
-        log "Creating mysql user"
-        useradd -r -s /bin/false mysql
-    fi
-    
     if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
         log "Initializing MariaDB data directory at $MARIADB_DATA_DIR"
         
@@ -115,11 +109,21 @@ start_mariadb() {
 main() {
     log "MariaDB container entrypoint starting"
     
-    # Initialize database if needed
-    initialize_database
+    # Create mysql user if it doesn't exist (do this every time)
+    if ! id mysql >/dev/null 2>&1; then
+        log "Creating mysql user"
+        useradd -r -s /bin/false mysql
+    fi
     
-    # Setup initial configuration
-    setup_database
+    if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
+        # Initialize database if needed
+        initialize_database
+        
+        # Setup initial configuration
+        setup_database
+    else
+        log "Database already initialized, skipping setup"
+    fi
     
     # Start MariaDB
     start_mariadb
