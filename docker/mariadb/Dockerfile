@@ -1,6 +1,6 @@
-# Multi-stage build for PostgreSQL with optimized layer caching
+# Multi-stage build for MariaDB with optimized layer caching
 # syntax=docker/dockerfile:1.4
-FROM debian:bookworm AS base
+FROM debian:bookworm-slim AS base
 
 ARG MARIADB_VERSION=11.8.3
 

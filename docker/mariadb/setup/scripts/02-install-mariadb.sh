@@ -20,7 +20,7 @@ mkdir build
 cd build
 cmake .. \
     -DCMAKE_INSTALL_PREFIX=/usr/local/mariadb \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_BUILD_TYPE=Release \
     -DWITH_SSL=system \
     -DWITH_ZLIB=system \
     -DWITH_READLINE=ON \
@@ -35,6 +35,10 @@ cmake .. \
 
 make -j$(nproc)
 make install
+
+# Strip binaries to reduce size
+find /usr/local/mariadb/bin -type f -executable -exec strip {} \;
+find /usr/local/mariadb/lib -name "*.so*" -exec strip {} \;
 
 echo "=== MariaDB installed successfully ==="
 
