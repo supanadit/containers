@@ -36,7 +36,8 @@ apt-get remove --purge -y \
     libossp-uuid-dev \
     libevent-dev \
     libc-ares-dev \
-    gettext-base
+    gettext-base \
+    ruby-dev
 
 # Install runtime libraries that are needed but development packages were removed
 apt-get install -y --no-install-recommends \
@@ -54,7 +55,9 @@ apt-get install -y --no-install-recommends \
     libreadline8 \
     libossp-uuid16 \
     libevent-2.1-7 \
-    libc-ares2
+    libc-ares2 \
+    ruby \
+    ruby-bundler
 
 # Clean up apt cache
 apt-get clean

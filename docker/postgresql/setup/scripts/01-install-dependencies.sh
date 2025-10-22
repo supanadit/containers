@@ -33,8 +33,11 @@ apt-get update -y && apt-get install -y \
     libossp-uuid-dev \
     libevent-dev \
     libc-ares-dev \
-    gettext-base
-    
+    gettext-base \
+    ruby \
+    ruby-dev \
+    ruby-bundler
+
 apt-get update && apt-get install -y locales
 
 # Ensure en_US.UTF-8 is in /etc/locale.gen and generate it
