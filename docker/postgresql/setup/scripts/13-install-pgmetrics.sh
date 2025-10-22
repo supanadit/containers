@@ -3,7 +3,6 @@ set -e
 
 echo "=== Installing pgmetrics from source ==="
 
-mkdir /temp
 cd /temp
 
 wget -O pgmetrics_${PGMETRICS_VERSION}_linux_amd64.tar.gz https://github.com/rapidloop/pgmetrics/releases/download/v${PGMETRICS_VERSION}/pgmetrics_${PGMETRICS_VERSION}_linux_amd64.tar.gz
