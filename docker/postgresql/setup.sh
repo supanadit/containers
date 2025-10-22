@@ -22,6 +22,7 @@ ${SCRIPT_DIR}/07-install-decoderbufs.sh
 ${SCRIPT_DIR}/08-install-patroni.sh
 ${SCRIPT_DIR}/09-install-pgbadger.sh
 ${SCRIPT_DIR}/10-install-pgbouncer.sh
+${SCRIPT_DIR}/11-install-hypopg.sh
 ${SCRIPT_DIR}/99-cleanup.sh
 
 echo "=========================================="
