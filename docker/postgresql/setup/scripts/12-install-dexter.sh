@@ -11,11 +11,10 @@ cd /temp/dexter
 # Install dependencies
 bundle install
 
-# Create binstubs for the executable
-bundle binstubs pgdexter
+# Build the gem
+gem build pgdexter.gemspec
 
-# Make the executable available system-wide
-chmod +x bin/dexter
-cp bin/dexter /usr/local/bin/dexter
+# Install the gem system-wide
+gem install pgdexter-*.gem
 
 echo "=== Dexter installed successfully ==="
