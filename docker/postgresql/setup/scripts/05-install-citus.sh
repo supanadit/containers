@@ -6,7 +6,12 @@ echo "=== Building and installing Citus ==="
 
 cd /temp
 git config --global http.sslVerify false
-git clone -b v${CITUS_VERSION} --depth 1 https://github.com/citusdata/citus.git
+
+if [ "$CITUS_VERSION" = "main" ]; then
+	git clone -b main --depth 1 https://github.com/citusdata/citus.git
+else
+	git clone -b v${CITUS_VERSION} --depth 1 https://github.com/citusdata/citus.git
+fi
 
 cd /temp/citus
 

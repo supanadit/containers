@@ -39,6 +39,11 @@ apt-get remove --purge -y \
     gettext-base \
     ruby-dev
 
+# Remove bison and flex for PostgreSQL 17+
+if [[ "${POSTGRESQL_VERSION%%.*}" -ge 17 ]]; then
+    apt-get remove --purge -y bison flex
+fi
+
 # Install runtime libraries that are needed but development packages were removed
 apt-get install -y --no-install-recommends \
     curl \

@@ -38,6 +38,11 @@ apt-get update -y && apt-get install -y \
     ruby-dev \
     ruby-bundler
 
+# Install bison and flex for PostgreSQL 17+
+if [[ "${POSTGRESQL_VERSION%%.*}" -ge 17 ]]; then
+    apt-get install -y bison flex
+fi
+
 apt-get update && apt-get install -y locales
 
 # Ensure en_US.UTF-8 is in /etc/locale.gen and generate it
