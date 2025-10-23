@@ -6,8 +6,6 @@ This container provides PostgreSQL database server with additional tools for hig
 
 We only support PostgreSQL versions that are actively maintained by the official PostgreSQL team. Please refer to the [major version support policy](https://www.postgresql.org/support/versioning/) for details. It is recommended to use a specific major version tag to avoid unexpected issues during minor version upgrades.
 
-PostgreSQL 13 will be supported until November 2025. Please consider upgrading to a newer major version before that date.
-
 If you need deprecated major versions, please check our older tags or build from the corresponding Dockerfile in the GitHub repository. Or you can contact us for assistance, we also provide commercial support.
 
 ## Features
