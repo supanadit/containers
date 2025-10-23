@@ -37,7 +37,10 @@ jobs:
           CONTAINER=${{ steps.extract.outputs.container }}
           VARIANT=${{ steps.extract.outputs.variant }}
           if [ "$CONTAINER" = "postgresql" ]; then
-            MATRIX='[{"version": "13.22", "postgresql_version": "13.22", "citus_version": "11.3.1", "patroni_version": "v3.0.2"}]'
+            MATRIX='[
+              {"version": "13.22", "postgresql_version": "13.22", "citus_version": "11.3.1", "patroni_version": "v3.0.2"},
+              {"version": "14.19", "postgresql_version": "14.19", "citus_version": "12.1.10", "patroni_version": "v4.1.0", "python_version": "v3.13.9", "pgaudit_version": "1.6.3"},
+            ]'
             CONTEXT="docker/postgresql"
           elif [ "$CONTAINER" = "wordpress" ]; then
             if [ "$VARIANT" = "apache" ]; then
