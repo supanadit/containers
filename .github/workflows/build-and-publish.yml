@@ -104,6 +104,8 @@ jobs:
             ${{ matrix.postgresql_version && format('POSTGRESQL_VERSION={0}', matrix.postgresql_version) || '' }}
             ${{ matrix.citus_version && format('CITUS_VERSION={0}', matrix.citus_version) || '' }}
             ${{ matrix.patroni_version && format('PATRONI_VERSION={0}', matrix.patroni_version) || '' }}
+            ${{ matrix.python_version && format('PYTHON_VERSION={0}', matrix.python_version) || '' }}
+            ${{ matrix.pgaudit_version && format('PGAUDIT_VERSION={0}', matrix.pgaudit_version) || '' }}
             ${{ matrix.wordpress_version && format('WORDPRESS_VERSION={0}', matrix.wordpress_version) || '' }}
             ${{ matrix.php_version && format('PHP_VERSION={0}', matrix.php_version) || '' }}
             ${{ matrix.mariadb_version && format('MARIADB_VERSION={0}', matrix.mariadb_version) || '' }}
