@@ -57,7 +57,7 @@ jobs:
             MATRIX='[{"version": "latest"}]'
             CONTEXT="docker/$CONTAINER"
           fi
-          echo "matrix=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "context=$CONTEXT" >> $GITHUB_OUTPUT
 
   build:
