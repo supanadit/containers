@@ -113,3 +113,36 @@ For non patroni setup, please manage Citus extension manually.
 
 - `POSTGRESQL_TIMEZONE` - Timezone for PostgreSQL (default: UTC)
 - `PGBACKREST_AUTO_TIMEZONE` - Timezone for pgBackRest (default: UTC)
+
+### Maintenance Mode
+
+- `SLEEP_MODE` - Enable maintenance sleep mode, this will keep container running without PostgreSQL (default: false)
+
+This is useful for performing maintenance tasks on the data volume without starting the database server.
+
+## For Direct Volume Usage
+
+### Patroni
+
+If you want to use Patroni with direct volume usage, please make sure to include the following files in your volume:
+
+- `patroni.yml:/etc/patroni/patroni.yml` - Patroni configuration file
+
+For environment variables you just need to set `PATRONI_ENABLE` to `true` and Patroni will read the configuration from the file above.
+
+### PgBackRest
+
+If you want to use pgBackRest with direct volume usage, please make sure to include the following files in your volume:
+
+- `pgbackrest.conf:/etc/pgbackrest.conf` - pgBackRest configuration file
+
+For environment variables you just need to set `PGBACKREST_ENABLE` to `true` and pgBackRest will read the configuration from the file above.
+
+
+### pgBouncer
+
+If you want to use pgBouncer with direct volume usage, please make sure to include the following files in your volume:
+
+- `pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini` - pgBouncer configuration file
+
+For environment variables you just need to set `PGBOUNCER_ENABLE` to `true` and pgBouncer will read the configuration from the file above.
