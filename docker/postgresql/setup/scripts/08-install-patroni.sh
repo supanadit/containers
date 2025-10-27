@@ -12,19 +12,22 @@ export PATH="/usr/local/pgsql/bin:$PATH"
 export LDFLAGS="-L/usr/local/pgsql/lib"
 export CPPFLAGS="-I/usr/local/pgsql/include"
 
+# Add the PostgreSQL lib path to ldconfig for runtime (moved up to ensure libraries are linked before installing psycopg2-binary)
+echo "/usr/local/pgsql/lib" > /etc/ld.so.conf.d/postgresql.conf
+ldconfig
+
 cd /temp
 git clone -b ${PATRONI_VERSION} --depth 1 https://github.com/patroni/patroni.git
 
 cd /temp/patroni
 
-pip install "psycopg[c]"
+# Selected patroni version does not support latest psycop-c
+# In 26 October 2025, they release psycopg-c 3.2.12 at https://pypi.org/project/psycopg-c/3.2.12/
+# We should stick with 3.2.11 until patroni support it
+pip install "psycopg[c]==3.2.11"
 pip install cdiff
 
 pip install -r requirements.txt
 pip install .[etcd]
-
-# Add the PostgreSQL lib path to ldconfig for runtime
-echo "/usr/local/pgsql/lib" > /etc/ld.so.conf.d/postgresql.conf
-ldconfig
 
 echo "=== Patroni installed successfully ==="
