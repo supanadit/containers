@@ -210,42 +210,6 @@ validate_environment() {
         fi
     fi
 
-    if [ "${CITUS_ENABLE:-false}" = "true" ]; then
-        case "${CITUS_ROLE:-coordinator}" in
-            coordinator|worker) ;;
-            *)
-                log_error "Invalid CITUS_ROLE: ${CITUS_ROLE} (must be coordinator or worker)"
-                exit_code=1
-                ;;
-        esac
-
-        case "${CITUS_BACKUP_SCOPE:-coordinator-only}" in
-            coordinator-only|all-nodes) ;;
-            *)
-                log_error "Invalid CITUS_BACKUP_SCOPE: ${CITUS_BACKUP_SCOPE} (must be coordinator-only or all-nodes)"
-                exit_code=1
-                ;;
-        esac
-
-        if [ -z "${CITUS_DATABASE:-}" ]; then
-            log_error "CITUS_DATABASE must be provided when CITUS_ENABLE=true"
-            exit_code=1
-        fi
-
-        if ! [[ "${CITUS_GROUP:-}" =~ ^[0-9]+$ ]]; then
-            log_error "Invalid CITUS_GROUP: ${CITUS_GROUP:-} (must be a non-negative integer)"
-            exit_code=1
-        fi
-
-        if [ "${CITUS_ROLE:-coordinator}" = "coordinator" ] && [ "${CITUS_GROUP}" -ne 0 ]; then
-            log_warn "CITUS_GROUP is ${CITUS_GROUP} for coordinator role; 0 is recommended"
-        fi
-
-        if [ "${CITUS_ROLE:-coordinator}" = "worker" ] && [ "${CITUS_GROUP}" -eq 0 ]; then
-            log_warn "CITUS_GROUP is 0 for worker role; set a positive group index to avoid conflicts"
-        fi
-    fi
-
     # Validate PostgreSQL-specific variables
     if [ -n "${POSTGRESQL_SHARED_BUFFERS:-}" ]; then
         if ! validate_memory_value "$POSTGRESQL_SHARED_BUFFERS"; then
@@ -315,11 +279,6 @@ validate_ha_configuration() {
     if [[ "${HA_MODE:-}" == "native" ]]; then
         if [[ "${PATRONI_ENABLE:-false}" == "true" ]]; then
             log_error "HA_MODE=native cannot be used with PATRONI_ENABLE=true"
-            exit_code=1
-        fi
-
-        if [[ "${CITUS_ENABLE:-false}" == "true" ]]; then
-            log_error "HA_MODE=native cannot be used with CITUS_ENABLE=true"
             exit_code=1
         fi
 

@@ -3,7 +3,7 @@
 
 # This script is sourced by other entrypoint scripts after logging utilities.
 # It provides shared helpers for determining node roles across Patroni, native
-# replication, and Citus deployments so that pgBackRest orchestration behaves
+# replication so that pgBackRest orchestration behaves
 # consistently.
 
 # Determine whether this node should be considered the primary/leader.
@@ -49,32 +49,3 @@ is_primary_role() {
     return 1
 }
 export -f is_primary_role
-
-# Determine whether backups should run on this node in a Citus deployment.
-is_citus_backup_allowed() {
-    if [ "${CITUS_ENABLE:-false}" != "true" ]; then
-        return 0
-    fi
-
-    local scope="${CITUS_BACKUP_SCOPE:-coordinator-only}"
-    case "$scope" in
-        coordinator-only)
-            if [ "${CITUS_ROLE:-coordinator}" != "coordinator" ]; then
-                log_debug "Citus backup scope restricted to coordinator; skipping on role=${CITUS_ROLE:-unknown}"
-                return 1
-            fi
-            ;;
-        all-nodes)
-            log_debug "Citus backup scope set to all nodes"
-            ;;
-        *)
-            log_warn "Unknown CITUS_BACKUP_SCOPE='${scope}', defaulting to coordinator-only behavior"
-            if [ "${CITUS_ROLE:-coordinator}" != "coordinator" ]; then
-                return 1
-            fi
-            ;;
-    esac
-
-    return 0
-}
-export -f is_citus_backup_allowed

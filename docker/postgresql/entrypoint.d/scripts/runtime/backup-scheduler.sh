@@ -212,12 +212,6 @@ write_pid
 graceful_sleep "$FIRST_INCR_DELAY"
 
 while true; do
-	if ! is_citus_backup_allowed; then
-		log_debug "[auto-backup] Skipping backups (Citus scope excludes this node)"
-		graceful_sleep 60
-		continue
-	fi
-
 	if [ "$PRIMARY_ONLY" = "true" ] && ! is_primary_role; then
 		log_debug "[auto-backup] Instance not primary; skipping backups this cycle"
 		graceful_sleep 30

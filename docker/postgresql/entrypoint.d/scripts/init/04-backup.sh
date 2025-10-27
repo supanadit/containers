@@ -59,12 +59,6 @@ main() {
         return 0
     fi
 
-    if ! is_citus_backup_allowed; then
-        log_info "Skipping pgBackRest setup due to CITUS_BACKUP_SCOPE=${CITUS_BACKUP_SCOPE:-coordinator-only} on role=${CITUS_ROLE:-unknown}"
-        disable_pgbackrest_archiving
-        return 0
-    fi
-
     # Validate environment before proceeding
     if ! validate_environment; then
         log_error "Environment validation failed"

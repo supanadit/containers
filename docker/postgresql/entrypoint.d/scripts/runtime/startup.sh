@@ -501,11 +501,6 @@ initialize_pgbackrest_stanza() {
         fi
     fi
 
-    if ! is_citus_backup_allowed; then
-        log_info "Skipping pgBackRest stanza creation for Citus role ${CITUS_ROLE:-unknown}"
-        return 0
-    fi
-
     # For posix/filesystem repositories, we can detect stanza by local files; for remote/object repos (s3/gcs) skip
     if [ "$repo_type" = "posix" ] || [ "$repo_type" = "filesystem" ]; then
         if [ -f "$archive_info_file" ] && [ -f "$backup_info_file" ]; then

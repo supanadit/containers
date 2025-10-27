@@ -33,36 +33,9 @@ export POSTGRES_INITDB_ARGS="${POSTGRES_INITDB_ARGS:-}"
 export POSTGRES_INITDB_WALDIR="${POSTGRES_INITDB_WALDIR:-}"
 export POSTGRES_HOST_AUTH_METHOD="${POSTGRES_HOST_AUTH_METHOD:-trust}"
 
-# Citus configuration environment variables
-export CITUS_ROLE="${CITUS_ROLE:-coordinator}"
-export CITUS_NODE_NAME="${CITUS_NODE_NAME:-}"
-export CITUS_BACKUP_SCOPE="${CITUS_BACKUP_SCOPE:-coordinator-only}"
-
-citus_enable_raw="${CITUS_ENABLE:-false}"
-case "${citus_enable_raw,,}" in
-    true|1|yes|on)
-        CITUS_ENABLE="true"
-        if [ -z "${CITUS_GROUP:-}" ]; then
-            if [ "${CITUS_ROLE}" = "worker" ]; then
-                CITUS_GROUP=1
-            else
-                CITUS_GROUP=0
-            fi
-        fi
-        export CITUS_GROUP
-        export CITUS_DATABASE="${CITUS_DATABASE:-citus}"
-        ;;
-    *)
-        CITUS_ENABLE="false"
-        unset CITUS_GROUP
-        if [ -n "${CITUS_DATABASE:-}" ]; then
-            export CITUS_DATABASE
-        else
-            unset CITUS_DATABASE
-        fi
-        ;;
-esac
-export CITUS_ENABLE
+export CITUS_GROUP="${CITUS_GROUP:-}"
+export CITUS_ENABLE="${CITUS_ENABLE:-false}"
+export CITUS_DATABASE="${CITUS_DATABASE:-}"
 
 # PgBouncer configuration environment variables
 pgbouncer_enable_raw="${PGBOUNCER_ENABLE:-false}"

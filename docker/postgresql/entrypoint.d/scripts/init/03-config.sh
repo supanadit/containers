@@ -143,13 +143,6 @@ main() {
             log_info "Patroni mode enabled, custom pg_hba entries will be applied to patroni.yml"
         fi
 
-        # Apply Citus configuration if enabled
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-            apply_citus_configuration
-        else
-            log_info "Patroni mode enabled, Citus configuration will be in patroni.yml bootstrap"
-        fi
-
         # Apply native HA configuration
         if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
             apply_native_ha_config
@@ -452,12 +445,6 @@ apply_postgres_setting() {
     echo "${setting} = ${formatted_value}" >> "$config_file"
 }
 
-# Determine if Citus is enabled via environment
-is_citus_enabled() {
-    local flag="${CITUS_ENABLE:-false}"
-    [[ "${flag,,}" == "true" ]]
-}
-
 # Ensure shared_preload_libraries contains a specific library without duplicates
 ensure_shared_preload_library() {
     local library="$1"
@@ -490,37 +477,6 @@ ensure_shared_preload_library() {
     fi
 
     apply_postgres_setting "shared_preload_libraries" "$updated_list"
-}
-
-# Apply Citus-related configuration to postgresql.conf when enabled
-apply_citus_configuration() {
-    if ! is_citus_enabled; then
-        log_debug "Citus not enabled; skipping configuration"
-        return 0
-    fi
-
-    log_info "Applying Citus configuration"
-
-    ensure_shared_preload_library "citus"
-
-    local max_workers="${CITUS_MAX_WORKER_PROCESSES:-8}"
-    apply_postgres_setting "citus.max_worker_processes" "$max_workers"
-
-    local executor_mode="${CITUS_DISTRIBUTED_EXECUTOR:-adaptive}"
-    apply_postgres_setting "citus.distributed_executor" "$executor_mode"
-
-    if [ -n "${CITUS_NODE_NAME:-}" ]; then
-        apply_postgres_setting "citus.node_name" "${CITUS_NODE_NAME}"
-    fi
-
-    local citus_role="${CITUS_ROLE:-coordinator}"
-    if [[ "${citus_role}" == "coordinator" ]]; then
-        apply_postgres_setting "citus.enable_control_commands" "true"
-    else
-        apply_postgres_setting "citus.enable_control_commands" "false"
-    fi
-
-    return 0
 }
 
 # Apply native HA configuration
@@ -628,22 +584,10 @@ generate_patroni_config() {
     local citus_enabled=false
     local citus_group=""
     local citus_database=""
-    local citus_max_workers=""
-    local citus_executor=""
-    local citus_node_name=""
-    local citus_control=""
     if [ "${CITUS_ENABLE:-false}" = "true" ]; then
         citus_enabled=true
         citus_group="${CITUS_GROUP:-0}"
         citus_database="${CITUS_DATABASE:-citus}"
-        citus_max_workers="${CITUS_MAX_WORKER_PROCESSES:-8}"
-        citus_executor="${CITUS_DISTRIBUTED_EXECUTOR:-adaptive}"
-        citus_node_name="${CITUS_NODE_NAME:-}"
-        if [ "${CITUS_ROLE:-coordinator}" = "coordinator" ]; then
-            citus_control="true"
-        else
-            citus_control="false"
-        fi
     fi
 
     local archive_mode="off"
@@ -764,16 +708,6 @@ EOF_HEADER
         if [ "$citus_enabled" = true ]; then
             cat <<EOF
                 shared_preload_libraries: 'citus'
-                citus.max_worker_processes: ${citus_max_workers}
-                citus.distributed_executor: '${citus_executor}'
-EOF
-            if [ -n "$citus_node_name" ]; then
-                cat <<EOF
-                citus.node_name: '${citus_node_name}'
-EOF
-            fi
-            cat <<EOF
-                citus.enable_control_commands: ${citus_control}
 EOF
         fi
         cat <<EOF_PG_HBA
@@ -811,16 +745,6 @@ EOF_FOOTER
         if [ "$citus_enabled" = true ]; then
             cat <<EOF
         shared_preload_libraries: 'citus'
-        citus.max_worker_processes: ${citus_max_workers}
-        citus.distributed_executor: '${citus_executor}'
-EOF
-            if [ -n "$citus_node_name" ]; then
-                cat <<EOF
-        citus.node_name: '${citus_node_name}'
-EOF
-            fi
-            cat <<EOF
-        citus.enable_control_commands: ${citus_control}
 EOF
         fi
         if [ "$citus_enabled" = true ]; then
