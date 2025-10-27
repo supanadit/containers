@@ -9,6 +9,8 @@ THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 THANOS_SIDECAR_PROMETHEUS_URL=${THANOS_SIDECAR_PROMETHEUS_URL:-http://localhost:9090}
 THANOS_REPLICA_LABEL=${THANOS_REPLICA_LABEL:-prometheus_replica}
 
+THANOS_RECEIVE_REPLICATION_FACTOR=${THANOS_RECEIVE_REPLICATION_FACTOR:-1}
+
 # S3 Object Store Configuration
 THANOS_S3_BUCKET=${THANOS_S3_BUCKET:-}
 THANOS_S3_ENDPOINT=${THANOS_S3_ENDPOINT:-}
@@ -120,7 +122,9 @@ case ${THANOS_COMPONENT} in
     receive)
         THANOS_ARG_LIST+=(
             --tsdb.path=${THANOS_DATA_DIR}
+            --receive.replication-factor=${THANOS_RECEIVE_REPLICATION_FACTOR}
         )
+        # Set replication factor
         # Add external labels from environment variables prefixed with THANOS_RECEIVE_LABELS_
         for var in $(env | grep '^THANOS_RECEIVE_LABELS_' | cut -d= -f1); do
             suffix=${var#THANOS_RECEIVE_LABELS_}
