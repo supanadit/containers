@@ -22,4 +22,3 @@ chmod +x /usr/local/bin/promtool
 
 # Move configuration files
 mkdir -p /etc/prometheus
-mv "prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus.yml" /etc/prometheus/

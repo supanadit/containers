@@ -25,13 +25,6 @@ PROMETHEUS_ENABLE_OLTP_NATIVE_DELTA=${PROMETHEUS_ENABLE_OLTP_NATIVE_DELTA:-false
 PROMETHEUS_ENABLE_TYPE_AND_UNIT_LABELS=${PROMETHEUS_ENABLE_TYPE_AND_UNIT_LABELS:-false}
 PROMETHEUS_ENABLE_USE_UNCACHED_IO=${PROMETHEUS_ENABLE_USE_UNCACHED_IO:-false}
 
-if [ -f /config/prometheus.yml ]; then
-    if [ -f /etc/prometheus/prometheus.yml ]; then
-        rm /etc/prometheus/prometheus.yml
-    fi
-    ln -sf /config/prometheus.yml /etc/prometheus/prometheus.yml
-fi
-
 PROMETHEUS_ARG_LIST=(
     --config.file=${PROMETHEUS_CONFIG_FILE}
     --storage.tsdb.path=${PROMETHEUS_DATA_DIR}
@@ -144,6 +137,12 @@ if [ "${PROMETHEUS_ENABLE_USE_UNCACHED_IO}" = "true" ]; then
     PROMETHEUS_ARG_LIST+=(
         --enable-feature=use-uncached-io
     )
+fi
+
+# Check if a PROMETHEUS_CONFIG_FILE file exists, if not it will message and exit
+if [ ! -f "${PROMETHEUS_CONFIG_FILE}" ]; then
+    echo "Prometheus configuration file not found at ${PROMETHEUS_CONFIG_FILE}. Please create and mount it to the container."
+    exit 1
 fi
 
 exec prometheus "${PROMETHEUS_ARG_LIST[@]}"

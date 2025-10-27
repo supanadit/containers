@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-ARG PROMETHEUS_VERSION="3.5.0"
+ARG PROMETHEUS_VERSION="3.7.2"
 
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
