@@ -4,6 +4,11 @@
 THANOS_COMPONENT=${THANOS_COMPONENT:-query}
 THANOS_HTTP_ADDRESS=${THANOS_HTTP_ADDRESS:-0.0.0.0:10902}
 THANOS_GRPC_ADDRESS=${THANOS_GRPC_ADDRESS:-0.0.0.0:10901}
+
+THANOS_RECEIVE_HASHRING_FILE=${THANOS_RECEIVE_HASHRING_FILE:-}
+THANOS_RECEIVE_LOCAL_ENDPOINT=${THANOS_RECEIVE_LOCAL_ENDPOINT:-127.0.0.1:10901}
+THANOS_REMOTE_WRITE_ADDRESS=${THANOS_REMOTE_WRITE_ADDRESS:-0.0.0.0:10903}
+
 THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 
 THANOS_SIDECAR_PROMETHEUS_URL=${THANOS_SIDECAR_PROMETHEUS_URL:-http://localhost:9090}
@@ -123,7 +128,12 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --tsdb.path=${THANOS_DATA_DIR}
             --receive.replication-factor=${THANOS_RECEIVE_REPLICATION_FACTOR}
+            --receive.local-endpoint=${THANOS_RECEIVE_LOCAL_ENDPOINT}
         )
+        # If has hashring file, add it
+        if [ -n "${THANOS_RECEIVE_HASHRING_FILE}" ]; then
+            THANOS_ARG_LIST+=(--receive.hashring-file=${THANOS_RECEIVE_HASHRING_FILE})
+        fi
         # Set replication factor
         # Add external labels from environment variables prefixed with THANOS_RECEIVE_LABELS_
         for var in $(env | grep '^THANOS_RECEIVE_LABELS_' | cut -d= -f1); do
