@@ -35,7 +35,7 @@ export POSTGRES_HOST_AUTH_METHOD="${POSTGRES_HOST_AUTH_METHOD:-trust}"
 
 export CITUS_GROUP="${CITUS_GROUP:-}"
 export CITUS_ENABLE="${CITUS_ENABLE:-false}"
-export CITUS_DATABASE="${CITUS_DATABASE:-}"
+export CITUS_DATABASE="${CITUS_DATABASE:-postgres}"
 
 # PgBouncer configuration environment variables
 pgbouncer_enable_raw="${PGBOUNCER_ENABLE:-false}"

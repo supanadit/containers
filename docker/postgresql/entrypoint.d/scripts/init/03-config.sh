@@ -584,10 +584,16 @@ generate_patroni_config() {
     local citus_enabled=false
     local citus_group=""
     local citus_database=""
+
     if [ "${CITUS_ENABLE:-false}" = "true" ]; then
-        citus_enabled=true
-        citus_group="${CITUS_GROUP:-0}"
-        citus_database="${CITUS_DATABASE:-citus}"
+        # Check if Citus extension is available
+        if [ -f "/usr/local/pgsql/lib/citus.so" ] || [ -f "/usr/lib/postgresql/$(pg_config --version | awk '{print $2}')/lib/citus.so" ]; then
+            citus_enabled=true
+            citus_group="${CITUS_GROUP:-0}"
+            citus_database="${CITUS_DATABASE:-postgres}"
+        else
+            log_warn "CITUS_ENABLE is true but Citus extension is not installed; skipping Citus configuration."
+        fi
     fi
 
     local archive_mode="off"
