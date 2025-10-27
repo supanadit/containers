@@ -6,6 +6,9 @@ THANOS_HTTP_ADDRESS=${THANOS_HTTP_ADDRESS:-0.0.0.0:10902}
 THANOS_GRPC_ADDRESS=${THANOS_GRPC_ADDRESS:-0.0.0.0:10901}
 THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 
+THANOS_SIDECAR_PROMETHEUS_URL=${THANOS_SIDECAR_PROMETHEUS_URL:-http://localhost:9090}
+THANOS_REPLICA_LABEL=${THANOS_REPLICA_LABEL:-prometheus_replica}
+
 # S3 Object Store Configuration
 THANOS_S3_BUCKET=${THANOS_S3_BUCKET:-}
 THANOS_S3_ENDPOINT=${THANOS_S3_ENDPOINT:-}
@@ -77,7 +80,7 @@ esac
 case ${THANOS_COMPONENT} in
     query)
         THANOS_ARG_LIST+=(
-            --query.replica-label=prometheus_replica
+            --query.replica-label=${THANOS_REPLICA_LABEL}
         )
         # Add store endpoints from environment
         if [ -n "${THANOS_QUERY_STORES}" ]; then
@@ -89,7 +92,7 @@ case ${THANOS_COMPONENT} in
         ;;
     sidecar)
         THANOS_ARG_LIST+=(
-            --prometheus.url=http://localhost:9090
+            --prometheus.url=${THANOS_SIDECAR_PROMETHEUS_URL}
             --tsdb.path=${THANOS_DATA_DIR}
         )
         ;;
@@ -97,6 +100,8 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --data-dir=${THANOS_DATA_DIR}
         )
+        # Add object store config (required for store component)
+        add_objstore_config
         ;;
     query-frontend)
         # Add downstream query URL if provided
@@ -116,6 +121,13 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --tsdb.path=${THANOS_DATA_DIR}
         )
+        # Add external labels from environment variables prefixed with THANOS_RECEIVE_LABELS_
+        for var in $(env | grep '^THANOS_RECEIVE_LABELS_' | cut -d= -f1); do
+            suffix=${var#THANOS_RECEIVE_LABELS_}
+            key=$(echo "$suffix" | tr '[:upper:]' '[:lower:]')
+            value=${!var}
+            THANOS_ARG_LIST+=(--label="${key}=\"${value}\"")
+        done
         # Add object store config if provided
         add_objstore_config
         ;;
