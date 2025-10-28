@@ -106,6 +106,8 @@ case ${THANOS_COMPONENT} in
             --prometheus.url=${THANOS_SIDECAR_PROMETHEUS_URL}
             --tsdb.path=${THANOS_DATA_DIR}
         )
+        # Add object store config if provided
+        add_objstore_config
         ;;
     store)
         THANOS_ARG_LIST+=(
