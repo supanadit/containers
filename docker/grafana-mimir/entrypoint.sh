@@ -1,19 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-mkdir -p /config
-
-if [ ! -f /config/mimir.yaml ]; then
-    cp /etc/mimir-sample.yaml /config/mimir.yaml
-fi
-
 GRAFANA_MIMIR_CONFIG=${GRAFANA_MIMIR_CONFIG:-/etc/mimir.yaml}
-
-if [ ! -f "${GRAFANA_MIMIR_CONFIG}" ]; then
-    ln -sf /config/mimir.yaml "${GRAFANA_MIMIR_CONFIG}"
-fi
-
-MIMIR_BIN=${GRAFANA_MIMIR_BIN:-/usr/share/grafana/mimir/mimir}
+MIMIR_BIN=${GRAFANA_MIMIR_BIN:-/usr/share/grafana/mimir}
 
 if [ ! -x "${MIMIR_BIN}" ]; then
     echo "Unable to locate executable at ${MIMIR_BIN}" >&2

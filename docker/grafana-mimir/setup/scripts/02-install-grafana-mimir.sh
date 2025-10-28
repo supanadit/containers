@@ -5,7 +5,7 @@ echo "=== Installing Grafana Mimir ==="
 
 TMP_DIR="/tmp/downloads"
 DIST_DIR="${TMP_DIR}/mimir-dist"
-INSTALL_DIR="/usr/share/grafana/mimir"
+INSTALL_DIR="/usr/share/grafana"
 
 mkdir -p "${TMP_DIR}" "${INSTALL_DIR}"
 rm -rf "${DIST_DIR}"
