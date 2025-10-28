@@ -12,7 +12,7 @@ THANOS_REMOTE_WRITE_ADDRESS=${THANOS_REMOTE_WRITE_ADDRESS:-0.0.0.0:10903}
 THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 
 THANOS_SIDECAR_PROMETHEUS_URL=${THANOS_SIDECAR_PROMETHEUS_URL:-http://localhost:9090}
-THANOS_REPLICA_LABEL=${THANOS_REPLICA_LABEL:-prometheus_replica}
+THANOS_REPLICA_LABEL=${THANOS_REPLICA_LABEL:-}
 
 THANOS_RECEIVE_REPLICATION_FACTOR=${THANOS_RECEIVE_REPLICATION_FACTOR:-1}
 
@@ -88,14 +88,16 @@ esac
 
 case ${THANOS_COMPONENT} in
     query)
-        THANOS_ARG_LIST+=(
-            --query.replica-label=${THANOS_REPLICA_LABEL}
-        )
+        if [ -n "${THANOS_REPLICA_LABEL}" ]; then
+            THANOS_ARG_LIST+=(
+                --query.replica-label=${THANOS_REPLICA_LABEL}
+            )
+        fi
         # Add store endpoints from environment
-        if [ -n "${THANOS_QUERY_STORES}" ]; then
-            IFS=',' read -ra STORES <<< "${THANOS_QUERY_STORES}"
+        if [ -n "${THANOS_QUERY_STORE_ADDRESSES}" ]; then
+            IFS=',' read -ra STORES <<< "${THANOS_QUERY_STORE_ADDRESSES}"
             for store in "${STORES[@]}"; do
-                THANOS_ARG_LIST+=(--store=${store})
+                THANOS_ARG_LIST+=(--endpoint=${store})
             done
         fi
         ;;
