@@ -131,6 +131,7 @@ case ${THANOS_COMPONENT} in
             --tsdb.path=${THANOS_DATA_DIR}
             --receive.replication-factor=${THANOS_RECEIVE_REPLICATION_FACTOR}
             --receive.local-endpoint=${THANOS_RECEIVE_LOCAL_ENDPOINT}
+            --remote-write.address=${THANOS_REMOTE_WRITE_ADDRESS}
         )
         # If has hashring file, add it
         if [ -n "${THANOS_RECEIVE_HASHRING_FILE}" ]; then
