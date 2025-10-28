@@ -64,7 +64,9 @@ add_objstore_config() {
     if [ -n "${THANOS_S3_BUCKET}" ] && [ -n "${THANOS_S3_ENDPOINT}" ] && [ -n "${THANOS_S3_ACCESS_KEY}" ] && [ -n "${THANOS_S3_SECRET_KEY}" ]; then
         local s3_config
         s3_config=$(generate_s3_config)
-        THANOS_ARG_LIST+=(--objstore.config="${s3_config}")
+        local temp_file=/tmp/thanos_s3_config.yaml
+        echo "${s3_config}" > "${temp_file}"
+        THANOS_ARG_LIST+=(--objstore.config-file="${temp_file}")
     elif [ -n "${THANOS_OBJSTORE_CONFIG}" ]; then
         THANOS_ARG_LIST+=(--objstore.config=${THANOS_OBJSTORE_CONFIG})
     elif [ -n "${THANOS_OBJSTORE_CONFIG_FILE}" ]; then
