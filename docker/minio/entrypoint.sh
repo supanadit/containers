@@ -6,11 +6,11 @@ set -e
 CONTAINER_IP=$(hostname -i)
 
 # Default MinIO configuration
-MINIO_DATA_DIR=${MINIO_DATA_DIR:-/var/lib/minio/data}
-MINIO_ADDRESS=${MINIO_ADDRESS:-:9000}
-MINIO_CONSOLE_ADDRESS=${MINIO_CONSOLE_ADDRESS:-:9001}
-MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
-MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-admin}
+export MINIO_DATA_DIR=${MINIO_DATA_DIR:-/var/lib/minio/data}
+export MINIO_ADDRESS=${MINIO_ADDRESS:-:9000}
+export MINIO_CONSOLE_ADDRESS=${MINIO_CONSOLE_ADDRESS:-:9001}
+export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
 
 # Create data directory
 if [ ! -d "$MINIO_DATA_DIR" ]; then
@@ -32,15 +32,11 @@ start_minio() {
     local data_dir="$MINIO_DATA_DIR"
     local address="$MINIO_ADDRESS"
     local console_address="$MINIO_CONSOLE_ADDRESS"
-    local root_user="$MINIO_ROOT_USER"
-    local root_password="$MINIO_ROOT_PASSWORD"
     
     # Unset environment variables to avoid conflicts with command-line flags
     unset MINIO_DATA_DIR
     unset MINIO_ADDRESS
     unset MINIO_CONSOLE_ADDRESS
-    unset MINIO_ROOT_USER
-    unset MINIO_ROOT_PASSWORD
     
     exec minio server "$data_dir" \
         --address="$address" \
