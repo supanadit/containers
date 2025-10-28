@@ -12,6 +12,8 @@ THANOS_REMOTE_WRITE_ADDRESS=${THANOS_REMOTE_WRITE_ADDRESS:-0.0.0.0:10903}
 THANOS_DATA_DIR=${THANOS_DATA_DIR:-/opt/thanos/data}
 
 THANOS_SIDECAR_PROMETHEUS_URL=${THANOS_SIDECAR_PROMETHEUS_URL:-http://localhost:9090}
+THANOS_SIDECAR_SHIPPER_UPLOAD_COMPACTED=${THANOS_SIDECAR_SHIPPER_UPLOAD_COMPACTED:-false}
+
 THANOS_REPLICA_LABEL=${THANOS_REPLICA_LABEL:-}
 
 THANOS_RECEIVE_REPLICATION_FACTOR=${THANOS_RECEIVE_REPLICATION_FACTOR:-1}
@@ -106,6 +108,11 @@ case ${THANOS_COMPONENT} in
             --prometheus.url=${THANOS_SIDECAR_PROMETHEUS_URL}
             --tsdb.path=${THANOS_DATA_DIR}
         )
+        if [ "${THANOS_SIDECAR_SHIPPER_UPLOAD_COMPACTED}" = "true" ]; then
+            THANOS_ARG_LIST+=(
+                --shipper.upload-compacted
+            )
+        fi
         # Add object store config if provided
         add_objstore_config
         ;;
