@@ -1,7 +1,9 @@
 FROM debian:bookworm AS build
 
 ARG GO_VERSION=1.23.12
-ARG MINIO_VERSION=RELEASE.2025-10-15T17-29-55Z
+# This is the last best version of MinIO, above this version they changed to Community Edition
+# in Community Edition, some features are removed or not accessible in the dashboard
+ARG MINIO_VERSION=RELEASE.2025-04-22T22-12-26Z
 
 # Copy all setup scripts and resources
 COPY setup.sh /opt/setup.sh
