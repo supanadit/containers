@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-ARG GRAFANA_VERSION="12.1.0"
+ARG GRAFANA_VERSION="12.2.1"
 ARG GRAFANA_EDITION="oss"
 
 COPY setup.sh /opt/setup.sh
