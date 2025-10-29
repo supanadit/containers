@@ -8,6 +8,7 @@ MIMIR_BIN=${GRAFANA_MIMIR_BIN:-/usr/share/grafana/mimir}
 export MIMIR_TARGET=${MIMIR_TARGET:-all}
 export MIMIR_STORAGE_PREFIX=${MIMIR_STORAGE_PREFIX:-blocks}
 export MIMIR_TSDB_DIR=${MIMIR_TSDB_DIR:-/var/lib/mimir/ingester}
+export MIMIR_INGERSTER_REPLICATION_FACTOR=${MIMIR_INGESTER_REPLICATION_FACTOR:-1}
 
 # Generate mimir.yaml using configuration.sh
 /opt/container/entrypoint.d/scripts/init/configuration.sh

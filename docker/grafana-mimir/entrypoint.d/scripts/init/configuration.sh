@@ -29,8 +29,17 @@ EOF
   fi
 }
 
+get_config_replication() {
+  cat <<EOF
+ingester:
+  ring:
+    replication_factor: ${MIMIR_INGERSTER_REPLICATION_FACTOR}
+EOF
+}
+
 
 {
   get_config_target
   get_config_blocks_storage
+  get_config_replication
 } > /etc/mimir.yaml
