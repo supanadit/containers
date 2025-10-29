@@ -13,8 +13,14 @@ RUN chmod +x /opt/setup.sh && \
 
 WORKDIR /opt/grafana
 
-# Copy entrypoint script
-COPY entrypoint.sh /opt/grafana/entrypoint.sh
-RUN chmod +x /opt/grafana/entrypoint.sh
+# Copy entrypoint scripts (volatile files that change frequently during development)
+COPY entrypoint.d/ /opt/container/entrypoint.d/
 
-ENTRYPOINT ["/opt/grafana/entrypoint.sh"]
+# Ensure all scripts in entrypoint.d are executable
+RUN chmod -R +x /opt/container/entrypoint.d/
+
+# Copy main entrypoint script
+COPY entrypoint.d/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
