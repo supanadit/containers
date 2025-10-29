@@ -8,7 +8,17 @@ MIMIR_BIN=${GRAFANA_MIMIR_BIN:-/usr/share/grafana/mimir}
 export MIMIR_TARGET=${MIMIR_TARGET:-all}
 export MIMIR_STORAGE_PREFIX=${MIMIR_STORAGE_PREFIX:-blocks}
 export MIMIR_TSDB_DIR=${MIMIR_TSDB_DIR:-/var/lib/mimir/ingester}
-export MIMIR_INGERSTER_REPLICATION_FACTOR=${MIMIR_INGESTER_REPLICATION_FACTOR:-1}
+export MIMIR_MEMBER_LIST=${MIMIR_MEMBER_LIST:-} # Comma separated list of ingester addresses
+
+# Get total number of ingesters from MEMBER_LIST
+if [ -n "${MIMIR_MEMBER_LIST}" ]; then
+    IFS=',' read -r -a INGESTER_ADDRESSES <<< "${MIMIR_MEMBER_LIST}"
+    TOTAL_INGESTERS=${#INGESTER_ADDRESSES[@]}
+else
+    TOTAL_INGESTERS=1
+fi
+
+export MIMIR_INGERSTER_REPLICATION_FACTOR=${MIMIR_INGESTER_REPLICATION_FACTOR:-${TOTAL_INGESTERS}}
 
 # Generate mimir.yaml using configuration.sh
 /opt/container/entrypoint.d/scripts/init/configuration.sh

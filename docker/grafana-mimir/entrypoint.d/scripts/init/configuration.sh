@@ -37,9 +37,18 @@ ingester:
 EOF
 }
 
+get_config_memberlist() {
+  if [ -n "${MIMIR_MEMBER_LIST:-}" ]; then
+    cat <<EOF
+memberlist:
+  join_members: [$(echo "${MIMIR_MEMBER_LIST}")]
+EOF
+  fi
+}
 
 {
   get_config_target
   get_config_blocks_storage
   get_config_replication
+  get_config_memberlist
 } > /etc/mimir.yaml
