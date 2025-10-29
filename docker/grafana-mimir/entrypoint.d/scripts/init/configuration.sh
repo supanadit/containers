@@ -5,7 +5,7 @@ get_config_target() {
   echo "target: ${MIMIR_TARGET:-all}"
 }
 
-get_storage_prefix() {
+get_config_blocks_storage() {
   if [ -n "${MIMIR_STORAGE_PREFIX:-}" ]; then
     cat <<EOF
 blocks_storage:
@@ -22,9 +22,15 @@ get_tsdb_dir() {
     dir: ${MIMIR_TSDB_DIR}
 EOF
   fi
+  
+  # Check if directory exists, if not create it
+  if [ ! -d "${MIMIR_TSDB_DIR}" ]; then
+    mkdir -p "${MIMIR_TSDB_DIR}"
+  fi
 }
 
 
 {
   get_config_target
+  get_config_blocks_storage
 } > /etc/mimir.yaml
