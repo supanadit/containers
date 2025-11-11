@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-ARG THANOS_VERSION="0.39.2"
+ARG THANOS_VERSION="0.40.1"
 
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
