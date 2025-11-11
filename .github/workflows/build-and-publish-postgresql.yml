@@ -1,0 +1,85 @@
+name: Build and Publish PostgreSQL Container
+permissions:
+  contents: read
+  packages: write
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.release.tag_name, 'postgresql-')
+    outputs:
+      container: ${{ steps.extract.outputs.container }}
+      revision: ${{ steps.extract.outputs.revision }}
+      matrix: ${{ steps.versions.outputs.matrix }}
+      context: ${{ steps.versions.outputs.context }}
+    steps:
+      - name: Extract container and revision
+        id: extract
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          IFS='-' read -ra parts <<< "$TAG"
+          CONTAINER=${parts[0]}
+          if [ ${#parts[@]} -eq 2 ]; then
+            REVISION=${parts[1]}
+          else
+            echo "Invalid tag format for PostgreSQL. Expected: postgresql-<revision>"
+            exit 1
+          fi
+          echo "container=$CONTAINER" >> $GITHUB_OUTPUT
+          echo "revision=$REVISION" >> $GITHUB_OUTPUT
+
+      - name: Set matrix and context for PostgreSQL
+        id: versions
+        run: |
+          MATRIX='[{"version": "13.22", "postgresql_version": "13.22", "citus_version": "11.3.1", "patroni_version": "v4.1.0", "python_version": "v3.13.9"},{"version": "14.19", "postgresql_version": "14.19", "citus_version": "12.1.10", "patroni_version": "v4.1.0", "python_version": "v3.13.9", "pgaudit_version": "1.6.3"},{"version": "15.14", "postgresql_version": "15.14", "citus_version": "13.2.0", "patroni_version": "v4.1.0", "python_version": "v3.13.9", "pgaudit_version": "1.7.1"},{"version": "16.10", "postgresql_version": "16.10", "citus_version": "13.2.0", "patroni_version": "v4.1.0", "python_version": "v3.13.9", "pgaudit_version": "16.1"},{"version": "17.6", "postgresql_version": "17.6", "citus_version": "13.2.0", "patroni_version": "v4.1.0", "python_version": "v3.13.9", "pgaudit_version": "17.1"},{"version": "18.0", "postgresql_version": "18.0", "citus_version": "13.2.0", "patroni_version": "v4.1.0", "python_version": "v3.13.9", "pgaudit_version": "18.0"}]'
+          CONTEXT="docker/postgresql"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+
+  build:
+    needs: setup
+    if: github.event.release.target_commitish == 'main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set image tag
+        id: tag
+        run: |
+          VERSION=${{ matrix.version }}
+          REVISION=${{ needs.setup.outputs.revision }}
+          TAG="$VERSION-$REVISION"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GCR_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ needs.setup.outputs.context }}
+          push: true
+          build-args: |
+            POSTGRESQL_VERSION=${{ matrix.postgresql_version }}
+            CITUS_VERSION=${{ matrix.citus_version }}
+            PATRONI_VERSION=${{ matrix.patroni_version }}
+            PYTHON_VERSION=${{ matrix.python_version }}
+            ${{ matrix.pgaudit_version && format('PGAUDIT_VERSION={0}', matrix.pgaudit_version) || '' }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

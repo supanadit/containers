@@ -1,0 +1,95 @@
+name: Build and Publish WordPress Container
+permissions:
+  contents: read
+  packages: write
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.release.tag_name, 'wordpress-')
+    outputs:
+      container: ${{ steps.extract.outputs.container }}
+      revision: ${{ steps.extract.outputs.revision }}
+      matrix: ${{ steps.versions.outputs.matrix }}
+      context: ${{ steps.versions.outputs.context }}
+      variant: ${{ steps.extract.outputs.variant }}
+    steps:
+      - name: Extract container, variant and revision
+        id: extract
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          IFS='-' read -ra parts <<< "$TAG"
+          CONTAINER=${parts[0]}
+          if [ ${#parts[@]} -eq 3 ]; then
+            VARIANT=${parts[1]}
+            REVISION=${parts[2]}
+          else
+            echo "Invalid tag format for WordPress. Expected: wordpress-<variant>-<revision>"
+            exit 1
+          fi
+          echo "container=$CONTAINER" >> $GITHUB_OUTPUT
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+          echo "revision=$REVISION" >> $GITHUB_OUTPUT
+
+      - name: Set matrix and context for WordPress
+        id: versions
+        run: |
+          VARIANT=${{ steps.extract.outputs.variant }}
+          if [ "$VARIANT" = "apache" ]; then
+            MATRIX='[{"version": "6.8.3", "wordpress_version": "6.8.3"}]'
+            CONTEXT="docker/wordpress/apache"
+          else
+            MATRIX='[{"version": "latest"}]'
+            CONTEXT="docker/wordpress/$VARIANT"
+          fi
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+
+  build:
+    needs: setup
+    if: github.event.release.target_commitish == 'main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set image tag and repository
+        id: tag
+        run: |
+          VERSION=${{ matrix.version }}
+          VARIANT=${{ needs.setup.outputs.variant }}
+          REVISION=${{ needs.setup.outputs.revision }}
+          CONTAINER=${{ needs.setup.outputs.container }}
+          REPO="$CONTAINER-$VARIANT"
+          TAG="$VERSION-$REVISION"
+          echo "repo=$REPO" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GCR_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ needs.setup.outputs.context }}
+          push: true
+          build-args: |
+            ${{ matrix.wordpress_version && format('WORDPRESS_VERSION={0}', matrix.wordpress_version) || '' }}
+            ${{ matrix.php_version && format('PHP_VERSION={0}', matrix.php_version) || '' }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ steps.tag.outputs.repo }}:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
