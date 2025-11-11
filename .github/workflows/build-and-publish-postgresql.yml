@@ -4,8 +4,6 @@ permissions:
   packages: write
 
 on:
-  release:
-    types: [published]
   push:
     tags:
       - 'postgresql-*'
