@@ -11,7 +11,6 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-latest
-    if: startsWith(github.event.release.tag_name, 'wordpress-')
     outputs:
       container: ${{ steps.extract.outputs.container }}
       revision: ${{ steps.extract.outputs.revision }}
@@ -22,7 +21,7 @@ jobs:
       - name: Extract container, variant and revision
         id: extract
         run: |
-          TAG=${{ github.event.release.tag_name }}
+          TAG=${{ github.ref_name }}
           IFS='-' read -ra parts <<< "$TAG"
           CONTAINER=${parts[0]}
           if [ ${#parts[@]} -eq 3 ]; then
@@ -52,7 +51,6 @@ jobs:
 
   build:
     needs: setup
-    if: github.event.release.target_commitish == 'main'
     runs-on: ubuntu-latest
     strategy:
       matrix:

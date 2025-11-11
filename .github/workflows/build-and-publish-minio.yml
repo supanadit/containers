@@ -6,12 +6,11 @@ permissions:
 on:
   push:
     tags:
-      - 'minio-*'
+      - "minio-*"
 
 jobs:
   setup:
     runs-on: ubuntu-latest
-    if: startsWith(github.event.release.tag_name, 'minio-')
     outputs:
       container: ${{ steps.extract.outputs.container }}
       revision: ${{ steps.extract.outputs.revision }}
@@ -21,7 +20,7 @@ jobs:
       - name: Extract container, revision and version
         id: extract
         run: |
-          TAG=${{ github.event.release.tag_name }}
+          TAG=${{ github.ref_name }}
           # Remove 'minio-' prefix
           REMAINING="${TAG#minio-}"
           # Extract revision (r1, r2, etc.)
@@ -29,13 +28,13 @@ jobs:
           # Extract version (everything after revision and dash)
           VERSION="${REMAINING#${REVISION}-}"
           CONTAINER="minio"
-          
+
           if [ -z "$REVISION" ] || [ -z "$VERSION" ]; then
             echo "Invalid tag format for MinIO. Expected: minio-<revision>-<version>"
             echo "Example: minio-r1-2025-04-22T22-12-26Z"
             exit 1
           fi
-          
+
           echo "container=$CONTAINER" >> $GITHUB_OUTPUT
           echo "revision=$REVISION" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -48,7 +47,6 @@ jobs:
 
   build:
     needs: setup
-    if: github.event.release.target_commitish == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
