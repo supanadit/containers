@@ -62,7 +62,7 @@ jobs:
 
   build:
     needs: setup
-    if: github.event.release.target_commitish == 'main'
+    if: needs.setup.outputs.container != 'thanos' && github.event.release.target_commitish == 'main'
     runs-on: ubuntu-latest
     strategy:
       matrix:
