@@ -103,13 +103,26 @@ check_postgresql_connectivity() {
     local host="${POSTGRESQL_CONNECT_HOST:-localhost}"
     local user="${POSTGRES_USER:-postgres}"
 
-    # Use pg_isready for basic connectivity check
-    if su -s /bin/bash postgres -c "pg_isready -h $host -p $port -U $user" >/dev/null 2>&1; then
-        log_debug "PostgreSQL is accepting connections"
-        return 0
+    # Use Unix socket connection by default for local checks (more reliable)
+    # Only use TCP if POSTGRESQL_CONNECT_HOST is explicitly set to something other than localhost
+    if [ "$host" = "localhost" ] || [ "$host" = "127.0.0.1" ]; then
+        # Use Unix socket (no -h flag)
+        if su -s /bin/bash postgres -c "pg_isready -U $user" >/dev/null 2>&1; then
+            log_debug "PostgreSQL is accepting connections"
+            return 0
+        else
+            log_error "PostgreSQL is not accepting connections"
+            return 1
+        fi
     else
-        log_error "PostgreSQL is not accepting connections"
-        return 1
+        # Use TCP connection for remote hosts
+        if su -s /bin/bash postgres -c "pg_isready -h $host -p $port -U $user" >/dev/null 2>&1; then
+            log_debug "PostgreSQL is accepting connections"
+            return 0
+        else
+            log_error "PostgreSQL is not accepting connections"
+            return 1
+        fi
     fi
 }
 
