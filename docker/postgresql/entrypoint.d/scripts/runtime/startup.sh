@@ -454,7 +454,7 @@ wait_for_postgresql_ready() {
     log_debug "Waiting for PostgreSQL to be ready (max attempts: $max_attempts, interval: ${attempt_interval}s)"
 
     while [ $attempt -le $max_attempts ]; do
-        if su - postgres -c "pg_isready -h localhost -p \"${POSTGRESQL_PORT:-5432}\" -U \"${POSTGRES_USER:-postgres}\"" >/dev/null 2>&1; then
+        if su -s /bin/bash postgres -c "pg_isready -h localhost -p ${POSTGRESQL_PORT:-5432} -U ${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
             log_debug "PostgreSQL is ready (attempt $attempt)"
             return 0
         fi
