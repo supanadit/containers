@@ -104,7 +104,7 @@ check_postgresql_connectivity() {
     local user="${POSTGRES_USER:-postgres}"
 
     # Use pg_isready for basic connectivity check
-    if pg_isready -h "$host" -p "$port" -U "$user" -t 5 >/dev/null 2>&1; then
+    if su - postgres -c "pg_isready -h \"$host\" -p \"$port\" -U \"$user\"" >/dev/null 2>&1; then
         log_debug "PostgreSQL is accepting connections"
         return 0
     else
