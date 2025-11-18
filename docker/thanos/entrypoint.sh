@@ -18,6 +18,20 @@ THANOS_REPLICA_LABEL=${THANOS_REPLICA_LABEL:-}
 
 THANOS_RECEIVE_REPLICATION_FACTOR=${THANOS_RECEIVE_REPLICATION_FACTOR:-1}
 
+# Query-Frontend specific configurations
+THANOS_QUERY_FRONTEND_DOWNSTREAM_URL=${THANOS_QUERY_FRONTEND_DOWNSTREAM_URL:-}
+THANOS_QUERY_RANGE_SPLIT_INTERVAL=${THANOS_QUERY_RANGE_SPLIT_INTERVAL:-}
+THANOS_QUERY_RANGE_MAX_RETRIES=${THANOS_QUERY_RANGE_MAX_RETRIES:-}
+THANOS_LABELS_SPLIT_INTERVAL=${THANOS_LABELS_SPLIT_INTERVAL:-}
+THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG=${THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG:-}
+THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG_FILE=${THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG_FILE:-}
+
+# Store specific configurations
+THANOS_STORE_INDEX_CACHE_CONFIG=${THANOS_STORE_INDEX_CACHE_CONFIG:-}
+THANOS_STORE_INDEX_CACHE_CONFIG_FILE=${THANOS_STORE_INDEX_CACHE_CONFIG_FILE:-}
+THANOS_STORE_CACHING_BUCKET_CONFIG=${THANOS_STORE_CACHING_BUCKET_CONFIG:-}
+THANOS_STORE_CACHING_BUCKET_CONFIG_FILE=${THANOS_STORE_CACHING_BUCKET_CONFIG_FILE:-}
+
 # S3 Object Store Configuration
 THANOS_S3_BUCKET=${THANOS_S3_BUCKET:-}
 THANOS_S3_ENDPOINT=${THANOS_S3_ENDPOINT:-}
@@ -120,6 +134,18 @@ case ${THANOS_COMPONENT} in
         THANOS_ARG_LIST+=(
             --data-dir=${THANOS_DATA_DIR}
         )
+        # Add index cache configuration
+        if [ -n "${THANOS_STORE_INDEX_CACHE_CONFIG}" ]; then
+            THANOS_ARG_LIST+=(--index-cache.config="${THANOS_STORE_INDEX_CACHE_CONFIG}")
+        elif [ -n "${THANOS_STORE_INDEX_CACHE_CONFIG_FILE}" ]; then
+            THANOS_ARG_LIST+=(--index-cache.config-file="${THANOS_STORE_INDEX_CACHE_CONFIG_FILE}")
+        fi
+        # Add caching bucket configuration
+        if [ -n "${THANOS_STORE_CACHING_BUCKET_CONFIG}" ]; then
+            THANOS_ARG_LIST+=(--store.caching-bucket.config="${THANOS_STORE_CACHING_BUCKET_CONFIG}")
+        elif [ -n "${THANOS_STORE_CACHING_BUCKET_CONFIG_FILE}" ]; then
+            THANOS_ARG_LIST+=(--store.caching-bucket.config-file="${THANOS_STORE_CACHING_BUCKET_CONFIG_FILE}")
+        fi
         # Add object store config (required for store component)
         add_objstore_config
         ;;
@@ -127,6 +153,26 @@ case ${THANOS_COMPONENT} in
         # Add downstream query URL if provided
         if [ -n "${THANOS_QUERY_FRONTEND_DOWNSTREAM_URL}" ]; then
             THANOS_ARG_LIST+=(--query-frontend.downstream-url=${THANOS_QUERY_FRONTEND_DOWNSTREAM_URL})
+        fi
+        # Add query range split interval
+        if [ -n "${THANOS_QUERY_RANGE_SPLIT_INTERVAL}" ]; then
+            THANOS_ARG_LIST+=(--query-range.split-interval=${THANOS_QUERY_RANGE_SPLIT_INTERVAL})
+        fi
+        # Add max retries
+        if [ -n "${THANOS_QUERY_RANGE_MAX_RETRIES}" ]; then
+            THANOS_ARG_LIST+=(--query-range.max-retries-per-request=${THANOS_QUERY_RANGE_MAX_RETRIES})
+        fi
+        # Add labels split interval
+        if [ -n "${THANOS_LABELS_SPLIT_INTERVAL}" ]; then
+            THANOS_ARG_LIST+=(--labels.split-interval=${THANOS_LABELS_SPLIT_INTERVAL})
+        fi
+        # Add response cache configuration
+        if [ -n "${THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG}" ]; then
+            local temp_cache_file=/tmp/thanos_cache_config.yaml
+            echo "${THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG}" > "${temp_cache_file}"
+            THANOS_ARG_LIST+=(--query-range.response-cache-config-file="${temp_cache_file}")
+        elif [ -n "${THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG_FILE}" ]; then
+            THANOS_ARG_LIST+=(--query-range.response-cache-config-file="${THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG_FILE}")
         fi
         ;;
     compact)
