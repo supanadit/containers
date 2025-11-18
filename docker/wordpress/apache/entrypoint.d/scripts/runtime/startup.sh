@@ -122,46 +122,43 @@ else
     ls -la /var/www/html/wp-content 2>/dev/null || log_warn "Cannot list wp-content"
 fi
 
-# For wp-content and all subdirectories - use find to be thorough
-if [ -d "/var/www/html/wp-content" ]; then
-    log_info "Setting permissions on wp-content through symlink"
-    # First, try to set ownership (this might fail on mounted volumes)
-    find /var/www/html/wp-content -exec chown www-data:www-data {} \; 2>/dev/null || log_warn "chown failed on some files"
-    
-    # Set permissions to allow group writing
-    find /var/www/html/wp-content -type d -exec chmod 775 {} \; 2>/dev/null || log_warn "chmod failed on some directories"
-    find /var/www/html/wp-content -type f -exec chmod 664 {} \; 2>/dev/null || log_warn "chmod failed on some files"
-    
-    # If chown failed, at least ensure the group has write access
-    # This is important for mounted volumes where ownership can't be changed
-    find /var/www/html/wp-content -type d -exec chmod g+w {} \; 2>/dev/null || true
-    find /var/www/html/wp-content -type f -exec chmod g+w {} \; 2>/dev/null || true
-fi
-
-# Also try to set permissions on the mounted volume directly
-if [ -d "/content/wp-content" ]; then
-    log_info "Setting permissions directly on mounted volume /content/wp-content"
-    # Try chown first
-    find /content/wp-content -exec chown www-data:www-data {} \; 2>/dev/null || log_warn "chown failed on mounted volume"
-    
-    # Set permissions
-    find /content/wp-content -type d -exec chmod 775 {} \; 2>/dev/null || log_warn "chmod failed on mounted directories"
-    find /content/wp-content -type f -exec chmod 664 {} \; 2>/dev/null || log_warn "chmod failed on mounted files"
-    
-    # Ensure group write access
-    find /content/wp-content -type d -exec chmod g+w {} \; 2>/dev/null || true
-    find /content/wp-content -type f -exec chmod g+w {} \; 2>/dev/null || true
-    
-    # Special check for fonts directory - ensure it exists and has proper permissions
-    if [ ! -d "/content/wp-content/uploads/fonts" ]; then
-        log_warn "Fonts directory missing on mounted volume, creating it"
-        mkdir -p /content/wp-content/uploads/fonts 2>/dev/null || log_error "Failed to create fonts directory"
+# Set permissions on wp-content - optimized for large directories
+if [ "${SKIP_PERMISSIONS:-false}" != "true" ]; then
+    if [ -d "/content/wp-content" ]; then
+        log_info "Setting permissions on mounted volume /content/wp-content (optimized)"
+        
+        # Only set ownership/permissions on the top-level directories, not every file
+        # This is much faster for large wp-content directories
+        chown www-data:www-data /content/wp-content 2>/dev/null || log_warn "chown failed on wp-content root"
+        chmod 775 /content/wp-content 2>/dev/null || log_warn "chmod failed on wp-content root"
+        
+        # Set permissions on main subdirectories only
+        for subdir in uploads plugins themes upgrade; do
+            if [ -d "/content/wp-content/$subdir" ]; then
+                chown www-data:www-data "/content/wp-content/$subdir" 2>/dev/null || true
+                chmod 775 "/content/wp-content/$subdir" 2>/dev/null || true
+            fi
+        done
+        
+        # Special check for fonts directory - ensure it exists and has proper permissions
+        if [ ! -d "/content/wp-content/uploads/fonts" ]; then
+            log_info "Creating fonts directory on mounted volume"
+            mkdir -p /content/wp-content/uploads/fonts 2>/dev/null || log_warn "Failed to create fonts directory"
+        fi
+        if [ -d "/content/wp-content/uploads/fonts" ]; then
+            chown www-data:www-data /content/wp-content/uploads/fonts 2>/dev/null || true
+            chmod 775 /content/wp-content/uploads/fonts 2>/dev/null || true
+        fi
+        
+        log_info "Permissions set successfully (skipped recursive traversal for performance)"
+    elif [ -d "/var/www/html/wp-content" ]; then
+        # Fallback for stateless mode or if /content doesn't exist
+        log_info "Setting permissions on wp-content directory"
+        chown www-data:www-data /var/www/html/wp-content 2>/dev/null || log_warn "chown failed"
+        chmod 775 /var/www/html/wp-content 2>/dev/null || log_warn "chmod failed"
     fi
-    if [ -d "/content/wp-content/uploads/fonts" ]; then
-        chown www-data:www-data /content/wp-content/uploads/fonts 2>/dev/null || true
-        chmod 775 /content/wp-content/uploads/fonts 2>/dev/null || true
-        log_info "Fonts directory verified at /content/wp-content/uploads/fonts"
-    fi
+else
+    log_info "Skipping permission changes (SKIP_PERMISSIONS=true)"
 fi
 
 # Ensure the /content directory itself has proper permissions
