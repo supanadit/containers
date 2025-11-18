@@ -32,6 +32,14 @@ THANOS_STORE_INDEX_CACHE_CONFIG_FILE=${THANOS_STORE_INDEX_CACHE_CONFIG_FILE:-}
 THANOS_STORE_CACHING_BUCKET_CONFIG=${THANOS_STORE_CACHING_BUCKET_CONFIG:-}
 THANOS_STORE_CACHING_BUCKET_CONFIG_FILE=${THANOS_STORE_CACHING_BUCKET_CONFIG_FILE:-}
 
+# Compact specific configurations
+THANOS_COMPACT_DOWNSAMPLING_DISABLE=${THANOS_COMPACT_DOWNSAMPLING_DISABLE:-false}
+THANOS_COMPACT_RETENTION_RAW=${THANOS_COMPACT_RETENTION_RAW:-}
+THANOS_COMPACT_RETENTION_5M=${THANOS_COMPACT_RETENTION_5M:-}
+THANOS_COMPACT_RETENTION_1H=${THANOS_COMPACT_RETENTION_1H:-}
+THANOS_COMPACT_CONSISTENCY_DELAY=${THANOS_COMPACT_CONSISTENCY_DELAY:-30m}
+THANOS_COMPACT_COMPACTION_CONCURRENCY=${THANOS_COMPACT_COMPACTION_CONCURRENCY:-1}
+
 # S3 Object Store Configuration
 THANOS_S3_BUCKET=${THANOS_S3_BUCKET:-}
 THANOS_S3_ENDPOINT=${THANOS_S3_ENDPOINT:-}
@@ -180,6 +188,25 @@ case ${THANOS_COMPONENT} in
             --data-dir=${THANOS_DATA_DIR}
             --wait
         )
+        # Add downsampling configuration
+        if [ "${THANOS_COMPACT_DOWNSAMPLING_DISABLE}" = "true" ]; then
+            THANOS_ARG_LIST+=(--downsampling.disable)
+        fi
+        if [ -n "${THANOS_COMPACT_RETENTION_RAW}" ]; then
+            THANOS_ARG_LIST+=(--retention.resolution-raw=${THANOS_COMPACT_RETENTION_RAW})
+        fi
+        if [ -n "${THANOS_COMPACT_RETENTION_5M}" ]; then
+            THANOS_ARG_LIST+=(--retention.resolution-5m=${THANOS_COMPACT_RETENTION_5M})
+        fi
+        if [ -n "${THANOS_COMPACT_RETENTION_1H}" ]; then
+            THANOS_ARG_LIST+=(--retention.resolution-1h=${THANOS_COMPACT_RETENTION_1H})
+        fi
+        if [ -n "${THANOS_COMPACT_CONSISTENCY_DELAY}" ]; then
+            THANOS_ARG_LIST+=(--consistency-delay=${THANOS_COMPACT_CONSISTENCY_DELAY})
+        fi
+        if [ -n "${THANOS_COMPACT_COMPACTION_CONCURRENCY}" ]; then
+            THANOS_ARG_LIST+=(--compact.concurrency=${THANOS_COMPACT_COMPACTION_CONCURRENCY})
+        fi
         # Add object store config if provided
         add_objstore_config
         ;;
