@@ -6,7 +6,8 @@ echo "=== Installing Freeradius ==="
 mkdir /temp
 
 cd /temp
-git clone -b ${FREERADIUS_VERSION} https://github.com/FreeRADIUS/freeradius-server.git --depth 1
+BRANCH="release_${FREERADIUS_VERSION//./_}"
+git clone -b ${BRANCH} https://github.com/FreeRADIUS/freeradius-server.git --depth 1
 cd freeradius-server
 
 # Configure and build
@@ -19,4 +20,3 @@ make
 make install
 
 echo "=== Freeradius installed successfully ==="
-

@@ -10,12 +10,12 @@ apt-get update && apt-get install -y \
     libssl-dev \
     libtalloc-dev \
     libpcap-dev \
-    libmysqlclient-dev \
+    libmariadb-dev \
     libpq-dev \
     libldap2-dev \
     libsasl2-dev \
     libreadline-dev \
-    libidn11-dev \
+    libidn2-dev \
     libcurl4-openssl-dev \
     libjson-c-dev \
     libkrb5-dev \
