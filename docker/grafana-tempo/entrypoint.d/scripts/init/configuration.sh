@@ -51,6 +51,13 @@ EOF
   fi
 }
 
+get_config_metric_generator_trace_storage() {
+  cat <<EOF
+  traces_storage:
+    path: ${GRAFANA_TEMPO_DATA_DIR}/generators/traces
+EOF
+}
+
 get_config_metric_generator() {
   cat <<EOF
 metrics_generator:
@@ -71,6 +78,7 @@ EOF
     done
   fi
   get_config_metric_generator_storage
+  get_config_metric_generator_trace_storage
 }
 
 get_config_querier() {
