@@ -24,6 +24,24 @@ EOF
   fi
 }
 
+get_config_storage_trace_s3() {
+  # If GRAFANA_TEMPO_STORAGE_BACKEND is s3
+  if [ "${GRAFANA_TEMPO_STORAGE_BACKEND}" = "s3" ]; then
+    cat <<EOF
+      s3:
+        bucket: ${S3_BUCKET}
+        endpoint: ${S3_ENDPOINT}
+        access_key: ${S3_ACCESS_KEY}
+        secret_key: ${S3_SECRET_KEY}
+        insecure: ${S3_INSECURE:-false}
+EOF
+    # Only add region if S3_REGION is set
+    if [ -n "${S3_REGION:-}" ]; then
+      echo "        region: ${S3_REGION}"
+    fi
+  fi
+}
+
 get_config_storage_trace() {
     cat <<EOF
     trace:
@@ -32,6 +50,7 @@ get_config_storage_trace() {
         path: ${GRAFANA_TEMPO_DATA_DIR}/wal
 EOF
   get_config_storage_trace_local
+  get_config_storage_trace_s3
 }
 
 get_config_storage() {
