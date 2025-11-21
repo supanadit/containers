@@ -48,6 +48,19 @@ get_config_metric_generator_storage() {
   storage:
     path: ${GRAFANA_TEMPO_DATA_DIR}/generators/wal
 EOF
+    # Check for REMOTE_WRITE_*_URL environment variables and add remote_write if any exist
+    if [ -n "$(env | grep '^REMOTE_WRITE_[0-9]\+_URL')" ]; then
+      echo "    remote_write:"
+      # Extract unique numbers from REMOTE_WRITE_{num}_URL vars, sort numerically
+      for num in $(env | grep '^REMOTE_WRITE_[0-9]\+_URL' | sed -E 's/REMOTE_WRITE_([0-9]+)_URL=.*/\1/' | sort -n | uniq); do
+        url_var="REMOTE_WRITE_${num}_URL"
+        send_var="REMOTE_WRITE_${num}_SEND_EXEMPLARS"
+        echo "      - url: ${!url_var}"
+        if [ -n "${!send_var}" ]; then
+          echo "        send_exemplars: ${!send_var}"
+        fi
+      done
+    fi
   fi
 }
 
