@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+get_config_stream_over_http_enabled() {
+  if [ -n "${STREAM_OVER_HTTP_ENABLED:-}" ]; then
+    echo "stream_over_http_enabled: ${STREAM_OVER_HTTP_ENABLED}"
+  fi
+}
+
 get_config_http_listen() {
     cat <<EOF
   http_listen_port: 3200
@@ -18,8 +24,8 @@ get_config_storage_trace_local() {
   # If GRAFANA_TEMPO_STORAGE_BACKEND is local
   if [ "${GRAFANA_TEMPO_STORAGE_BACKEND}" = "local" ]; then
     cat <<EOF
-      local:
-        path: ${GRAFANA_TEMPO_DATA_DIR}/blocks
+    local:
+      path: ${GRAFANA_TEMPO_DATA_DIR}/blocks
 EOF
   fi
 }
@@ -28,12 +34,12 @@ get_config_storage_trace_s3() {
   # If GRAFANA_TEMPO_STORAGE_BACKEND is s3
   if [ "${GRAFANA_TEMPO_STORAGE_BACKEND}" = "s3" ]; then
     cat <<EOF
-      s3:
-        bucket: ${S3_BUCKET}
-        endpoint: ${S3_ENDPOINT}
-        access_key: ${S3_ACCESS_KEY}
-        secret_key: ${S3_SECRET_KEY}
-        insecure: ${S3_INSECURE:-false}
+    s3:
+      bucket: ${S3_BUCKET}
+      endpoint: ${S3_ENDPOINT}
+      access_key: ${S3_ACCESS_KEY}
+      secret_key: ${S3_SECRET_KEY}
+      insecure: ${S3_INSECURE:-false}
 EOF
     # Only add region if S3_REGION is set
     if [ -n "${S3_REGION:-}" ]; then
@@ -44,10 +50,10 @@ EOF
 
 get_config_storage_trace() {
     cat <<EOF
-    trace:
-      backend: ${GRAFANA_TEMPO_STORAGE_BACKEND}
-      wal:
-        path: ${GRAFANA_TEMPO_DATA_DIR}/wal
+  trace:
+    backend: ${GRAFANA_TEMPO_STORAGE_BACKEND}
+    wal:
+      path: ${GRAFANA_TEMPO_DATA_DIR}/wal
 EOF
   get_config_storage_trace_local
   get_config_storage_trace_s3
@@ -156,6 +162,7 @@ EOF
 }
 
 {
+  get_config_stream_over_http_enabled
   get_config_server
   get_config_storage
   get_config_metric_generator
