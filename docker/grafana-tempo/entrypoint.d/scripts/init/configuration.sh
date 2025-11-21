@@ -161,6 +161,11 @@ EOF
   fi
 }
 
+# TODO:
+# 1. Test Multi Tenant
+# 2. Test Distributed
+# 3. Test Ingest Storage
+# 4. Test Cross Cluster
 {
   get_config_stream_over_http_enabled
   get_config_server
