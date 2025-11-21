@@ -52,7 +52,6 @@ EOF
 }
 
 get_config_metric_generator() {
-  # TODO: External Labels must be configurable
   cat <<EOF
 metrics_generator:
   registry:
