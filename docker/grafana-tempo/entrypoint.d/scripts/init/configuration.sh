@@ -117,10 +117,30 @@ EOF
   fi
 }
 
+get_config_memberlist() {
+  if [ "${ENABLE_MEMBERLIST:-false}" = "true" ]; then
+    # Set defaults if not defined
+    MEMBERLIST_BIND_PORT="${MEMBERLIST_BIND_PORT:-7946}"
+    MEMBERLIST_ABORT_IF_CLUSTER_JOIN_FAILS="${MEMBERLIST_ABORT_IF_CLUSTER_JOIN_FAILS:-false}"
+    cat <<EOF
+memberlist:
+  abort_if_cluster_join_fails: ${MEMBERLIST_ABORT_IF_CLUSTER_JOIN_FAILS}
+  bind_port: ${MEMBERLIST_BIND_PORT}
+  join_members:
+EOF
+    # Split comma-separated list into YAML array
+    IFS=',' read -ra MEMBERS <<< "${MEMBERLIST_JOIN_MEMBERS}"
+    for member in "${MEMBERS[@]}"; do
+      echo "   - ${member}"
+    done
+  fi
+}
+
 {
   get_config_server
   get_config_storage
   get_config_metric_generator
   get_config_querier
   get_config_overrides
+  get_config_memberlist
 } > ${GRAFANA_TEMPO_CONFIG}
