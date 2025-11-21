@@ -57,9 +57,20 @@ get_config_metric_generator() {
 metrics_generator:
   registry:
     external_labels:
-      source: tempo
-      cluster: demo
 EOF
+  # Check if any EXTERNAL_LABELS_ env vars are defined
+  if [ -z "$(env | grep '^EXTERNAL_LABELS_')" ]; then
+    # Use default values if no env vars are set
+    echo "      source: tempo"
+    echo "      cluster: demo"
+  else
+    # Dynamically add external labels from env vars prefixed with EXTERNAL_LABELS_
+    for var in $(env | grep '^EXTERNAL_LABELS_' | cut -d'=' -f1); do
+      key=$(echo "$var" | sed 's/^EXTERNAL_LABELS_//' | tr '[:upper:]' '[:lower:]')
+      value="${!var}"
+      echo "      $key: $value"
+    done
+  fi
   get_config_metric_generator_storage
 }
 
