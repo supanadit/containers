@@ -102,9 +102,25 @@ querier:
 EOF
 }
 
+get_config_overrides() {
+  if [ "${ENABLE_OVERRIDE_DEFAULT_METRICS_GENERATOR:-false}" = "true" ]; then
+    cat <<EOF
+overrides:
+  defaults:
+    metrics_generator:
+EOF
+    # Default processors if not provided
+    processors="${OVERRIDE_DEFAULT_METRICS_GENERATOR_PROCESSORS:-service-graphs,span-metrics}"
+    # Replace commas with ', ' for YAML flow style
+    processors_list=$(echo "$processors" | sed 's/,/, /g')
+    echo "      processors: [$processors_list]"
+  fi
+}
+
 {
   get_config_server
   get_config_storage
   get_config_metric_generator
   get_config_querier
+  get_config_overrides
 } > ${GRAFANA_TEMPO_CONFIG}
