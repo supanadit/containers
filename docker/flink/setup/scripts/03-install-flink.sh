@@ -4,7 +4,7 @@ set -e
 echo "=== Building and installing Flink ==="
 
 # Use FLINK_VERSION from environment or default
-FLINK_VERSION=${FLINK_VERSION:-1.19.1}
+FLINK_VERSION=${FLINK_VERSION:-2.1.1}
 SCALA_VERSION=${SCALA_VERSION:-2.12}
 
 echo "Installing Apache Flink ${FLINK_VERSION}"
