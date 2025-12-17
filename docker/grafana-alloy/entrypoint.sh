@@ -7,6 +7,7 @@ GRAFANA_ALLOY_DATA=${GRAFANA_ALLOY_DATA:-/var/lib/alloy/data}
 GRAFANA_ALLOY_EXPERIMENTAL_FEATURES=${GRAFANA_ALLOY_EXPERIMENTAL_FEATURES:-true}
 
 GRAFANA_ALLOY_ARG_LIST=(
+    "/usr/share/grafana/alloy"
     "run"
     "${GRAFANA_ALLOY_CONFIG}"
     "--storage.path=${GRAFANA_ALLOY_DATA}"
