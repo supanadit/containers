@@ -6,7 +6,7 @@ PYROSCOPE_COMPONENT=${PYROSCOPE_COMPONENT:-all}
 
 # Server configuration
 PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS}
-PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-0.0.0.0:9095}
+PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS}
 
 # Data paths
 PYROSCOPE_DATA_PATH=${PYROSCOPE_DATA_PATH:-/var/lib/pyroscope/data}
@@ -169,12 +169,16 @@ fi
 # Component-specific configurations
 case ${PYROSCOPE_COMPONENT} in
     all)
+        PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS:-:4040}
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9095}
         PYROSCOPE_ARG_LIST+=(
             "-target=all"
             "-pyroscopedb.data-path=${PYROSCOPE_DATA_PATH}"
         )
         ;;
     distributor)
+        PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS:-:4040}
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9095}
         PYROSCOPE_ARG_LIST+=(
             "-target=distributor"
             "-distributor.replication-factor=${PYROSCOPE_DISTRIBUTOR_REPLICATION_FACTOR}"
@@ -186,6 +190,7 @@ case ${PYROSCOPE_COMPONENT} in
         fi
         ;;
     ingester)
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9096}
         PYROSCOPE_ARG_LIST+=(
             "-target=ingester"
             "-pyroscopedb.data-path=${PYROSCOPE_DATA_PATH}"
@@ -201,6 +206,7 @@ case ${PYROSCOPE_COMPONENT} in
         fi
         ;;
     compactor)
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9095}
         PYROSCOPE_ARG_LIST+=(
             "-target=compactor"
             "-compactor.data-dir=${PYROSCOPE_COMPACTOR_DATA_DIR}"
@@ -213,6 +219,8 @@ case ${PYROSCOPE_COMPONENT} in
         fi
         ;;
     querier)
+        PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS:-:4046}
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9100}
         PYROSCOPE_ARG_LIST+=(
             "-target=querier"
         )
@@ -230,6 +238,7 @@ case ${PYROSCOPE_COMPONENT} in
         fi
         ;;
     store-gateway)
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9098}
         PYROSCOPE_ARG_LIST+=(
             "-target=store-gateway"
         )
@@ -241,6 +250,8 @@ case ${PYROSCOPE_COMPONENT} in
         fi
         ;;
     query-frontend)
+        PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS:-:4047}
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9101}
         PYROSCOPE_ARG_LIST+=(
             "-target=query-frontend"
         )
@@ -249,6 +260,7 @@ case ${PYROSCOPE_COMPONENT} in
         fi
         ;;
     query-scheduler)
+        PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-:9099}
         PYROSCOPE_ARG_LIST+=(
             "-target=query-scheduler"
         )
