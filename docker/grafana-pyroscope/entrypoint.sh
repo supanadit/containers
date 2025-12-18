@@ -91,12 +91,16 @@ PYROSCOPE_ARG_LIST=(
 )
 
 # Add server addresses
+# HTTP for components that expose it
 if [[ "${PYROSCOPE_HTTP_ADDRESS}" != "" ]]; then
-    PYROSCOPE_ARG_LIST+=("-server.http-listen-address=${PYROSCOPE_HTTP_ADDRESS}")
+    HTTP_PORT=${PYROSCOPE_HTTP_ADDRESS#:}
+    PYROSCOPE_ARG_LIST+=("-server.http-listen-port=${HTTP_PORT}")
 fi
 
+# GRPC for all components
 if [[ "${PYROSCOPE_GRPC_ADDRESS}" != "" ]]; then
-    PYROSCOPE_ARG_LIST+=("-server.grpc-listen-address=${PYROSCOPE_GRPC_ADDRESS}")
+    GRPC_PORT=${PYROSCOPE_GRPC_ADDRESS#:}
+    PYROSCOPE_ARG_LIST+=("-server.grpc-listen-port=${GRPC_PORT}")
 fi
 
 # Add multitenancy if enabled
@@ -257,6 +261,14 @@ case ${PYROSCOPE_COMPONENT} in
         exit 1
         ;;
 esac
+
+# Validate storage configuration for microservices mode
+# In microservices mode, all components except 'all' need storage backend configured
+if [[ "${PYROSCOPE_COMPONENT}" != "all" ]] && [[ -z "${PYROSCOPE_STORAGE_BACKEND}" ]]; then
+    echo "ERROR: Storage backend must be configured when running in microservices mode."
+    echo "Please set PYROSCOPE_STORAGE_BACKEND environment variable (s3, gcs, azure, or filesystem)."
+    exit 1
+fi
 
 echo "Starting Pyroscope ${PYROSCOPE_COMPONENT} with arguments: ${PYROSCOPE_ARG_LIST[*]}"
 
