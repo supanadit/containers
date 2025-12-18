@@ -5,7 +5,7 @@ set -e
 PYROSCOPE_COMPONENT=${PYROSCOPE_COMPONENT:-all}
 
 # Server configuration
-PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS:-0.0.0.0:4040}
+PYROSCOPE_HTTP_ADDRESS=${PYROSCOPE_HTTP_ADDRESS}
 PYROSCOPE_GRPC_ADDRESS=${PYROSCOPE_GRPC_ADDRESS:-0.0.0.0:9095}
 
 # Data paths
@@ -139,6 +139,7 @@ if [[ -n "${PYROSCOPE_STORAGE_BACKEND}" ]]; then
         [[ -n "${PYROSCOPE_STORAGE_S3_REGION}" ]] && PYROSCOPE_ARG_LIST+=("-storage.s3.region=${PYROSCOPE_STORAGE_S3_REGION}")
         [[ -n "${PYROSCOPE_STORAGE_S3_ACCESS_KEY}" ]] && PYROSCOPE_ARG_LIST+=("-storage.s3.access-key-id=${PYROSCOPE_STORAGE_S3_ACCESS_KEY}")
         [[ -n "${PYROSCOPE_STORAGE_S3_SECRET_KEY}" ]] && PYROSCOPE_ARG_LIST+=("-storage.s3.secret-access-key=${PYROSCOPE_STORAGE_S3_SECRET_KEY}")
+        [[ "${PYROSCOPE_STORAGE_S3_INSECURE}" == "true" ]] && PYROSCOPE_ARG_LIST+=("-storage.s3.insecure")
     fi
     
     # GCS Configuration
