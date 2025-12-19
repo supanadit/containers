@@ -86,6 +86,15 @@ frontend:
 EOF
 }
 
+get_config_compactor() {
+  cat <<EOF
+compactor:
+  working_directory: ${GRAFANA_LOKI_DATA_DIR}/retention
+  delete_request_store: filesystem
+  retention_enabled: true
+EOF
+}
+
 # Generate the config
 {
   get_config_auth
@@ -97,4 +106,5 @@ EOF
   get_config_pattern_ingester
   get_config_ruler
   get_config_frontend
+  get_config_compactor
 } > ${GRAFANA_LOKI_CONFIG}
