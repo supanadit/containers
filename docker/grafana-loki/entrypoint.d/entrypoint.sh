@@ -16,6 +16,7 @@ export GRAFANA_LOKI_INSTANCE_ADDRESS=${GRAFANA_LOKI_INSTANCE_ADDRESS:-0.0.0.0}
 # backend
 export GRAFANA_LOKI_TARGET=${GRAFANA_LOKI_TARGET:-}
 export GRAFANA_LOKI_MEMBERLIST=${GRAFANA_LOKI_MEMBERLIST:-}
+export GRAFANA_LOKI_COMPACTOR_ADDRESS=${GRAFANA_LOKI_COMPACTOR_ADDRESS:-}
 
 # Configuring /etc/loki/loki.yaml
 /opt/container/entrypoint.d/scripts/init/configuration.sh

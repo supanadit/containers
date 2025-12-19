@@ -34,6 +34,14 @@ server:
 EOF
 }
 
+get_config_common_compactor() {
+  if [ -n "${GRAFANA_LOKI_COMPACTOR_ADDRESS:-}" ]; then
+    cat <<EOF
+  compactor_address: ${GRAFANA_LOKI_COMPACTOR_ADDRESS}
+EOF
+  fi
+}
+
 get_config_common() {
   cat <<EOF
 common:
@@ -48,6 +56,7 @@ common:
     kvstore:
       store: inmemory
 EOF
+  get_config_common_compactor
 }
 
 get_config_query_range() {
