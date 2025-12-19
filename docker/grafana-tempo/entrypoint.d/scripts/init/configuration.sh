@@ -139,6 +139,9 @@ EOF
     # Replace commas with ', ' for YAML flow style
     processors_list=$(echo "$processors" | sed 's/,/, /g')
     echo "      processors: [$processors_list]"
+    if [ -n "${ENABLE_GENERATIVE_HISTOGRAMS:-}" ]; then
+      echo "      generate_native_histograms: ${GENERATE_NATIVE_HISTOGRAMS:-both}"
+    fi
   fi
 }
 
