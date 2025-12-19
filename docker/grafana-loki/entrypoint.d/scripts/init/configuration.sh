@@ -78,6 +78,7 @@ EOF
       secret_access_key: ${GRAFANA_LOKI_S3_SECRET_KEY:-your-secret-key}
       region: ${GRAFANA_LOKI_S3_REGION:-us-east-1}
       s3forcepathstyle: ${GRAFANA_LOKI_S3_FORCE_PATH_STYLE:-true}
+      insecure: ${GRAFANA_LOKI_S3_INSECURE:-false}
 EOF
   fi
 }
