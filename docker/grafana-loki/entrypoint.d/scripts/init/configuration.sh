@@ -59,16 +59,36 @@ EOF
   fi
 }
 
-get_config_common() {
-  cat <<EOF
-common:
-  path_prefix: ${GRAFANA_LOKI_DATA_DIR}
+get_config_common_storage() {
+  if [ "${GRAFANA_LOKI_STORAGE_BACKEND}" = "filesystem" ]; then
+    cat <<EOF
   storage:
     filesystem:
       chunks_directory: ${GRAFANA_LOKI_DATA_DIR}/chunks
       rules_directory: ${GRAFANA_LOKI_DATA_DIR}/rules
+EOF
+  fi
+  if [ "${GRAFANA_LOKI_STORAGE_BACKEND}" = "s3" ]; then
+    cat <<EOF
+  storage:
+    s3:
+      bucketnames: ${GRAFANA_LOKI_S3_BUCKET:-loki}
+      endpoint: ${GRAFANA_LOKI_S3_ENDPOINT:-s3.amazonaws.com}
+      access_key_id: ${GRAFANA_LOKI_S3_ACCESS_KEY:-your-access-key}
+      secret_access_key: ${GRAFANA_LOKI_S3_SECRET_KEY:-your-secret-key}
+      region: ${GRAFANA_LOKI_S3_REGION:-us-east-1}
+      s3forcepathstyle: ${GRAFANA_LOKI_S3_FORCE_PATH_STYLE:-true}
+EOF
+  fi
+}
+
+get_config_common() {
+  cat <<EOF
+common:
+  path_prefix: ${GRAFANA_LOKI_DATA_DIR}
   replication_factor: 1
 EOF
+  get_config_common_storage
   if [ -n "${GRAFANA_LOKI_INSTANCE_ADDRESS}" ]; then
     cat <<EOF
   instance_address: ${GRAFANA_LOKI_INSTANCE_ADDRESS}
@@ -102,7 +122,7 @@ schema_config:
   configs:
     - from: 2020-10-24
       store: tsdb
-      object_store: filesystem
+      object_store: ${GRAFANA_LOKI_STORAGE_BACKEND}
       schema: v13
       index:
         prefix: index_
@@ -119,11 +139,22 @@ pattern_ingester:
 EOF
 }
 
+get_config_ruler_storage() {
+  if [ "${GRAFANA_LOKI_STORAGE_BACKEND}" = "s3" ]; then
+    cat <<EOF
+  storage:
+    s3:
+      bucketnames: loki-ruler
+EOF
+  fi
+}
+
 get_config_ruler() {
   cat <<EOF
 ruler:
   alertmanager_url: http://localhost:9093
 EOF
+  get_config_ruler_storage
 }
 
 get_config_frontend(){
@@ -133,13 +164,21 @@ frontend:
 EOF
 }
 
+get_config_compactor_storage() {
+  if [ "${GRAFANA_LOKI_STORAGE_BACKEND}" = "filesystem" ]; then
+    cat <<EOF
+  delete_request_store: filesystem
+  retention_enabled: true
+EOF
+  fi
+}
+
 get_config_compactor() {
   cat <<EOF
 compactor:
   working_directory: ${GRAFANA_LOKI_DATA_DIR}/retention
-  delete_request_store: filesystem
-  retention_enabled: true
 EOF
+  get_config_compactor_storage
 }
 
 # Generate the config
