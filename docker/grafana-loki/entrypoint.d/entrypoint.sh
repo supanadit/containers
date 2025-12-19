@@ -10,6 +10,12 @@ export GRAFANA_LOKI_STORAGE_BACKEND=${GRAFANA_LOKI_STORAGE_BACKEND:-filesystem}
 
 export GRAFANA_LOKI_INSTANCE_ADDRESS=${GRAFANA_LOKI_INSTANCE_ADDRESS:-0.0.0.0}
 
+# Available targets:
+# read
+# write
+# backend
+export GRAFANA_LOKI_TARGET=${GRAFANA_LOKI_TARGET:-}
+
 # Configuring /etc/loki/loki.yaml
 /opt/container/entrypoint.d/scripts/init/configuration.sh
 
@@ -17,5 +23,12 @@ GRAFANA_LOKI_ARG_LIST=(
     "/usr/share/grafana/loki"
     "-config.file=${GRAFANA_LOKI_CONFIG}"
 )
+
+if [ -n "$GRAFANA_LOKI_TARGET" ]; then
+    GRAFANA_LOKI_ARG_LIST+=("-target=${GRAFANA_LOKI_TARGET}")
+    if [ "$GRAFANA_LOKI_TARGET" = "backend" ]; then
+        GRAFANA_LOKI_ARG_LIST+=("-legacy-read-mode=false")
+    fi
+fi
 
 exec "${GRAFANA_LOKI_ARG_LIST[@]}"
