@@ -17,30 +17,34 @@ jobs:
       matrix: ${{ steps.versions.outputs.matrix }}
       context: ${{ steps.versions.outputs.context }}
       variant: ${{ steps.extract.outputs.variant }}
+      version: ${{ steps.extract.outputs.version }}
     steps:
-      - name: Extract container, variant and revision
+      - name: Extract container, variant, version and revision
         id: extract
         run: |
           TAG=${{ github.ref_name }}
           IFS='-' read -ra parts <<< "$TAG"
           CONTAINER=${parts[0]}
-          if [ ${#parts[@]} -eq 3 ]; then
+          if [ ${#parts[@]} -eq 4 ]; then
             VARIANT=${parts[1]}
-            REVISION=${parts[2]}
+            VERSION=${parts[2]}
+            REVISION=${parts[3]}
           else
-            echo "Invalid tag format for WordPress. Expected: wordpress-<variant>-<revision>"
+            echo "Invalid tag format for WordPress. Expected: wordpress-<variant>-<version>-<revision>"
             exit 1
           fi
           echo "container=$CONTAINER" >> $GITHUB_OUTPUT
           echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "revision=$REVISION" >> $GITHUB_OUTPUT
 
       - name: Set matrix and context for WordPress
         id: versions
         run: |
           VARIANT=${{ steps.extract.outputs.variant }}
+          VERSION=${{ steps.extract.outputs.version }}
           if [ "$VARIANT" = "apache" ]; then
-            MATRIX='[{"version": "6.8.3", "wordpress_version": "6.8.3"}]'
+            MATRIX='[{"version": "'$VERSION'", "wordpress_version": "'$VERSION'"}]'
             CONTEXT="docker/wordpress/apache"
           else
             MATRIX='[{"version": "latest"}]'
