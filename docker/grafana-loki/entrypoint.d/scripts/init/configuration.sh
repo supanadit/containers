@@ -62,7 +62,6 @@ EOF
 get_config_common() {
   cat <<EOF
 common:
-  instance_addr: ${GRAFANA_LOKI_INSTANCE_ADDRESS}
   path_prefix: ${GRAFANA_LOKI_DATA_DIR}
   storage:
     filesystem:
@@ -70,6 +69,11 @@ common:
       rules_directory: ${GRAFANA_LOKI_DATA_DIR}/rules
   replication_factor: 1
 EOF
+  if [ -n "${GRAFANA_LOKI_INSTANCE_ADDRESS}" ]; then
+    cat <<EOF
+  instance_address: ${GRAFANA_LOKI_INSTANCE_ADDRESS}
+EOF
+  fi
   get_config_common_ring
   get_config_common_compactor
 }
