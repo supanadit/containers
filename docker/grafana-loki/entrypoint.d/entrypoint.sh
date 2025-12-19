@@ -10,10 +10,11 @@ export GRAFANA_LOKI_STORAGE_BACKEND=${GRAFANA_LOKI_STORAGE_BACKEND:-filesystem}
 
 export GRAFANA_LOKI_INSTANCE_ADDRESS=${GRAFANA_LOKI_INSTANCE_ADDRESS:-}
 
-# Available targets:
+# Available targets: ( By default if not set, type all is used )
 # read
 # write
 # backend
+# Docs: https://grafana.com/docs/loki/latest/get-started/components
 export GRAFANA_LOKI_TARGET=${GRAFANA_LOKI_TARGET:-}
 export GRAFANA_LOKI_MEMBERLIST=${GRAFANA_LOKI_MEMBERLIST:-}
 export GRAFANA_LOKI_COMPACTOR_ADDRESS=${GRAFANA_LOKI_COMPACTOR_ADDRESS:-}
