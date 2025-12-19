@@ -15,6 +15,7 @@ export GRAFANA_LOKI_INSTANCE_ADDRESS=${GRAFANA_LOKI_INSTANCE_ADDRESS:-}
 # write
 # backend
 # Docs: https://grafana.com/docs/loki/latest/get-started/components
+# For Microservcice mode: https://grafana.com/docs/loki/latest/get-started/deployment-modes/#microservices-mode
 export GRAFANA_LOKI_TARGET=${GRAFANA_LOKI_TARGET:-}
 export GRAFANA_LOKI_MEMBERLIST=${GRAFANA_LOKI_MEMBERLIST:-}
 export GRAFANA_LOKI_COMPACTOR_ADDRESS=${GRAFANA_LOKI_COMPACTOR_ADDRESS:-}
