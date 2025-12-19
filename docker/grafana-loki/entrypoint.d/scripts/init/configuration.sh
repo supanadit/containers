@@ -13,7 +13,7 @@ get_config_memberlist() {
     echo "  join_members:"
     IFS=',' read -ra MEMBERS <<< "$GRAFANA_LOKI_MEMBERLIST"
     for member in "${MEMBERS[@]}"; do
-      echo "    - $member"
+      echo "    - \"$member\""
     done
     cat <<EOF
   dead_node_reclaim_time: 30s
@@ -29,6 +29,7 @@ EOF
 get_config_server() {
   cat <<EOF
 server:
+  http_listen_address: 0.0.0.0
   http_listen_port: ${GRAFANA_LOKI_LISTEN_PORT_HTTP}
   grpc_listen_port: ${GRAFANA_LOKI_LISTEN_PORT_GRPC}
 EOF
@@ -38,6 +39,22 @@ get_config_common_compactor() {
   if [ -n "${GRAFANA_LOKI_COMPACTOR_ADDRESS:-}" ]; then
     cat <<EOF
   compactor_address: ${GRAFANA_LOKI_COMPACTOR_ADDRESS}
+EOF
+  fi
+}
+
+get_config_common_ring() {
+  if [ -n "${GRAFANA_LOKI_MEMBERLIST:-}" ]; then
+    cat <<EOF
+  ring:
+    kvstore:
+      store: memberlist
+EOF
+  else
+    cat <<EOF
+  ring:
+    kvstore:
+      store: inmemory
 EOF
   fi
 }
@@ -52,10 +69,8 @@ common:
       chunks_directory: ${GRAFANA_LOKI_DATA_DIR}/chunks
       rules_directory: ${GRAFANA_LOKI_DATA_DIR}/rules
   replication_factor: 1
-  ring:
-    kvstore:
-      store: inmemory
 EOF
+  get_config_common_ring
   get_config_common_compactor
 }
 
