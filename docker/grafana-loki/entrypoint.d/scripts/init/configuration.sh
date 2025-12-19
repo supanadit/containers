@@ -7,6 +7,25 @@ auth_enabled: false
 EOF
 }
 
+get_config_memberlist() {
+  if [ -n "${GRAFANA_LOKI_MEMBERLIST:-}" ]; then
+    echo "memberlist:"
+    echo "  join_members:"
+    IFS=',' read -ra MEMBERS <<< "$GRAFANA_LOKI_MEMBERLIST"
+    for member in "${MEMBERS[@]}"; do
+      echo "    - $member"
+    done
+    cat <<EOF
+  dead_node_reclaim_time: 30s
+  gossip_to_dead_nodes_time: 15s
+  left_ingesters_timeout: 30s
+  bind_addr: ['0.0.0.0']
+  bind_port: 7946
+  gossip_interval: 2s
+EOF
+  fi
+}
+
 get_config_server() {
   cat <<EOF
 server:
@@ -98,6 +117,7 @@ EOF
 # Generate the config
 {
   get_config_auth
+  get_config_memberlist
   get_config_server
   get_config_common
   get_config_query_range
