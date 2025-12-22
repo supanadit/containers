@@ -1,0 +1,74 @@
+name: Build and Publish Grafana Container
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    tags:
+      - "grafana-oss-*"
+      - "grafana-enterprise-*"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      container: ${{ steps.extract.outputs.container }}
+      revision: ${{ steps.extract.outputs.revision }}
+      context: ${{ steps.versions.outputs.context }}
+      version: ${{ steps.extract.outputs.version }}
+      edition: ${{ steps.extract.outputs.edition }}
+    steps:
+      - name: Extract container, edition, version and revision
+        id: extract
+        run: |
+          TAG=${{ github.ref_name }}
+          IFS='-' read -ra parts <<< "$TAG"
+          CONTAINER=${parts[0]}
+          EDITION=${parts[1]}
+          VERSION=${parts[2]}
+          REVISION=${parts[3]:1}  # Remove the 'r' prefix
+          if [ ${#parts[@]} -eq 4 ] && [[ ${parts[3]} =~ ^r[0-9]+$ ]]; then
+            echo "container=$CONTAINER" >> $GITHUB_OUTPUT
+            echo "edition=$EDITION" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "revision=$REVISION" >> $GITHUB_OUTPUT
+          else
+            echo "Invalid tag format for Grafana. Expected: grafana-<edition>-<version>-r<revision>"
+            exit 1
+          fi
+
+      - name: Set context for Grafana
+        id: versions
+        run: |
+          CONTEXT="docker/grafana"
+          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GCR_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ needs.setup.outputs.context }}
+          push: true
+          build-args: |
+            GRAFANA_VERSION=${{ needs.setup.outputs.version }}
+            GRAFANA_EDITION=${{ needs.setup.outputs.edition }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.edition }}-${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
