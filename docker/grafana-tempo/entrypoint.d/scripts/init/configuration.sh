@@ -35,15 +35,15 @@ get_config_storage_trace_s3() {
   if [ "${GRAFANA_TEMPO_STORAGE_BACKEND}" = "s3" ]; then
     cat <<EOF
     s3:
-      bucket: ${S3_BUCKET}
-      endpoint: ${S3_ENDPOINT}
-      access_key: ${S3_ACCESS_KEY}
-      secret_key: ${S3_SECRET_KEY}
-      insecure: ${S3_INSECURE:-false}
+      bucket: ${GRAFANA_TEMPO_S3_BUCKET}
+      endpoint: ${GRAFANA_TEMPO_S3_ENDPOINT}
+      access_key: ${GRAFANA_TEMPO_S3_ACCESS_KEY}
+      secret_key: ${GRAFANA_TEMPO_S3_SECRET_KEY}
+      insecure: ${GRAFANA_TEMPO_S3_INSECURE:-false}
 EOF
-    # Only add region if S3_REGION is set
-    if [ -n "${S3_REGION:-}" ]; then
-      echo "        region: ${S3_REGION}"
+    # Only add region if GRAFANA_TEMPO_S3_REGION is set
+    if [ -n "${GRAFANA_TEMPO_S3_REGION:-}" ]; then
+      echo "        region: ${GRAFANA_TEMPO_S3_REGION}"
     fi
   fi
 }
