@@ -2,6 +2,18 @@ FROM debian:bookworm
 
 ARG GRAFANA_MIMIR_VERSION="2.17.1"
 
+# Build metadata
+ARG BUILD_DATE
+ARG VCS_REF
+
+LABEL org.opencontainers.image.created=$BUILD_DATE \
+    org.opencontainers.image.revision=$VCS_REF \
+    org.opencontainers.image.title="Grafana Mimir" \
+    org.opencontainers.image.description="Optimized Grafana Mimir container for scalable long-term storage of Prometheus metrics" \
+    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>" \
+    org.opencontainers.image.source=https://github.com/supanadit/containers
+
+
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
 
