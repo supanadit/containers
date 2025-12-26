@@ -69,6 +69,6 @@ jobs:
           build-args: |
             GRAFANA_VERSION=${{ needs.setup.outputs.version }}
             GRAFANA_EDITION=${{ needs.setup.outputs.edition }}
-          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.edition }}-${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.edition }}-${{ needs.setup.outputs.version }}-r${{ needs.setup.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
