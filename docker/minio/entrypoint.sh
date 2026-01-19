@@ -19,7 +19,7 @@ export MINIO_DISTRIBUTED_NODES=${MINIO_DISTRIBUTED_NODES:-}  # e.g., "http://min
 # Set MINIO_BROWSER_REDIRECT_URL only for standalone mode
 # In distributed mode, this must be set explicitly or omitted to avoid mismatches
 if [ "$MINIO_DISTRIBUTED_MODE_ENABLED" != "true" ]; then
-    export MINIO_BROWSER_REDIRECT_URL=${MINIO_BROWSER_REDIRECT_URL:-http://$CONTAINER_IP:9000}
+    export MINIO_BROWSER_REDIRECT_URL=${MINIO_BROWSER_REDIRECT_URL:-http://$CONTAINER_IP:9001}
 fi
 
 # Create data directory (for standalone mode)
