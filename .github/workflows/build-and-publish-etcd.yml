@@ -22,10 +22,10 @@ jobs:
         run: |
           TAG=${{ github.ref_name }}
           IFS='-' read -ra parts <<< "$TAG"
-          CONTAINER="${parts[0]}-${parts[1]}"
-          if [ ${#parts[@]} -eq 4 ]; then
-            VERSION=${parts[2]}
-            REVISION=${parts[3]}
+          CONTAINER="${parts[0]}"
+          if [ ${#parts[@]} -eq 3 ]; then
+            VERSION=${parts[1]}
+            REVISION=${parts[2]}
           else
             echo "Invalid tag format for ETCD. Expected: etcd-<version>-<revision>"
             exit 1
