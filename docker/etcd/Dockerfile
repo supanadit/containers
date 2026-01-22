@@ -1,7 +1,7 @@
 FROM debian:bookworm AS build
 
 ARG GO_VERSION=1.23.12
-ARG ETCD_VERSION=v3.5.21
+ARG ETCD_VERSION=3.5.21
 
 # Copy all setup scripts and resources
 COPY setup.sh /opt/setup.sh

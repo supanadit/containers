@@ -12,7 +12,7 @@ export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 mkdir -p $GOPATH
 
 cd /temp
-git clone -b ${ETCD_VERSION} https://github.com/etcd-io/etcd.git
+git clone -b v${ETCD_VERSION} https://github.com/etcd-io/etcd.git
 
 cd etcd
 ./build.sh
