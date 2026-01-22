@@ -15,7 +15,7 @@ cd /temp
 git clone -b v${ETCD_VERSION} https://github.com/etcd-io/etcd.git
 
 cd etcd
-./build.sh
+make build
 
 cp -r bin/* /usr/local/bin/
 

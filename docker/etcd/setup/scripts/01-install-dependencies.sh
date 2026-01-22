@@ -6,6 +6,8 @@ echo "=== Installing system dependencies ==="
 apt-get update -y && apt-get install -y \
     curl \
     wget \
-    git
+    git \
+    make \
+    build-essential
 
 echo "=== Dependencies installed successfully ==="

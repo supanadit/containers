@@ -14,7 +14,9 @@ echo "=== Removing development packages ==="
 apt-get remove --purge -y \
     git \
     curl \
-    wget
+    wget \
+    make \
+    build-essential
 
 # Clean up apt cache
 apt-get clean
