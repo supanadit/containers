@@ -18,6 +18,7 @@ reload_pgbouncer_config() {
     export PGBOUNCER_POOL_MODE="${PGBOUNCER_POOL_MODE:-transaction}"
     export PGBOUNCER_MAX_CLIENT_CONN="${PGBOUNCER_MAX_CLIENT_CONN:-100}"
     export PGBOUNCER_DEFAULT_POOL_SIZE="${PGBOUNCER_DEFAULT_POOL_SIZE:-20}"
+    export IGNORE_STARTUP_PARAMETERS="${IGNORE_STARTUP_PARAMETERS}:-"
 
     # Check if PgBouncer is enabled and running
     if [ "${PGBOUNCER_ENABLE:-false}" != "true" ]; then
@@ -45,6 +46,12 @@ reload_pgbouncer_config() {
     sed -i "s|\${PGBOUNCER_POOL_MODE}|${PGBOUNCER_POOL_MODE}|g" "$temp_config_file"
     sed -i "s|\${PGBOUNCER_MAX_CLIENT_CONN}|${PGBOUNCER_MAX_CLIENT_CONN}|g" "$temp_config_file"
     sed -i "s|\${PGBOUNCER_DEFAULT_POOL_SIZE}|${PGBOUNCER_DEFAULT_POOL_SIZE}|g" "$temp_config_file"
+
+    if [ -n "${IGNORE_STARTUP_PARAMETERS:-}" ]; then
+      cat << EOF
+ignore_startup_parameters = ${IGNORE_STARTUP_PARAMETERS}
+EOF
+    fi
 
     # Calculate hash of new configuration
     local new_hash
