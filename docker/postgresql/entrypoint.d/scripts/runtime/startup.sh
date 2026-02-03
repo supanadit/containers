@@ -10,7 +10,6 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
-source /opt/container/entrypoint.d/scripts/utils/pgbouncer.sh
 
 # Restore coordination files
 RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
@@ -166,6 +165,7 @@ start_pgbouncer() {
     export PGBOUNCER_POOL_MODE="${PGBOUNCER_POOL_MODE:-transaction}"
     export PGBOUNCER_MAX_CLIENT_CONN="${PGBOUNCER_MAX_CLIENT_CONN:-100}"
     export PGBOUNCER_DEFAULT_POOL_SIZE="${PGBOUNCER_DEFAULT_POOL_SIZE:-20}"
+    export PGBOUNCER_IGNORE_STARTUP_PARAMETERS="${PGBOUNCER_IGNORE_STARTUP_PARAMETERS:-}"
 
     # Check if PgBouncer is installed
     if ! command -v pgbouncer >/dev/null 2>&1; then
@@ -179,27 +179,25 @@ start_pgbouncer() {
         log_error "PgBouncer config not found: $config_file"
         return 1
     fi
-
-    # Process environment variables in config file
-    local processed_config_file="/etc/pgbouncer/pgbouncer-processed.ini"
     
     # Use sed to replace environment variables
-    cp "$config_file" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_LISTEN_ADDR}|${PGBOUNCER_LISTEN_ADDR}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_LISTEN_PORT}|${PGBOUNCER_LISTEN_PORT}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_AUTH_TYPE}|${PGBOUNCER_AUTH_TYPE}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_ADMIN_USERS}|${PGBOUNCER_ADMIN_USERS}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_STATS_USERS}|${PGBOUNCER_STATS_USERS}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_POOL_MODE}|${PGBOUNCER_POOL_MODE}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_MAX_CLIENT_CONN}|${PGBOUNCER_MAX_CLIENT_CONN}|g" "$processed_config_file"
-    sed -i "s|\${PGBOUNCER_DEFAULT_POOL_SIZE}|${PGBOUNCER_DEFAULT_POOL_SIZE}|g" "$processed_config_file"
+    sed -i "s|\${PGBOUNCER_LISTEN_ADDR}|${PGBOUNCER_LISTEN_ADDR}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_LISTEN_PORT}|${PGBOUNCER_LISTEN_PORT}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_AUTH_TYPE}|${PGBOUNCER_AUTH_TYPE}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_ADMIN_USERS}|${PGBOUNCER_ADMIN_USERS}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_STATS_USERS}|${PGBOUNCER_STATS_USERS}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_POOL_MODE}|${PGBOUNCER_POOL_MODE}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_MAX_CLIENT_CONN}|${PGBOUNCER_MAX_CLIENT_CONN}|g" "$config_file"
+    sed -i "s|\${PGBOUNCER_DEFAULT_POOL_SIZE}|${PGBOUNCER_DEFAULT_POOL_SIZE}|g" "$config_file"
+
+    if [ -n "${PGBOUNCER_IGNORE_STARTUP_PARAMETERS:-}" ]; then
+      sed -i "/default_pool_size/a ignore_startup_parameters = ${PGBOUNCER_IGNORE_STARTUP_PARAMETERS}" "$config_file"
+    fi
     
-    chown postgres:postgres "$processed_config_file"
-    chmod 600 "$processed_config_file"
+    chown postgres:postgres "$config_file"
+    chmod 600 "$config_file"
 
     # Store current configuration hash for change detection
-    local config_hash_file="/etc/pgbouncer/config.hash"
-    sha256sum "$processed_config_file" | awk '{print $1}' > "$config_hash_file"
 
     # Generate userlist.txt with postgres user
     local userlist_file="/etc/pgbouncer/userlist.txt"
@@ -221,7 +219,7 @@ start_pgbouncer() {
     chmod 600 "$userlist_file"
 
     # Start PgBouncer as a background process
-    su -c "pgbouncer -d $processed_config_file" postgres &
+    su -c "pgbouncer -d $config_file" postgres &
     local pgb_pid=$!
 
     log_info "PgBouncer started with PID: $pgb_pid"
