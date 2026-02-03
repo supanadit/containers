@@ -48,9 +48,7 @@ reload_pgbouncer_config() {
     sed -i "s|\${PGBOUNCER_DEFAULT_POOL_SIZE}|${PGBOUNCER_DEFAULT_POOL_SIZE}|g" "$temp_config_file"
 
     if [ -n "${IGNORE_STARTUP_PARAMETERS:-}" ]; then
-      cat << EOF
-ignore_startup_parameters = ${IGNORE_STARTUP_PARAMETERS}
-EOF
+      sed -i "/default_pool_size/a ignore_startup_parameters = \${IGNORE_STARTUP_PARAMETERS}" "$temp_config_file"
     fi
 
     # Calculate hash of new configuration
