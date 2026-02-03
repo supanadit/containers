@@ -18,7 +18,7 @@ reload_pgbouncer_config() {
     export PGBOUNCER_POOL_MODE="${PGBOUNCER_POOL_MODE:-transaction}"
     export PGBOUNCER_MAX_CLIENT_CONN="${PGBOUNCER_MAX_CLIENT_CONN:-100}"
     export PGBOUNCER_DEFAULT_POOL_SIZE="${PGBOUNCER_DEFAULT_POOL_SIZE:-20}"
-    export IGNORE_STARTUP_PARAMETERS="${IGNORE_STARTUP_PARAMETERS}:-"
+    export IGNORE_STARTUP_PARAMETERS="${IGNORE_STARTUP_PARAMETERS:-}"
 
     # Check if PgBouncer is enabled and running
     if [ "${PGBOUNCER_ENABLE:-false}" != "true" ]; then
