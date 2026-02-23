@@ -1,6 +1,51 @@
 #!/bin/bash
 # 04-backup.sh - pgBackRest and WAL archiving setup
 # Configures backup system and WAL archiving
+#
+# =============================================================================
+# pgBackRest Backup Strategy for HA Clusters
+# =============================================================================
+#
+# This container supports multiple HA modes (Patroni, Native HA, Citus) with
+# intelligent backup handling:
+#
+# BACKUP MODES:
+# -------------
+# 1. PRIMARY MODE (primary nodes)
+#    - Primary creates the stanza and runs scheduled backups
+#    - WAL archiving enabled to repository
+#    - Works with all repository types (posix, S3, GCS, Azure, SFTP)
+#
+# 2. STANDBY-SSH MODE (replicas with SSH to primary)
+#    - Requires: PGBACKREST_PRIMARY_PATH to be set
+#    - Replica backs up from standby using backup-standby=y
+#    - Coordinates with primary via SSH for checkpoint/WAL operations
+#    - Primary still creates the stanza; replica uses it
+#    - Useful for offloading backup I/O from primary
+#
+# 3. STANDBY-SKIP MODE (replicas without SSH - DEFAULT for replicas)
+#    - Replica skips all backup operations
+#    - Primary handles all backups
+#    - WAL archiving still works (segments replicate to replica)
+#    - Safe default: no SSH setup required
+#
+# WHY REPLICAS CAN'T BACKUP INDEPENDENTLY:
+# ----------------------------------------
+# pgBackRest requires primary database access to create a stanza (even for
+# "separate" backup repositories). The stanza-create command needs to read
+# the control file and get checkpoint info from a writable primary. Without
+# SSH access to the primary, a replica cannot initialize backups.
+#
+# TO ENABLE STANDBY BACKUP:
+# -------------------------
+# Set these environment variables on the replica:
+#   PGBACKREST_PRIMARY_PATH=/usr/local/pgsql/data  # Primary's data dir
+#   PGBACKREST_PRIMARY_HOST=primary-hostname        # Primary hostname
+#   PGBACKREST_PRIMARY_SSH_PORT=22                  # SSH port (default: 22)
+#   PGBACKREST_PRIMARY_SSH_USER=postgres            # SSH user (default: postgres)
+#   PGBACKREST_PRIMARY_SSH_KEY_FILE=/path/to/key    # SSH private key
+#
+# =============================================================================
 
 # Set strict error handling
 set -euo pipefail
@@ -229,6 +274,75 @@ EOF
     # Add password if provided
     if [ -n "${PGBACKREST_PASSWORD:-}" ]; then
         echo "pg1-password=${PGBACKREST_PASSWORD}" >> "$config_file"
+    fi
+
+    # Enable backup from standby if configured (manual override)
+    if [ "${PGBACKREST_BACKUP_STANDBY:-false}" = "true" ]; then
+        echo "backup-standby=y" >> "$config_file"
+    fi
+
+    # Configure primary connection for standby backup via SSH
+    # This is used when replica needs to coordinate with primary for checkpoint/WAL operations
+    # Requires: PGBACKREST_PRIMARY_PATH to be set (enables SSH mode)
+    if [ -n "${PGBACKREST_PRIMARY_PATH:-}" ]; then
+        log_info "Configuring pgBackRest for SSH-based standby backup"
+        
+        local primary_host="${PGBACKREST_PRIMARY_HOST:-${PRIMARY_HOST:-}}"
+        local primary_pg_port="${PGBACKREST_PRIMARY_PORT:-${PRIMARY_PORT:-5432}}"
+        local primary_pg_user="${PGBACKREST_PRIMARY_USER:-${POSTGRES_USER:-postgres}}"
+        local primary_path="${PGBACKREST_PRIMARY_PATH}"
+        
+        # SSH-specific settings
+        local primary_ssh_port="${PGBACKREST_PRIMARY_SSH_PORT:-22}"
+        local primary_ssh_user="${PGBACKREST_PRIMARY_SSH_USER:-postgres}"
+        local primary_ssh_key="${PGBACKREST_PRIMARY_SSH_KEY_FILE:-/home/postgres/.ssh/id_rsa}"
+        local primary_ssh_known_hosts="${PGBACKREST_PRIMARY_SSH_KNOWN_HOSTS:-}"
+        local primary_ssh_options="${PGBACKREST_PRIMARY_SSH_OPTIONS:-}"
+        local primary_ssh_strict_check="${PGBACKREST_PRIMARY_SSH_STRICT_HOST_KEY_CHECKING:-yes}"
+        
+        if [ -n "$primary_host" ]; then
+            cat >> "$config_file" << EOF
+
+# Primary connection for standby backup (SSH mode)
+pg2-host=${primary_host}
+pg2-host-port=${primary_ssh_port}
+pg2-host-user=${primary_ssh_user}
+pg2-path=${primary_path}
+pg2-port=${primary_pg_port}
+pg2-user=${primary_pg_user}
+EOF
+            
+            # Add SSH key file if exists
+            if [ -n "$primary_ssh_key" ] && [ -f "$primary_ssh_key" ]; then
+                echo "pg2-host-key-file=${primary_ssh_key}" >> "$config_file"
+            elif [ -n "$primary_ssh_key" ]; then
+                log_warn "SSH key file not found: $primary_ssh_key"
+            fi
+            
+            # Add known hosts if specified
+            if [ -n "$primary_ssh_known_hosts" ] && [ -f "$primary_ssh_known_hosts" ]; then
+                echo "pg2-host-known-hosts-file=${primary_ssh_known_hosts}" >> "$config_file"
+            fi
+            
+            # Add custom SSH options if specified
+            if [ -n "$primary_ssh_options" ]; then
+                echo "pg2-host-cmd-ssh=${primary_ssh_options}" >> "$config_file"
+            fi
+            
+            # Handle strict host key checking
+            if [ "$primary_ssh_strict_check" = "no" ] || [ "$primary_ssh_strict_check" = "false" ]; then
+                echo "pg2-host-key-check-type=none" >> "$config_file"
+            fi
+            
+            # Auto-enable backup-standby when SSH mode is configured
+            if ! grep -q "^backup-standby=y" "$config_file"; then
+                echo "backup-standby=y" >> "$config_file"
+            fi
+            
+            log_info "Added pg2-* SSH settings for primary: ${primary_host}:${primary_ssh_port} (pg port: ${primary_pg_port})"
+        else
+            log_warn "PGBACKREST_PRIMARY_PATH set but no PRIMARY_HOST or PGBACKREST_PRIMARY_HOST specified"
+        fi
     fi
 
     # Set secure permissions

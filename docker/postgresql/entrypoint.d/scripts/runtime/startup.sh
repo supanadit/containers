@@ -492,28 +492,40 @@ initialize_pgbackrest_stanza() {
   local backup_info_file="$backup_dir/backup/$stanza/backup.info"
   local repo_type="${PGBACKREST_REPO_TYPE:-posix}"
 
-  if [ "${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY:-true}" = "true" ]; then
-    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
-      local wait_target=$((${PGBACKREST_STANZA_PRIMARY_WAIT:-60}))
-      local waited=0
-      local primary_ready=false
-      while [ $waited -lt "$wait_target" ]; do
-        if is_primary_role; then
-          primary_ready=true
-          break
-        fi
-        sleep 2
-        waited=$((waited + 2))
-      done
-      if [ "$primary_ready" != "true" ]; then
-        log_info "Skipping pgBackRest stanza creation; node not Patroni leader after ${wait_target}s"
-        return 0
-      fi
-    elif ! is_primary_role; then
-      log_info "Skipping pgBackRest stanza creation because node is not primary"
+  # Determine backup mode using auto-detection
+  local backup_mode
+  backup_mode=$(determine_pgbackrest_mode)
+  log_info "pgBackRest backup mode detected: $backup_mode"
+
+  case "$backup_mode" in
+    disabled)
+      log_info "pgBackRest backup is disabled"
       return 0
-    fi
-  fi
+      ;;
+    primary)
+      # Primary node - proceed with normal stanza creation
+      log_info "Node is primary; proceeding with stanza initialization"
+      ;;
+    standby-ssh)
+      # Replica with SSH configured - can do standby backup
+      log_info "Replica detected with SSH configured for standby backup"
+      log_info "Standby backup mode enabled (pg2-* configured for primary coordination)"
+      # Skip stanza creation - primary creates the stanza
+      # The pg2-* and backup-standby=y settings are configured in 04-backup.sh
+      log_info "Stanza creation handled by primary; replica ready for standby backup"
+      return 0
+      ;;
+    standby-skip)
+      # Replica without SSH - skip backup entirely
+      log_info "Replica detected without SSH configuration"
+      log_info "Backup operations skipped; primary handles all backups"
+      log_info "To enable standby backup, set PGBACKREST_PRIMARY_PATH and configure SSH access"
+      return 0
+      ;;
+    *)
+      log_warn "Unknown backup mode: $backup_mode; defaulting to primary behavior"
+      ;;
+  esac
 
   # For posix/filesystem repositories, we can detect stanza by local files; for remote/object repos (s3/gcs) skip
   if [ "$repo_type" = "posix" ] || [ "$repo_type" = "filesystem" ]; then
