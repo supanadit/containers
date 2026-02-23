@@ -350,9 +350,10 @@ enable_archiving() {
 
     if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
         # Set WAL parameters for replication when managing postgresql.conf directly
+        # Respect POSTGRESQL_CONFIG_* overrides if provided, otherwise use defaults
         apply_postgres_setting "wal_level" "replica"
-        apply_postgres_setting "max_wal_senders" "${PATRONI_MAX_WAL_SENDERS:-10}"
-        apply_postgres_setting "max_replication_slots" "${PATRONI_MAX_REPLICATION_SLOTS:-10}"
+        apply_postgres_setting "max_wal_senders" "${POSTGRESQL_CONFIG_MAX_WAL_SENDERS:-${PATRONI_MAX_WAL_SENDERS:-10}}"
+        apply_postgres_setting "max_replication_slots" "${POSTGRESQL_CONFIG_MAX_REPLICATION_SLOTS:-${PATRONI_MAX_REPLICATION_SLOTS:-10}}"
     else
         log_debug "Skipping direct WAL tuning because Patroni manages postgresql.conf"
     fi
