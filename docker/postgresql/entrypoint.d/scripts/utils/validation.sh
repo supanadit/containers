@@ -53,11 +53,11 @@ validate_environment() {
         exit_code=1
     fi
 
-    # Validate mode flags
-    case "${PATRONI_ENABLE:-false}" in
+    # Validate REPLICATION_SYNCHRONOUS_MODE
+    case "${REPLICATION_SYNCHRONOUS_MODE:-true}" in
         true|false) ;;
         *)
-            log_error "Invalid PATRONI_ENABLE: $PATRONI_ENABLE (must be true or false)"
+            log_error "Invalid REPLICATION_SYNCHRONOUS_MODE: ${REPLICATION_SYNCHRONOUS_MODE:-true} (must be true or false)"
             exit_code=1
             ;;
     esac

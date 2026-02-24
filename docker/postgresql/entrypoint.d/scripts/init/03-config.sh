@@ -489,6 +489,12 @@ apply_native_ha_config() {
         apply_postgres_setting "wal_keep_size" "256MB"
         apply_postgres_setting "hot_standby" "on"
 
+        # Configure synchronous replication based on REPLICATION_SYNCHRONOUS_MODE
+        local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
+        if [ "$repl_sync" = "true" ]; then
+            apply_postgres_setting "synchronous_standby_names" "*"
+        fi
+
         if [[ "${REPLICATION_ROLE:-}" == "primary" ]]; then
             local hba_file="${PGDATA:-/usr/local/pgsql/data}/pg_hba.conf"
             local replication_user="${REPLICATION_USER:-replicator}"
@@ -629,6 +635,15 @@ generate_patroni_config() {
         synchronous_mode_timeout=""
     fi
 
+    # If Patroni synchronous mode vars are not set, use the general REPLICATION_SYNCHRONOUS_MODE
+    if [ -z "${PATRONI_SYNCHRONOUS_MODE:-}" ] && [ -z "${PATRONI_SYNCHRONOUS_MODE_STRICT:-}" ] && [ -z "${PATRONI_SYNCHRONOUS_MODE_TIMEOUT:-}" ] && [ -z "${PATRONI_SYNCHRONOUS_MODE_TYPE:-}" ]; then
+        log_debug "No Patroni-specific synchronous mode variables set, using REPLICATION_SYNCHRONOUS_MODE"
+        local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
+        if [ "$repl_sync" = "true" ]; then
+            synchronous_mode="$(normalize_bool "true")"
+        fi
+    fi
+
     local -a patroni_pg_hba_entries=(
         "local all postgres trust"
         "local all all md5"
@@ -739,8 +754,8 @@ postgresql:
     pgpass: /tmp/pgpass
     authentication:
         replication:
-            username: ${PATRONI_REPLICATION_USER:-replicator}
-            password: ${PATRONI_REPLICATION_PASSWORD:-replicator_password}
+            username: ${REPLICATION_USER:-replicator}
+            password: ${REPLICATION_PASSWORD:-replicator_password}
         superuser:
             username: ${POSTGRES_USER:-postgres}
             password: ${POSTGRES_PASSWORD:-postgres_password}

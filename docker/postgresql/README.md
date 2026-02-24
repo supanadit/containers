@@ -55,6 +55,10 @@ PostgreSQL listens on port 5432, PgBouncer on port 6432.
 - `POSTGRES_PASSWORD` - PostgreSQL superuser password
 - `EXTERNAL_ACCESS_ENABLE` - Enable external access (default: true)
 - `EXTERNAL_ACCESS_METHOD` - External access method (default: md5)
+- `REPLICATION_USER` - Replication user for HA setups (default: replicator)
+- `REPLICATION_PASSWORD` - Replication user password (default: replicator_password)
+- `REPLICATION_SYNCHRONOUS_MODE` - Enable synchronous replication (default: true)
+  - Controls synchronous replication settings in both Patroni and Native HA modes
 - `POSTGRES_CONF_XXX` - Additional PostgreSQL configuration parameters (replace `XXX` with actual parameter name, use underscores instead of dots)
 
 ### PgBackRest Configuration

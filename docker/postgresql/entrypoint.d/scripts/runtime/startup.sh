@@ -348,18 +348,13 @@ start_postgresql_direct() {
 
   log_info "PostgreSQL started with PID: $pg_pid"
 
-  # Wait for PostgreSQL to be ready
-  wait_for_postgresql_ready
+   # Wait for PostgreSQL to be ready
+   wait_for_postgresql_ready
 
-  # Create replication user if in native HA primary mode
-  if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "primary" ]]; then
-    create_replication_user
-  fi
-
-  # Start PgBouncer
-  if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
-    start_pgbouncer
-  fi
+   # Start PgBouncer
+   if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+       start_pgbouncer
+   fi
 
   # Initialize pgBackRest stanza if backup is enabled
   if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
