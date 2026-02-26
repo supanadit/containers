@@ -8,6 +8,12 @@ If you have any questions or suggestions, please feel free to open an issue or a
 
 You can also request a container that you need, and I will try to create it for you. Just open an issue with the details of the container you need, and I will do my best.
 
+## Upcoming Release
+
+I might change to the shellscript entrypoint in the future to [EZX](https://github.com/supanadit/ezx) which is a tool that I have created to run program in container easily. This ensure consistency, testability, and maintainability of the containers. It will also make it easier for users to run the containers without having to worry about the underlying implementation details.
+
+[EZX](https://github.com/supanadit/ezx) is under active development.
+
 ## License
 
 [MIT License](./LICENSE)
