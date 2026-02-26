@@ -41,6 +41,8 @@ else
     echo "Skipping pg_repack installation for PostgreSQL version $PG_MAJOR_VERSION."
 fi
 
+${SCRIPT_DIR}/15-install-pg-cron.sh
+
 ${SCRIPT_DIR}/99-cleanup.sh
 
 echo "=========================================="
