@@ -19,9 +19,9 @@ If you need deprecated major versions, please check our older tags or build from
 - pgmetrics
 - pgaudit
 - pgBadger
-- pg_stat_monitor - [PostgreSQL 18 is not listed yet](https://github.com/percona/pg_stat_monitor/tree/2.2.0)
-- pg_repack - [Only support up to PostgreSQL 17](https://reorg.github.io/pg_repack/)
-- Citus - [In Progress](https://github.com/citusdata/citus/issues/7992)
+- pg_stat_monitor
+- pg_repack
+- Citus
 
 ## Usage
 
