@@ -30,6 +30,8 @@ ${SCRIPT_DIR}/12-install-dexter.sh
 ${SCRIPT_DIR}/13-install-pgmetrics.sh
 ${SCRIPT_DIR}/14-install-pg-repack.sh
 
+${SCRIPT_DIR}/15-install-pg-cron.sh
+
 ${SCRIPT_DIR}/99-cleanup.sh
 
 echo "=========================================="
