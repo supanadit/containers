@@ -52,6 +52,17 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     log_warn "Please ensure your MySQL/MariaDB server is running and accessible"
 fi
 
+# Ensure database exists
+log_info "Ensuring database '$DALORADIUS_DB_NAME' exists"
+set +e
+if [ -n "$DALORADIUS_DB_PASS" ]; then
+    db_result=$(MYSQL_PWD="$DALORADIUS_DB_PASS" mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" -e "CREATE DATABASE IF NOT EXISTS \`$DALORADIUS_DB_NAME\`;" 2>&1)
+else
+    db_result=$(mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" -e "CREATE DATABASE IF NOT EXISTS \`$DALORADIUS_DB_NAME\`;" 2>&1)
+fi
+set -e
+log_info "Database ready"
+
 # Check for required tables
 log_info "Checking for required database tables"
 
@@ -65,30 +76,92 @@ fi
 set -e
 
 if ! echo "$TABLE_CHECK" | grep -q "operators"; then
-    log_error "=========================================="
-    log_error "WARNING: daloRADIUS tables not found!"
-    log_error "=========================================="
-    log_error ""
-    log_error "The database '$DALORADIUS_DB_NAME' does not contain the required daloRADIUS tables."
-    log_error ""
-    log_error "Please initialize your database with the following steps:"
-    log_error ""
-    log_error "1. Connect to your MySQL/MariaDB server"
-    log_error "2. Create the database: CREATE DATABASE $DALORADIUS_DB_NAME;"
-    log_error "3. Import the SQL schemas:"
-    log_error "   mysql -u root -p $DALORADIUS_DB_NAME < /var/www/html/daloradius/contrib/db/fr3-mysql-freeradius.sql"
-    log_error "   mysql -u root -p $DALORADIUS_DB_NAME < /var/www/html/daloradius/contrib/db/mysql-daloradius.sql"
-    log_error ""
-    log_error "SQL schema files are located in:"
-    log_error "  /var/www/html/daloradius/contrib/db/"
-    log_error ""
-    log_error "Default login credentials after setup:"
-    log_error "  Username: administrator"
-    log_error "  Password: radius"
-    log_error "=========================================="
+    log_warn "daloRADIUS tables not found, attempting automatic migration..."
     
-    # Exit with error if tables are missing
-    exit 1
+    # Define SQL schema files (master branch uses MariaDB variants)
+    FREERADIUS_SCHEMA="/var/www/html/daloradius/contrib/db/fr3-mariadb-freeradius.sql"
+    DALORADIUS_SCHEMA="/var/www/html/daloradius/contrib/db/mariadb-daloradius.sql"
+    
+    # Check if schema files exist, try alternative names if not found
+    if [ ! -f "$FREERADIUS_SCHEMA" ]; then
+        # Try alternative filenames
+        if [ -f "/var/www/html/daloradius/contrib/db/fr3-mysql-freeradius.sql" ]; then
+            FREERADIUS_SCHEMA="/var/www/html/daloradius/contrib/db/fr3-mysql-freeradius.sql"
+        elif [ -f "/var/www/html/daloradius/contrib/db/fr2-mysql-freeradius.sql" ]; then
+            FREERADIUS_SCHEMA="/var/www/html/daloradius/contrib/db/fr2-mysql-freeradius.sql"
+        else
+            log_error "FreeRADIUS schema file not found in contrib/db/"
+            ls -la /var/www/html/daloradius/contrib/db/ 2>&1 || true
+            exit 1
+        fi
+    fi
+    
+    if [ ! -f "$DALORADIUS_SCHEMA" ]; then
+        # Try alternative filenames
+        if [ -f "/var/www/html/daloradius/contrib/db/mysql-daloradius.sql" ]; then
+            DALORADIUS_SCHEMA="/var/www/html/daloradius/contrib/db/mysql-daloradius.sql"
+        else
+            log_error "daloRADIUS schema file not found in contrib/db/"
+            ls -la /var/www/html/daloradius/contrib/db/ 2>&1 || true
+            exit 1
+        fi
+    fi
+    
+    log_info "Using FreeRADIUS schema: $FREERADIUS_SCHEMA"
+    log_info "Using daloRADIUS schema: $DALORADIUS_SCHEMA"
+    
+    # Import FreeRADIUS schema
+    log_info "Importing FreeRADIUS schema..."
+    set +e
+    if [ -n "$DALORADIUS_DB_PASS" ]; then
+        import_result=$(MYSQL_PWD="$DALORADIUS_DB_PASS" mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" < "$FREERADIUS_SCHEMA" 2>&1)
+        import_error=$?
+    else
+        import_result=$(mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" < "$FREERADIUS_SCHEMA" 2>&1)
+        import_error=$?
+    fi
+    set -e
+    
+    if [ $import_error -ne 0 ]; then
+        log_warn "FreeRADIUS schema import warning: $import_result"
+    else
+        log_info "FreeRADIUS schema imported successfully"
+    fi
+    
+    # Import daloRADIUS schema
+    log_info "Importing daloRADIUS schema..."
+    set +e
+    if [ -n "$DALORADIUS_DB_PASS" ]; then
+        import_result=$(MYSQL_PWD="$DALORADIUS_DB_PASS" mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" < "$DALORADIUS_SCHEMA" 2>&1)
+        import_error=$?
+    else
+        import_result=$(mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" < "$DALORADIUS_SCHEMA" 2>&1)
+        import_error=$?
+    fi
+    set -e
+    
+    if [ $import_error -ne 0 ]; then
+        log_warn "daloRADIUS schema import warning: $import_result"
+    else
+        log_info "daloRADIUS schema imported successfully"
+    fi
+    
+    # Verify tables now exist
+    log_info "Verifying database tables..."
+    set +e
+    if [ -n "$DALORADIUS_DB_PASS" ]; then
+        TABLE_CHECK=$(MYSQL_PWD="$DALORADIUS_DB_PASS" mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" -e "SHOW TABLES LIKE 'operators';" 2>&1)
+    else
+        TABLE_CHECK=$(mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" -e "SHOW TABLES LIKE 'operators';" 2>&1)
+    fi
+    set -e
+    
+    if ! echo "$TABLE_CHECK" | grep -q "operators"; then
+        log_error "Failed to initialize daloRADIUS tables automatically"
+        exit 1
+    fi
+    
+    log_info "daloRADIUS tables initialized successfully"
 fi
 
 log_info "Database tables verified successfully"
