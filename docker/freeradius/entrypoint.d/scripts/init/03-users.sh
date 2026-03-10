@@ -96,15 +96,11 @@ configure_sql_users() {
     
     if [[ -f "$default_site" ]]; then
         if ! grep -q '^[[:space:]]*sql' "$default_site"; then
-            sed -i '/^[[:space:]]*authorize {/,/^[[:space:]]*}/ { /}/a\
-        sql\
-}' "$default_site"
+            sed -i '/^[[:space:]]*authorize {/a\        sql' "$default_site"
         fi
         
         if ! grep -q '^[[:space:]]*sql' "$default_site"; then
-            sed -i '/^[[:space:]]*accounting {/,/^[[:space:]]*}/ { /}/a\
-        sql\
-}' "$default_site"
+            sed -i '/^[[:space:]]*accounting {/a\        sql' "$default_site"
         fi
         
         log_info "Enabled SQL in default site"
@@ -140,9 +136,7 @@ configure_ldap_users() {
     
     if [[ -f "$default_site" ]]; then
         if ! grep -q '^[[:space:]]*ldap' "$default_site"; then
-            sed -i '/^[[:space:]]*authorize {/,/^[[:space:]]*}/ { /}/a\
-        ldap\
-}' "$default_site"
+            sed -i '/^[[:space:]]*authorize {/a\        ldap' "$default_site"
         fi
         log_info "Enabled LDAP in default site"
     fi
@@ -169,9 +163,7 @@ configure_pam_users() {
     
     if [[ -f "$sites_enabled/default" ]]; then
         if ! grep -q '^[[:space:]]*pam' "$sites_enabled/default"; then
-            sed -i '/^[[:space:]]*authorize {/,/^[[:space:]]*}/ { /}/a\
-        pam\
-}' "$sites_enabled/default"
+            sed -i '/^[[:space:]]*authorize {/a\        pam' "$sites_enabled/default"
         fi
     fi
     
