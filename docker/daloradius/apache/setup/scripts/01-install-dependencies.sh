@@ -5,7 +5,7 @@ echo "=== Installing system dependencies ==="
 
 apt-get update
 
-# Install standard Bookworm dependencies first (not SSL-related)
+# Install standard Bookworm dependencies first (excluding curl and git - they need downgrade)
 apt-get install -y \
     build-essential \
     autoconf \
@@ -19,8 +19,6 @@ apt-get install -y \
     bison \
     pkg-config \
     wget \
-    curl \
-    git \
     unzip \
     libonig-dev \
     libicu-dev \
@@ -54,13 +52,17 @@ echo "deb http://security.debian.org/debian-security bullseye-security main" >> 
 apt-get update
 
 # Install OpenSSL 1.1 and Curl 1.1 (needed for PHP 7.4 compilation)
-apt-get install -y -t bullseye \
+# Use --allow-downgrades because Bookworm has newer versions
+apt-get install -y --allow-downgrades -t bullseye \
     libssl1.1 \
     libssl-dev \
-    libcurl4-openssl-dev
+    libcurl4 \
+    libcurl4-openssl-dev \
+    curl \
+    git
 
 # Hold these packages to prevent them from being upgraded during subsequent installs
-apt-mark hold libssl-dev libssl1.1 libcurl4-openssl-dev || true
+apt-mark hold libssl-dev libssl1.1 libcurl4 libcurl4-openssl-dev curl git || true
 
 # Clean up apt cache
 rm -rf /var/lib/apt/lists/*
