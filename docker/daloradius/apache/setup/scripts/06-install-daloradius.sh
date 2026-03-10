@@ -17,8 +17,15 @@ fi
 unzip -q daloradius.zip
 rm daloradius.zip
 
+# Find the extracted directory reliably
+EXTRACTED_DIR=$(ls -d daloradius-*/ 2>/dev/null | head -n 1)
+if [ -z "$EXTRACTED_DIR" ]; then
+    echo "ERROR: Could not find extracted daloRADIUS directory"
+    exit 1
+fi
+
 # Move to web root
-mv daloradius-* /var/www/html/daloradius
+mv "$EXTRACTED_DIR" /var/www/html/daloradius
 
 # Create symbolic link to root for easier access
 cd /var/www/html

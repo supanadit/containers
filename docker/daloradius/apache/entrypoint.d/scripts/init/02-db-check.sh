@@ -26,13 +26,23 @@ RETRY_COUNT=0
 log_info "Waiting for database at ${DALORADIUS_DB_HOST}:${DALORADIUS_DB_PORT}"
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if mysqladmin ping -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" -p"$DALORADIUS_DB_PASS" --silent 2>/dev/null; then
+    set +e
+    if [ -n "$DALORADIUS_DB_PASS" ]; then
+        ping_result=$(MYSQL_PWD="$DALORADIUS_DB_PASS" mysqladmin ping -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" --silent 2>&1)
+        ping_error=$?
+    else
+        ping_result=$(mysqladmin ping -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" --silent 2>&1)
+        ping_error=$?
+    fi
+    set -e
+    
+    if [ $ping_error -eq 0 ]; then
         log_info "Database is reachable"
         break
     fi
     
     RETRY_COUNT=$((RETRY_COUNT + 1))
-    log_debug "Attempt $RETRY_COUNT/$MAX_RETRIES - Database not ready yet"
+    log_debug "Attempt $RETRY_COUNT/$MAX_RETRIES - Database not ready yet (Error: $ping_result)"
     sleep 2
 done
 
@@ -46,9 +56,15 @@ fi
 log_info "Checking for required database tables"
 
 # Try to check for operators table (daloRADIUS specific)
-TABLE_CHECK=$(mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" -p"$DALORADIUS_DB_PASS" "$DALORADIUS_DB_NAME" -e "SHOW TABLES LIKE 'operators';" 2>/dev/null || echo "")
+set +e
+if [ -n "$DALORADIUS_DB_PASS" ]; then
+    TABLE_CHECK=$(MYSQL_PWD="$DALORADIUS_DB_PASS" mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" -e "SHOW TABLES LIKE 'operators';" 2>&1)
+else
+    TABLE_CHECK=$(mysql -h "$DALORADIUS_DB_HOST" -P "$DALORADIUS_DB_PORT" -u "$DALORADIUS_DB_USER" "$DALORADIUS_DB_NAME" -e "SHOW TABLES LIKE 'operators';" 2>&1)
+fi
+set -e
 
-if [ -z "$TABLE_CHECK" ]; then
+if ! echo "$TABLE_CHECK" | grep -q "operators"; then
     log_error "=========================================="
     log_error "WARNING: daloRADIUS tables not found!"
     log_error "=========================================="

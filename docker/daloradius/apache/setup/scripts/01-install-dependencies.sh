@@ -47,6 +47,7 @@ apt-get install -y \
     zlib1g-dev \
     libmcrypt-dev \
     libgettextpo-dev \
+    default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
 
 echo "=== Dependencies installed successfully ==="

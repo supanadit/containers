@@ -16,6 +16,9 @@ DALORADIUS_FREERADIUS_VERSION="${DALORADIUS_FREERADIUS_VERSION:-3}"
 # Check if config already exists
 CONFIG_FILE="/var/www/html/daloradius/library/daloradius.conf.php"
 
+# Ensure the library directory exists
+mkdir -p "$(dirname "$CONFIG_FILE")"
+
 if [ -f "$CONFIG_FILE" ]; then
     log_info "Configuration file already exists, backing up and regenerating"
     cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
