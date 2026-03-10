@@ -3,14 +3,6 @@ set -e
 
 echo "=== Cleaning up build artifacts ==="
 
-# Unhold packages first
-apt-mark unhold libssl-dev libssl1.1 libcurl4-openssl-dev || true
-
-# Remove Bullseye repository to avoid conflicts
-rm -f /etc/apt/sources.list.d/bullseye.list
-
-apt-get update || true
-
 # Remove build tools to reduce image size
 apt-get remove -y \
     build-essential \

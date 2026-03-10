@@ -1,6 +1,6 @@
 # Multi-stage build for daloRADIUS with optimized layer caching
 # syntax=docker/dockerfile:1.4
-FROM debian:bookworm AS base
+FROM debian:bullseye AS base
 
 ARG DALORADIUS_VERSION="master"
 ARG PHP_VERSION="7.4.33"

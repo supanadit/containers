@@ -5,20 +5,23 @@ echo "=== Installing system dependencies ==="
 
 apt-get update
 
-# Install standard Bookworm dependencies first (excluding curl and git - they need downgrade)
 apt-get install -y \
     build-essential \
     autoconf \
     libtool \
+    libssl-dev \
     libxml2-dev \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
     libmariadb-dev \
+    libcurl4-openssl-dev \
     libzip-dev \
     bison \
     pkg-config \
     wget \
+    curl \
+    git \
     unzip \
     libonig-dev \
     libicu-dev \
@@ -43,28 +46,7 @@ apt-get install -y \
     libbz2-dev \
     zlib1g-dev \
     libmcrypt-dev \
-    libgettextpo-dev
-
-# Add Debian Bullseye repo for OpenSSL 1.1 (needed for PHP 7.4 compatibility)
-echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/bullseye.list
-echo "deb http://security.debian.org/debian-security bullseye-security main" >> /etc/apt/sources.list.d/bullseye.list
-
-apt-get update
-
-# Install OpenSSL 1.1 and Curl 1.1 (needed for PHP 7.4 compilation)
-# Use --allow-downgrades because Bookworm has newer versions
-apt-get install -y --allow-downgrades -t bullseye \
-    libssl1.1 \
-    libssl-dev \
-    libcurl4 \
-    libcurl4-openssl-dev \
-    curl \
-    git
-
-# Hold these packages to prevent them from being upgraded during subsequent installs
-apt-mark hold libssl-dev libssl1.1 libcurl4 libcurl4-openssl-dev curl git || true
-
-# Clean up apt cache
-rm -rf /var/lib/apt/lists/*
+    libgettextpo-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 echo "=== Dependencies installed successfully ==="
