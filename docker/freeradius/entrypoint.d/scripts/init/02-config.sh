@@ -22,6 +22,12 @@ main() {
     
     use_default_configs "$radius_etc"
     
+    if [[ "${DB_ENABLE:-false}" == "true" ]]; then
+        log_info "Generating SQL configuration"
+        local sql_config="$radius_etc/mods-available/sql"
+        generate_sql_config "$sql_config"
+    fi
+    
     log_script_end "02-config.sh"
 }
 

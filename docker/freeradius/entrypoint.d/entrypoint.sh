@@ -25,7 +25,10 @@ export RADIUS_CLIENT_NETWORK="${RADIUS_CLIENT_NETWORK:-}"
 export RADIUS_AUTH_TYPE="${RADIUS_AUTH_TYPE:-files}"
 export FREERADIUS_USER_NAME="${FREERADIUS_USER_NAME:-admin}"
 export FREERADIUS_USER_PASSWORD="${FREERADIUS_USER_PASSWORD:-admin}"
-export DB_ENABLE="${DB_ENABLE:-false}"
+export DB_ENABLE="${DB_ENABLE:-${DB_ENABLED:-false}}"
+if [[ "${DB_ENABLE}" == "true" ]] && [[ "${RADIUS_AUTH_TYPE}" == "files" ]]; then
+    export RADIUS_AUTH_TYPE="sql"
+fi
 export DB_TYPE="${DB_TYPE:-mysql}"
 export DB_HOST="${DB_HOST:-localhost}"
 export DB_PORT="${DB_PORT:-3306}"
@@ -138,6 +141,7 @@ run_initialization() {
     local init_scripts=(
         "/opt/container/entrypoint.d/scripts/init/01-directories.sh"
         "/opt/container/entrypoint.d/scripts/init/02-config.sh"
+        "/opt/container/entrypoint.d/scripts/init/04-database.sh"
         "/opt/container/entrypoint.d/scripts/init/03-users.sh"
     )
     

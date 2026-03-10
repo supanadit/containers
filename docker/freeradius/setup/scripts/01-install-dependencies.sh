@@ -31,6 +31,7 @@ apt-get update && apt-get install -y \
     iputils-ping \
     tcpdump \
     vim-tiny \
+    default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
 
 echo "=== Dependencies installed successfully ==="
