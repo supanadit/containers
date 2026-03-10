@@ -46,6 +46,10 @@ EOF
   fi
 }
 
+# TODO:
+# 1. Add S3 for Block Storage support with environment variables
+# 2. Add ruler storage configuration support with environment variables
+# 3. Add S3 for ruler storage support with environment variables
 {
   get_config_target
   get_config_blocks_storage

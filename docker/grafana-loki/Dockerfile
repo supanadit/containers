@@ -2,6 +2,17 @@ FROM debian:bookworm
 
 ARG GRAFANA_LOKI_VERSION="3.5.3"
 
+# Build metadata
+ARG BUILD_DATE
+ARG VCS_REF
+
+LABEL org.opencontainers.image.created=$BUILD_DATE \
+    org.opencontainers.image.revision=$VCS_REF \
+    org.opencontainers.image.title="Grafana Loki" \
+    org.opencontainers.image.description="Optimized Grafana Loki container for log aggregation and management" \
+    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>" \
+    org.opencontainers.image.source=https://github.com/supanadit/containers
+
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
 
@@ -13,8 +24,14 @@ RUN chmod +x /opt/setup.sh && \
 
 WORKDIR /opt/grafana
 
-# Copy entrypoint script
-COPY entrypoint.sh /opt/grafana/entrypoint.sh
-RUN chmod +x /opt/grafana/entrypoint.sh
+# Copy entrypoint scripts (volatile files that change frequently during development)
+COPY entrypoint.d/ /opt/container/entrypoint.d/
 
-ENTRYPOINT ["/opt/grafana/entrypoint.sh"]
+# Ensure all scripts in entrypoint.d are executable
+RUN chmod -R +x /opt/container/entrypoint.d/
+
+# Copy main entrypoint script
+COPY entrypoint.d/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

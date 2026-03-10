@@ -89,12 +89,9 @@ main() {
         fi
     fi
 
-    # Create replication user if Patroni is enabled
-    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
-        if ! create_replication_user; then
-            log_error "Failed to create replication user"
-            return 1
-        fi
+    # Create replication user for native HA primary
+    if [[ "${HA_MODE:-}" == "native" && "${REPLICATION_ROLE:-}" == "primary" ]]; then
+        create_replication_user
     fi
 
     # Verify cluster integrity
@@ -365,6 +362,7 @@ set_postgres_password() {
 listen_addresses = 'localhost'
 port = 5433
 unix_socket_directories = '$data_dir'
+password_encryption = scram-sha-256
 EOF
 
     chmod 644 "$temp_config"
@@ -399,11 +397,11 @@ EOF
     log_info "Successfully set postgres user password"
 }
 
-# Create replication user for Patroni
+# Create replication user
 create_replication_user() {
     local data_dir="${PGDATA:-/usr/local/pgsql/data}"
-    local replication_user="${PATRONI_REPLICATION_USER:-replicator}"
-    local replication_password="${PATRONI_REPLICATION_PASSWORD:-replicator_password}"
+    local replication_user="${REPLICATION_USER:-replicator}"
+    local replication_password="${REPLICATION_PASSWORD:-replicator_password}"
 
     log_info "Creating replication user: $replication_user"
 
@@ -415,6 +413,7 @@ create_replication_user() {
 listen_addresses = 'localhost'
 port = 5433
 unix_socket_directories = '$data_dir'
+password_encryption = scram-sha-256
 EOF
 
     chmod 644 "$temp_config"

@@ -3,20 +3,8 @@ set -e
 
 echo "=== Cleaning up build artifacts and temporary files ==="
 
-# Cleanup Go installation
-rm -rf /usr/local/go
-rm -rf /go
-
-# Remove remaining temporary download directories
-rm -rf /temp
-
-echo "=== Removing development packages ==="
-apt-get remove --purge -y \
-    git \
-    curl \
-    wget \
-    make \
-    build-essential
+# Remove temporary download directories
+rm -rf /tmp/downloads
 
 # Clean up apt cache
 apt-get clean

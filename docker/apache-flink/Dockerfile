@@ -3,7 +3,7 @@
 FROM debian:bookworm AS base
 
 ARG JAVA_VERSION=21
-ARG FLINK_VERSION=1.19.1
+ARG FLINK_VERSION=2.1.1
 
 # Build metadata
 ARG BUILD_DATE
@@ -47,9 +47,6 @@ ENV PATH=/opt/flink/bin:$PATH
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
-
-# Copy configuration files
-COPY config/ /opt/flink/conf/
 
 # Copy main entrypoint script
 COPY entrypoint.d/entrypoint.sh /entrypoint.sh

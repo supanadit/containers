@@ -1,0 +1,79 @@
+name: Build and Publish PgPool-II
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    tags:
+      - "pgpool-ii-*"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      container: ${{ steps.extract.outputs.container }}
+      revision: ${{ steps.extract.outputs.revision }}
+      context: ${{ steps.versions.outputs.context }}
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Extract container, version and revision
+        id: extract
+        run: |
+          TAG=${{ github.ref_name }}
+          
+          # 1. Get the revision (everything after the LAST hyphen)
+          REVISION="${TAG##*-}"
+          
+          # 2. Strip the revision to get the base (pgpool-ii-4.5.0)
+          TEMP="${TAG%-*}"
+          
+          # 3. Get the version (everything after the NEW last hyphen)
+          VERSION="${TEMP##*-}"
+          
+          # 4. Get the container name (everything before the version)
+          CONTAINER="${TEMP%-*}"
+
+          # Validation: Ensure we actually got three distinct parts
+          if [ -z "$CONTAINER" ] || [ -z "$VERSION" ] || [ -z "$REVISION" ]; then
+            echo "Error: Could not parse tag $TAG. Expected: pgpool-ii-<version>-<revision>"
+            exit 1
+          fi
+
+          echo "container=$CONTAINER" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "revision=$REVISION" >> $GITHUB_OUTPUT
+
+      - name: Set context for PgPool-II
+        id: versions
+        run: |
+          CONTEXT="docker/pgpool-ii"
+          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GCR_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ needs.setup.outputs.context }}
+          push: true
+          build-args: |
+            ETCD_VERSION=${{ needs.setup.outputs.version }}
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
