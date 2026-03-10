@@ -9,14 +9,13 @@ pear version || true
 # Update PEAR channel
 pear channel-update pear.php.net || true
 
+# Upgrade PEAR first
+pear upgrade-all || true
+
 # Install required PEAR modules for daloRADIUS
-pear install DB
-pear install Mail
-pear install Mail_Mime
-pear install Mail_MimeDecode
+pear install -f DB Mail Mail_Mime Mail_MimeDecode || true
 
 # Install Net_SMTP if available (for email functionality)
-pear install Net_SMTP || true
-pear install Net_Socket || true
+pear install -f Net_SMTP Net_Socket || true
 
 echo "=== PEAR modules installed successfully ==="

@@ -3,6 +3,7 @@ set -e
 
 echo "=== Installing daloRADIUS ${DALORADIUS_VERSION} ==="
 
+mkdir -p /var/www/html
 mkdir -p /tmp/downloads/daloradius
 cd /tmp/downloads/daloradius
 
