@@ -27,6 +27,7 @@ apt-get update && apt-get install -y \
     libcap2-bin \
     gdb \
     net-tools \
+    procps \
     iputils-ping \
     tcpdump \
     vim-tiny \
