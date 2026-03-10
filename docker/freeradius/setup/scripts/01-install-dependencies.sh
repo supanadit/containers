@@ -23,6 +23,13 @@ apt-get update && apt-get install -y \
     libpam0g-dev \
     python3-dev \
     curl \
-    git
+    git \
+    libcap2-bin \
+    gdb \
+    net-tools \
+    iputils-ping \
+    tcpdump \
+    vim-tiny \
+    && rm -rf /var/lib/apt/lists/*
 
 echo "=== Dependencies installed successfully ==="
