@@ -19,7 +19,9 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
     org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>" \
     org.opencontainers.image.source=https://github.com/supanadit/containers
 
-# Setup layer - copy stable files first for better caching
+# ==========================================
+# SETUP Layer: Apache, PHP, PEAR, etc.
+# ==========================================
 FROM base AS setup
 
 # Copy setup scripts and configuration
@@ -34,19 +36,74 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm /opt/setup.sh && \
     rm -rf /opt/setup
 
-# Runtime layer
-FROM setup AS runtime
+# ==========================================
+# DALORADIUS Layer: Download & prepare source
+# ==========================================
+FROM setup AS daloradius
+
+ARG DALORADIUS_VERSION
+
+# Download and prepare daloRADIUS source (persists in image)
+RUN mkdir -p /tmp/downloads/daloradius && \
+    cd /tmp/downloads/daloradius && \
+    if [ "$DALORADIUS_VERSION" = "master" ] || [ "$DALORADIUS_VERSION" = "1.3" ]; then \
+        wget -q https://github.com/lirantal/daloradius/archive/refs/heads/master.zip -O daloradius.zip; \
+    else \
+        wget -q https://github.com/lirantal/daloradius/archive/refs/tags/${DALORADIUS_VERSION}.zip -O daloradius.zip; \
+    fi && \
+    unzip -q daloradius.zip && \
+    rm daloradius.zip && \
+    # Move to persistent location
+    mkdir -p /usr/src && \
+    mv daloradius-* /usr/src/daloradius-source && \
+    # Cleanup
+    rm -rf /tmp/downloads
+
+# ==========================================
+# RUNTIME Layer: Entry point
+# ==========================================
+FROM daloradius AS runtime
 
 # Set working directory
-WORKDIR /var/www/html
+WORKDIR /var/www/daloradius
 
-# Copy entrypoint script
-COPY entrypoint.d /opt/container/entrypoint.d
-RUN find /opt/container/entrypoint.d -name "*.sh" -exec chmod +x {} \;
+# Copy daloRADIUS source to web root
+COPY --from=daloradius /usr/src/daloradius-source /var/www/daloradius
+
+# Copy Apache virtual host configs from official daloRADIUS
+COPY contrib/docker/operators.conf /usr/local/apache2/conf/sites-available/
+COPY contrib/docker/users.conf /usr/local/apache2/conf/sites-available/
+
+# Enable virtual hosts
+RUN mkdir -p /usr/local/apache2/conf/sites-enabled && \
+    ln -sf /usr/local/apache2/conf/sites-available/operators.conf /usr/local/apache2/conf/sites-enabled/ && \
+    ln -sf /usr/local/apache2/conf/sites-available/users.conf /usr/local/apache2/conf/sites-enabled/
+
+# Include sites-enabled in httpd.conf
+RUN echo "Define APACHE_LOG_DIR /usr/local/apache2/logs" > /tmp/httpd-append.conf && \
+    echo "Listen 3080" >> /tmp/httpd-append.conf && \
+    echo "Listen 4080" >> /tmp/httpd-append.conf && \
+    echo "DirectoryIndex index.php index.html index.htm" >> /tmp/httpd-append.conf && \
+    echo "<FilesMatch \\.php$>" >> /tmp/httpd-append.conf && \
+    echo "    SetHandler application/x-httpd-php" >> /tmp/httpd-append.conf && \
+    echo "</FilesMatch>" >> /tmp/httpd-append.conf && \
+    echo "Include conf/sites-enabled/*.conf" >> /tmp/httpd-append.conf && \
+    cat /usr/local/apache2/conf/httpd.conf /tmp/httpd-append.conf > /tmp/httpd-new.conf && \
+    mv /tmp/httpd-new.conf /usr/local/apache2/conf/httpd.conf
+
+# Copy init script
+COPY init.sh /var/www/daloradius/init.sh
+RUN chmod +x /var/www/daloradius/init.sh
+
+# Create data directory for lock files
+RUN mkdir -p /data
+
+# Create Apache log directories
+RUN mkdir -p /usr/local/apache2/logs/daloradius
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM
 
-ENTRYPOINT ["/opt/container/entrypoint.d/entrypoint.sh"]
-CMD ["/usr/local/apache2/bin/httpd", "-D", "FOREGROUND"]
-EXPOSE 80
+EXPOSE 3080 4080
+
+CMD ["/var/www/daloradius/init.sh"]

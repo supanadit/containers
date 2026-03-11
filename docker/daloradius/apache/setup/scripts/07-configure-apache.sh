@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Configuring Apache for daloRADIUS ==="
+echo "=== Configuring Apache (Base Setup) ==="
 
 # Apache configuration paths
 APACHE_CONF="/usr/local/apache2/conf/httpd.conf"
@@ -67,47 +67,9 @@ add_module "unixd_module" "modules/mod_unixd.so"
 # Configure MIME types - use Apache's built-in mime.types
 sed -i 's|TypesConfig.*|TypesConfig conf/mime.types|' $APACHE_CONF
 
-# Set DocumentRoot to daloRADIUS
-sed -i 's|DocumentRoot.*|DocumentRoot "/var/www/html/daloradius"|' $APACHE_CONF
-
-# Configure directory permissions
-if ! grep -q '<Directory "/var/www/html">' "$APACHE_CONF" 2>/dev/null; then
-cat >> $APACHE_CONF <<EOF
-<Directory "/var/www/html">
-    Options Indexes FollowSymLinks
-    AllowOverride All
-    Require all granted
-</Directory>
-EOF
-fi
-
-# Add PHP index handler
-sed -i 's|DirectoryIndex.*|DirectoryIndex index.php index.html|' $APACHE_CONF
-
-# Add PHP handler (only if not already present)
-if ! grep -q "SetHandler application/x-httpd-php" "$APACHE_CONF" 2>/dev/null; then
-    cat >> $APACHE_CONF <<EOF
-
-<FilesMatch \.php$>
-    SetHandler application/x-httpd-php
-</FilesMatch>
-EOF
-fi
-
-# Configure PHP settings (only if not already present)
-if ! grep -q "php_value upload_max_filesize" "$APACHE_CONF" 2>/dev/null; then
-    cat >> $APACHE_CONF <<EOF
-php_value upload_max_filesize 128M
-php_value post_max_size 128M
-php_value memory_limit 256M
-php_value max_execution_time 300
-php_value max_input_time 300
-EOF
-fi
-
 # Set Mutex for stability
 if ! grep -q "^Mutex posixsem" "$APACHE_CONF" 2>/dev/null; then
     echo "Mutex posixsem" >> $APACHE_CONF
 fi
 
-echo "=== Apache configured successfully ==="
+echo "=== Apache base setup completed ==="

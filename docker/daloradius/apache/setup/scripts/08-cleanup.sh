@@ -20,7 +20,7 @@ apt-get clean
 # Remove apt cache
 rm -rf /var/lib/apt/lists/*
 
-# Remove temporary files
-rm -rf /tmp/*
+# Clean up temp files
+rm -rf /tmp/* 2>/dev/null || true
 
 echo "=== Cleanup completed ==="
