@@ -2,13 +2,36 @@
 set -e
 
 DALORADIUS_PATH=/var/www/daloradius
-DALORADIUS_CONF_PATH=$DALORADIUS_PATH/app/common/includes/daloradius.conf.php
 
 echo "=========================================="
 echo "daloRADIUS Container Initialization"
 echo "=========================================="
 
-# 1. Copy sample config if not exists
+# 1. Detect version based on directory structure
+if [ -d "$DALORADIUS_PATH/app/common/includes" ]; then
+    DALORADIUS_CONF_PATH=$DALORADIUS_PATH/app/common/includes/daloradius.conf.php
+    DALORADIUS_VERSION="master"
+    echo "[INFO] Detected master branch structure"
+elif [ -f "$DALORADIUS_PATH/library/daloradius.conf.php.sample" ]; then
+    DALORADIUS_CONF_PATH=$DALORADIUS_PATH/library/daloradius.conf.php
+    DALORADIUS_VERSION="v1"
+    echo "[INFO] Detected v1.x structure"
+else
+    echo "[ERROR] Could not detect daloRADIUS version structure"
+    exit 1
+fi
+
+# 1b. Configure Apache virtual hosts based on version
+echo "[INFO] Configuring Apache virtual hosts for $DALORADIUS_VERSION..."
+if [ "$DALORADIUS_VERSION" = "v1" ]; then
+    ln -sf /usr/local/apache2/conf/sites-available/operators-v1.conf \
+           /usr/local/apache2/conf/sites-enabled/operators.conf
+    ln -sf /usr/local/apache2/conf/sites-available/users-v1.conf \
+           /usr/local/apache2/conf/sites-enabled/users.conf
+    echo "[INFO] Using v1.x Apache configs"
+fi
+
+# 2. Copy sample config if not exists
 if [ ! -f "$DALORADIUS_CONF_PATH" ] || [ ! -s "$DALORADIUS_CONF_PATH" ]; then
     echo "[INFO] Copying sample config file..."
     cp "$DALORADIUS_CONF_PATH.sample" "$DALORADIUS_CONF_PATH"
@@ -17,7 +40,7 @@ else
     echo "[INFO] Config file already exists, skipping..."
 fi
 
-# 2. Configure database using sed (official approach)
+# 3. Configure database using sed (official approach)
 echo "[INFO] Configuring database settings..."
 
 [ -n "$MYSQL_HOST" ] && sed -i "s/\$configValues\['CONFIG_DB_HOST'\] = .*/\$configValues['CONFIG_DB_HOST'] = '$MYSQL_HOST';/" $DALORADIUS_CONF_PATH
@@ -41,14 +64,14 @@ sed -i "s|\$configValues\['CONFIG_LOG_FILE'\] = .*|\$configValues['CONFIG_LOG_FI
 
 echo "[INFO] Database configuration completed"
 
-# 3. Create log files and directories
+# 4. Create log files and directories
 echo "[INFO] Setting up log files..."
 touch /tmp/daloradius.log
 chown www-data:www-data /tmp/daloradius.log
 mkdir -p /usr/local/apache2/logs/daloradius
 chown www-data:www-data /usr/local/apache2/logs/daloradius
 
-# 4. Wait for MySQL
+# 5. Wait for MySQL
 MYSQL_CREDS="${MYSQL_USER:-root}:${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD}}"
 echo -n "[INFO] Waiting for MySQL ($MYSQL_HOST)..."
 
@@ -58,7 +81,7 @@ until mysqladmin ping -h"$MYSQL_HOST" -P"${MYSQL_PORT:-3306}" -u"${MYSQL_USER:-r
 done
 echo " OK"
 
-# 5. Initialize database if needed
+# 6. Initialize database if needed
 DB_LOCK=/data/.db_init_done
 if [ ! -f "$DB_LOCK" ]; then
     echo "[INFO] Checking database tables..."
@@ -87,12 +110,12 @@ else
     echo "[INFO] Database already initialized, skipping..."
 fi
 
-# 6. Set permissions
+# 7. Set permissions
 echo "[INFO] Setting permissions..."
 chown -R www-data:www-data /var/www/daloradius
 chmod -R 755 /var/www/daloradius
 
-# 7. Start Apache
+# 8. Start Apache
 echo "[INFO] Starting Apache..."
 echo "=========================================="
 echo "daloRADIUS is ready!"

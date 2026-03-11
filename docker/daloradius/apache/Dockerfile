@@ -2,6 +2,7 @@
 # syntax=docker/dockerfile:1.4
 FROM debian:bullseye AS base
 
+# ARG DALORADIUS_VERSION="1.3"
 ARG DALORADIUS_VERSION="master"
 ARG PHP_VERSION="7.4.33"
 ARG APACHE_VERSION="2.4.66"
@@ -46,17 +47,15 @@ ARG DALORADIUS_VERSION
 # Download and prepare daloRADIUS source (persists in image)
 RUN mkdir -p /tmp/downloads/daloradius && \
     cd /tmp/downloads/daloradius && \
-    if [ "$DALORADIUS_VERSION" = "master" ] || [ "$DALORADIUS_VERSION" = "1.3" ]; then \
+    if [ "$DALORADIUS_VERSION" = "master" ]; then \
         wget -q https://github.com/lirantal/daloradius/archive/refs/heads/master.zip -O daloradius.zip; \
     else \
         wget -q https://github.com/lirantal/daloradius/archive/refs/tags/${DALORADIUS_VERSION}.zip -O daloradius.zip; \
     fi && \
     unzip -q daloradius.zip && \
     rm daloradius.zip && \
-    # Move to persistent location
     mkdir -p /usr/src && \
     mv daloradius-* /usr/src/daloradius-source && \
-    # Cleanup
     rm -rf /tmp/downloads
 
 # ==========================================
@@ -73,6 +72,8 @@ COPY --from=daloradius /usr/src/daloradius-source /var/www/daloradius
 # Copy Apache virtual host configs from official daloRADIUS
 COPY contrib/docker/operators.conf /usr/local/apache2/conf/sites-available/
 COPY contrib/docker/users.conf /usr/local/apache2/conf/sites-available/
+COPY contrib/docker/operators-v1.conf /usr/local/apache2/conf/sites-available/
+COPY contrib/docker/users-v1.conf /usr/local/apache2/conf/sites-available/
 
 # Enable virtual hosts
 RUN mkdir -p /usr/local/apache2/conf/sites-enabled && \
