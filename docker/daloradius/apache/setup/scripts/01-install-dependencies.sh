@@ -48,6 +48,7 @@ apt-get install -y \
     libmcrypt-dev \
     libgettextpo-dev \
     default-mysql-client \
+    mime-support \
     && rm -rf /var/lib/apt/lists/*
 
 echo "=== Dependencies installed successfully ==="
