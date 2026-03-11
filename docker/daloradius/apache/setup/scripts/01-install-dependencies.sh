@@ -49,6 +49,7 @@ apt-get install -y \
     libgettextpo-dev \
     default-mysql-client \
     mime-support \
+    freeradius-utils \
     && rm -rf /var/lib/apt/lists/*
 
 echo "=== Dependencies installed successfully ==="
