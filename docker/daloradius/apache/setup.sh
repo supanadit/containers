@@ -17,9 +17,8 @@ ${SCRIPT_DIR}/02-install-apr.sh
 ${SCRIPT_DIR}/03-install-apache.sh
 ${SCRIPT_DIR}/04-install-php.sh
 ${SCRIPT_DIR}/05-install-pear.sh
-${SCRIPT_DIR}/06-install-daloradius.sh
-${SCRIPT_DIR}/07-configure-apache.sh
-${SCRIPT_DIR}/08-cleanup.sh
+${SCRIPT_DIR}/06-configure-apache.sh
+${SCRIPT_DIR}/07-cleanup.sh
 
 echo "=========================================="
 echo "Setup completed successfully!"
