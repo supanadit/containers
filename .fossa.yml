@@ -1,0 +1,58 @@
+version: 3
+
+fossa:
+  # Project identifier
+  project: containers
+
+  # Include all docker directories
+  targets:
+    - path: docker/postgresql
+      name: postgresql
+    - path: docker/wordpress
+      name: wordpress
+    - path: docker/mariadb
+      name: mariadb
+    - path: docker/prometheus
+      name: prometheus
+    - path: docker/grafana
+      name: grafana
+    - path: docker/grafana-loki
+      name: grafana-loki
+    - path: docker/grafana-mimir
+      name: grafana-mimir
+    - path: docker/grafana-tempo
+      name: grafana-tempo
+    - path: docker/grafana-pyroscope
+      name: grafana-pyroscope
+    - path: docker/grafana-alloy
+      name: grafana-alloy
+    - path: docker/minio
+      name: minio
+    - path: docker/etcd
+      name: etcd
+    - path: docker/thanos
+      name: thanos
+    - path: docker/pgpool-ii
+      name: pgpool-ii
+    - path: docker/apache-cassandra
+      name: apache-cassandra
+    - path: docker/apache-kafka
+      name: apache-kafka
+    - path: docker/apache-zookeeper
+      name: apache-zookeeper
+    - path: docker/apache-spark
+      name: apache-spark
+    - path: docker/apache-flink
+      name: apache-flink
+    - path: docker/apache-airflow
+      name: apache-airflow
+
+  # Analyze Dockerfiles for base image dependencies
+  docker:
+    enabled: true
+
+  # Ignore vendored or build-only dependencies
+  ignore:
+    - path: docker/*/entrypoint.d/*
+    - path: docker/*/config/*
+    - path: docker/*/setup/*
