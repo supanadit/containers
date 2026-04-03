@@ -70,9 +70,34 @@ See `docker-compose.example.yml` for a complete example with multiple PostgreSQL
 #### Health Check
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PGPOOL_HEALTH_CHECK_TIMEOUT` | `20` | Health check timeout in seconds |
-| `PGPOOL_HEALTH_CHECK_PERIOD` | `0` | Health check interval in seconds (0 = disabled) |
+| `PGPOOL_HEALTH_CHECK_TIMEOUT` | `5` | Health check timeout in seconds |
+| `PGPOOL_HEALTH_CHECK_PERIOD` | `10` | Health check interval in seconds |
 | `PGPOOL_HEALTH_CHECK_USER` | `postgres` | User for health checks |
+| `PGPOOL_HEALTH_CHECK_PASSWORD` | (from `PGPOOL_BACKEND_PASSWORD`) | Password for health checks |
+| `PGPOOL_HEALTH_CHECK_DATABASE` | `postgres` | Database for health checks |
+| `PGPOOL_HEALTH_CHECK_MAX_RETRIES` | `0` | Max retry attempts on failure |
+| `PGPOOL_HEALTH_CHECK_RETRY_DELAY` | `1` | Seconds to wait before retry |
+
+#### Streaming Replication Check
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PGPOOL_SR_CHECK_PERIOD` | `10` | Streaming replication check interval in seconds |
+| `PGPOOL_SR_CHECK_USER` | (from `PGPOOL_BACKEND_USER`) | User for replication check |
+| `PGPOOL_SR_CHECK_PASSWORD` | (from `PGPOOL_BACKEND_PASSWORD`) | Password for replication check |
+| `PGPOOL_SR_CHECK_DATABASE` | `postgres` | Database for replication check |
+| `PGPOOL_DELAY_THRESHOLD` | `0` | Max replication delay in bytes (0 = disabled) |
+| `PGPOOL_DELAY_THRESHOLD_BY_TIME` | `0` | Max replication delay in seconds |
+| `PGPOOL_PREFER_LOWER_DELAY_STANDBY` | `off` | Prefer standby with lowest delay |
+
+#### Primary Node Detection
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT` | `10` | Timeout in seconds to find primary node |
+
+#### Failover Configuration
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PGPOOL_FAILOVER_COMMAND` | `""` | Command to execute on failover (optional) |
 
 #### Authentication
 | Variable | Default | Description |

@@ -43,13 +43,13 @@ export PGPOOL_BACKEND_USER="${PGPOOL_BACKEND_USER:-postgres}"
 export PGPOOL_BACKEND_PASSWORD="${PGPOOL_BACKEND_PASSWORD:-}"
 
 # Health check
-export PGPOOL_HEALTH_CHECK_TIMEOUT="${PGPOOL_HEALTH_CHECK_TIMEOUT:-20}"
-export PGPOOL_HEALTH_CHECK_PERIOD="${PGPOOL_HEALTH_CHECK_PERIOD:-0}"
+export PGPOOL_HEALTH_CHECK_TIMEOUT="${PGPOOL_HEALTH_CHECK_TIMEOUT:-5}"
+export PGPOOL_HEALTH_CHECK_PERIOD="${PGPOOL_HEALTH_CHECK_PERIOD:-10}"
 export PGPOOL_HEALTH_CHECK_USER="${PGPOOL_HEALTH_CHECK_USER:-$PGPOOL_BACKEND_USER}"
-export PGPOOL_HEALTH_CHECK_PASSWORD="${PGPOOL_HEALTH_CHECK_PASSWORD:-}"
-export PGPOOL_HEALTH_CHECK_DATABASE="${PGPOOL_HEALTH_CHECK_DATABASE:-}"
+export PGPOOL_HEALTH_CHECK_PASSWORD="${PGPOOL_HEALTH_CHECK_PASSWORD:-$PGPOOL_BACKEND_PASSWORD}"
+export PGPOOL_HEALTH_CHECK_DATABASE="${PGPOOL_HEALTH_CHECK_DATABASE:-postgres}"
 export PGPOOL_HEALTH_CHECK_MAX_RETRIES="${PGPOOL_HEALTH_CHECK_MAX_RETRIES:-0}"
-export PGPOOL_HEALTH_CHECK_RETRY_DELAY="${PGPOOL_HEALTH_CHECK_RETRY_DELAY:-0}"
+export PGPOOL_HEALTH_CHECK_RETRY_DELAY="${PGPOOL_HEALTH_CHECK_RETRY_DELAY:-1}"
 
 # Connection timeout
 export PGPOOL_CONNECT_TIMEOUT="${PGPOOL_CONNECT_TIMEOUT:-10000}"
@@ -57,12 +57,18 @@ export PGPOOL_CONNECT_TIMEOUT="${PGPOOL_CONNECT_TIMEOUT:-10000}"
 # Streaming replication check
 export PGPOOL_SR_CHECK_PERIOD="${PGPOOL_SR_CHECK_PERIOD:-10}"
 export PGPOOL_SR_CHECK_USER="${PGPOOL_SR_CHECK_USER:-$PGPOOL_BACKEND_USER}"
-export PGPOOL_SR_CHECK_PASSWORD="${PGPOOL_SR_CHECK_PASSWORD:-}"
+export PGPOOL_SR_CHECK_PASSWORD="${PGPOOL_SR_CHECK_PASSWORD:-$PGPOOL_BACKEND_PASSWORD}"
 export PGPOOL_SR_CHECK_DATABASE="${PGPOOL_SR_CHECK_DATABASE:-postgres}"
 export PGPOOL_DELAY_THRESHOLD="${PGPOOL_DELAY_THRESHOLD:-0}"
 export PGPOOL_DELAY_THRESHOLD_BY_TIME="${PGPOOL_DELAY_THRESHOLD_BY_TIME:-0}"
 export PGPOOL_PREFER_LOWER_DELAY_STANDBY="${PGPOOL_PREFER_LOWER_DELAY_STANDBY:-off}"
 export PGPOOL_LOG_STANDBY_DELAY="${PGPOOL_LOG_STANDBY_DELAY:-if_over_threshold}"
+
+# Primary node detection
+export PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT="${PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT:-10}"
+
+# Failover configuration
+export PGPOOL_FAILOVER_COMMAND="${PGPOOL_FAILOVER_COMMAND:-}"
 
 # Master slave mode
 export PGPOOL_MASTER_SLAVE_MODE="${PGPOOL_MASTER_SLAVE_MODE:-on}"
@@ -168,16 +174,12 @@ parse_backends() {
     if [ -n "${PGPOOL_BACKEND_FLAGS:-}" ]; then
         IFS=',' read -ra FLAG_ARRAY <<< "$PGPOOL_BACKEND_FLAGS"
     else
-        # Default flags based on master slave mode
+        # Default flags: in master/slave mode, all backends DISALLOW_TO_FAILOVER
+        # because failover is handled manually (ConfigMap changes)
+        # Only set ALLOW_TO_FAILOVER if explicitly needed
         FLAG_ARRAY=()
         for ((i=0; i<${#BACKEND_ARRAY[@]}; i++)); do
-            if [ "$PGPOOL_MASTER_SLAVE_MODE" = "on" ] && [ $i -eq 0 ]; then
-                FLAG_ARRAY[i]="ALLOW_TO_FAILOVER"
-            elif [ "$PGPOOL_MASTER_SLAVE_MODE" = "on" ]; then
-                FLAG_ARRAY[i]="DISALLOW_TO_FAILOVER"
-            else
-                FLAG_ARRAY[i]="ALLOW_TO_FAILOVER"
-            fi
+            FLAG_ARRAY[i]="DISALLOW_TO_FAILOVER"
         done
     fi
     
@@ -418,6 +420,9 @@ delay_threshold_by_time = $PGPOOL_DELAY_THRESHOLD_BY_TIME
 prefer_lower_delay_standby = $PGPOOL_PREFER_LOWER_DELAY_STANDBY
 log_standby_delay = '$PGPOOL_LOG_STANDBY_DELAY'
 
+# Primary node detection
+search_primary_node_timeout = $PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT
+
 # Logging
 log_destination = 'stderr'
 log_line_prefix = '%t: pid %p: '
@@ -431,6 +436,11 @@ client_min_messages = notice
 log_min_messages = warning
 
 EOF
+
+    # Add failover_command if configured
+    if [ -n "${PGPOOL_FAILOVER_COMMAND:-}" ]; then
+        echo "failover_command = '$PGPOOL_FAILOVER_COMMAND'" >> "$config_file"
+    fi
 
     # Add backend configurations
     for ((i=0; i<${#BACKEND_ARRAY[@]}; i++)); do
