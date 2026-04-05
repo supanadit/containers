@@ -122,13 +122,6 @@ main() {
         # Generate secure default configurations
         generate_secure_defaults
 
-        # Apply environment variable overrides
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
-            apply_environment_overrides
-        else
-            log_info "Patroni mode enabled, skipping environment overrides on config files"
-        fi
-
         # Apply external access configuration
         if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
             apply_external_access_config
@@ -148,6 +141,13 @@ main() {
             apply_native_ha_config
         else
             log_info "Patroni mode enabled, HA configuration is handled by Patroni"
+        fi
+
+        # Apply environment variable overrides (run LAST to ensure user settings override all)
+        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+            apply_environment_overrides
+        else
+            log_info "Patroni mode enabled, skipping environment overrides on config files"
         fi
 
         # Validate final configurations
@@ -486,13 +486,19 @@ apply_native_ha_config() {
         apply_postgres_setting "listen_addresses" "*"
         apply_postgres_setting "wal_level" "replica"
         apply_postgres_setting "max_wal_senders" "10"
+        apply_postgres_setting "max_replication_slots" "10"
         apply_postgres_setting "wal_keep_size" "256MB"
         apply_postgres_setting "hot_standby" "on"
 
         # Configure synchronous replication based on REPLICATION_SYNCHRONOUS_MODE
         local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
+        local data_dir="${PGDATA:-/usr/local/pgsql/data}"
         if [ "$repl_sync" = "true" ]; then
             apply_postgres_setting "synchronous_standby_names" "*"
+        else
+            # Remove any existing synchronous_standby_names to ensure async mode
+            # This allows toggling between sync/async without re-cloning from primary
+            sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$data_dir/postgresql.conf"
         fi
 
         if [[ "${REPLICATION_ROLE:-}" == "primary" ]]; then
