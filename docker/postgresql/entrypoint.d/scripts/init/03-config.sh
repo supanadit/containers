@@ -382,6 +382,10 @@ apply_environment_overrides() {
         log_debug "Restored postgresql.conf from backup for fresh override application"
     fi
 
+    # Re-apply synchronous replication settings since restore may have overwritten them
+    # This handles both fresh clone and restart scenarios
+    apply_sync_mode_config
+
     # PostgreSQL settings overrides
     apply_postgres_setting "shared_buffers" "${POSTGRESQL_SHARED_BUFFERS:-}"
     apply_postgres_setting "max_connections" "${POSTGRESQL_MAX_CONNECTIONS:-}"
@@ -410,6 +414,19 @@ apply_environment_overrides() {
         apply_postgres_setting "archive_command" "$clean_env_cmd pgbackrest --config=/etc/pgbackrest.conf --stanza=${PGBACKREST_STANZA:-default} archive-push %p"
     else
         apply_postgres_setting "archive_mode" "off"
+    fi
+}
+
+# Re-apply synchronous replication settings after restore from backup
+apply_sync_mode_config() {
+    if [[ "${HA_MODE:-}" == "native" ]]; then
+        local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
+        local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+        if [ "$repl_sync" = "true" ]; then
+            apply_postgres_setting "synchronous_standby_names" "*"
+        else
+            sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$data_dir/postgresql.conf"
+        fi
     fi
 }
 
