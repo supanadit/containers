@@ -62,6 +62,22 @@ validate_environment() {
             ;;
     esac
 
+    # Validate REPLICATION_SYNCHRONOUS_COUNT (only relevant when REPLICATION_SYNCHRONOUS_MODE is true)
+    if [ "${REPLICATION_SYNCHRONOUS_MODE:-true}" = "true" ] && [ -n "${REPLICATION_SYNCHRONOUS_COUNT:-}" ]; then
+        if ! [[ "$REPLICATION_SYNCHRONOUS_COUNT" =~ ^[0-9]+$ ]] || [ "$REPLICATION_SYNCHRONOUS_COUNT" -lt 1 ]; then
+            log_error "Invalid REPLICATION_SYNCHRONOUS_COUNT: ${REPLICATION_SYNCHRONOUS_COUNT} (must be a positive integer)"
+            exit_code=1
+        fi
+    fi
+
+    # Validate REPLICATION_SYNCHRONOUS_REPLICAS (comma-separated list of replica app names for quorum)
+    if [ "${REPLICATION_SYNCHRONOUS_MODE:-true}" = "true" ] && [ -n "${REPLICATION_SYNCHRONOUS_COUNT:-}" ]; then
+        if [ -z "${REPLICATION_SYNCHRONOUS_REPLICAS:-}" ]; then
+            log_error "REPLICATION_SYNCHRONOUS_REPLICAS must be set when REPLICATION_SYNCHRONOUS_COUNT is specified"
+            exit_code=1
+        fi
+    fi
+
     case "${SLEEP_MODE:-false}" in
         true|false) ;;
         *)

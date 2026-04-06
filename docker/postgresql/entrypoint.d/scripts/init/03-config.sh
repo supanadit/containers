@@ -421,11 +421,20 @@ apply_environment_overrides() {
 apply_sync_mode_config() {
     if [[ "${HA_MODE:-}" == "native" ]]; then
         local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
+        local repl_sync_count="${REPLICATION_SYNCHRONOUS_COUNT:-}"
+        local repl_sync_replicas="${REPLICATION_SYNCHRONOUS_REPLICAS:-}"
         local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+        local config_file="$data_dir/postgresql.conf"
         if [ "$repl_sync" = "true" ]; then
-            apply_postgres_setting "synchronous_standby_names" "*"
+            if [ -n "$repl_sync_count" ] && [ -n "$repl_sync_replicas" ]; then
+                local ssn_value="ANY ${repl_sync_count} (${repl_sync_replicas})"
+                sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$config_file"
+                echo "synchronous_standby_names = '${ssn_value}'" >> "$config_file"
+            else
+                apply_postgres_setting "synchronous_standby_names" "*"
+            fi
         else
-            sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$data_dir/postgresql.conf"
+            sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$config_file"
         fi
     fi
 }
@@ -509,13 +518,20 @@ apply_native_ha_config() {
 
         # Configure synchronous replication based on REPLICATION_SYNCHRONOUS_MODE
         local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
+        local repl_sync_count="${REPLICATION_SYNCHRONOUS_COUNT:-}"
+        local repl_sync_replicas="${REPLICATION_SYNCHRONOUS_REPLICAS:-}"
         local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+        local config_file="$data_dir/postgresql.conf"
         if [ "$repl_sync" = "true" ]; then
-            apply_postgres_setting "synchronous_standby_names" "*"
+            if [ -n "$repl_sync_count" ] && [ -n "$repl_sync_replicas" ]; then
+                local ssn_value="ANY ${repl_sync_count} (${repl_sync_replicas})"
+                sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$config_file"
+                echo "synchronous_standby_names = '${ssn_value}'" >> "$config_file"
+            else
+                apply_postgres_setting "synchronous_standby_names" "*"
+            fi
         else
-            # Remove any existing synchronous_standby_names to ensure async mode
-            # This allows toggling between sync/async without re-cloning from primary
-            sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$data_dir/postgresql.conf"
+            sed -i '/^[[:space:]]*synchronous_standby_names[[:space:]]*=.*/d' "$config_file"
         fi
 
         if [[ "${REPLICATION_ROLE:-}" == "primary" ]]; then

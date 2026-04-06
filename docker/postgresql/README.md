@@ -59,6 +59,20 @@ PostgreSQL listens on port 5432, PgBouncer on port 6432.
 - `REPLICATION_PASSWORD` - Replication user password (default: replicator_password)
 - `REPLICATION_SYNCHRONOUS_MODE` - Enable synchronous replication (default: true)
   - Controls synchronous replication settings in both Patroni and Native HA modes
+  - When `true`, primary waits for replicas before committing transactions
+  - When `false`, replication is asynchronous (better performance, no durability guarantee)
+- `REPLICATION_SYNCHRONOUS_COUNT` - Number of replicas required for synchronous commit (default: unset)
+  - Only applicable when `REPLICATION_SYNCHRONOUS_MODE` is `true`
+  - When set along with `REPLICATION_SYNCHRONOUS_REPLICAS`, enables quorum-based synchronous replication
+  - Example: `2` means primary waits for at least 2 replicas to acknowledge
+- `REPLICATION_SYNCHRONOUS_REPLICAS` - Comma-separated list of replica application names for quorum
+  - Only applicable when `REPLICATION_SYNCHRONOUS_COUNT` is set
+  - These names must match what replicas send via `application_name` in their connection
+  - Example: `replica1,replica2` with `REPLICATION_SYNCHRONOUS_COUNT=2` produces `ANY 2 (replica1,replica2)`
+- `REPLICATION_APPNAME` - Application name for this replica to use when connecting to primary
+  - Used on replica nodes to identify itself to the primary
+  - Defaults to the container's hostname if not set
+  - The primary uses this name in `synchronous_standby_names` for quorum mode
 - `POSTGRES_CONF_XXX` - Additional PostgreSQL configuration parameters (replace `XXX` with actual parameter name, use underscores instead of dots)
 
 ### PgBackRest Configuration

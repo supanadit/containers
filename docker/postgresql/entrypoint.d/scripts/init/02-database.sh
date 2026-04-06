@@ -214,7 +214,30 @@ clone_primary() {
     fi
 
     unset PGPASSWORD
+
+    configure_replica_appname
+
     log_info "Successfully cloned primary database."
+}
+
+configure_replica_appname() {
+    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local auto_conf="${data_dir}/postgresql.auto.conf"
+
+    if [ ! -f "$auto_conf" ]; then
+        log_debug "postgresql.auto.conf not found, skipping application_name configuration"
+        return 0
+    fi
+
+    local appname="${REPLICATION_APPNAME:-$(hostname)}"
+
+    if grep -q "^[[:space:]]*primary_conninfo" "$auto_conf"; then
+        sed -i "s/\(primary_conninfo = '.*\)'/\1 application_name=${appname}'/" "$auto_conf"
+        log_debug "Added application_name=${appname} to primary_conninfo"
+    else
+        echo "primary_conninfo = 'application_name=${appname}'" >> "$auto_conf"
+        log_debug "Created primary_conninfo with application_name=${appname}"
+    fi
 }
 
 # Initialize PostgreSQL cluster
