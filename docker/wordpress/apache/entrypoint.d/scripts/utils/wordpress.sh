@@ -4,7 +4,17 @@
 # Generate WordPress salts
 generate_wordpress_salts() {
     log_info "Generating WordPress salts"
-    curl -s https://api.wordpress.org/secret-key/1.1/salt/
+
+    if salts=$(curl -s --max-time 10 https://api.wordpress.org/secret-key/1.1/salt/); then
+        echo "$salts"
+    else
+        log_warn "WordPress salt API failed, generating salts locally"
+        for key in AUTH_KEY SECURE_AUTH_KEY LOGGED_IN_KEY NONCE_KEY \
+                   AUTH_SALT SECURE_AUTH_SALT LOGGED_IN_SALT NONCE_SALT; do
+            random_value=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9!@#$%^&*()-_=+' | head -c 64)
+            echo "define('$key', '$random_value');"
+        done
+    fi
 }
 
 # Update wp-config.php with database settings
