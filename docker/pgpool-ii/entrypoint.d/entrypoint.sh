@@ -16,6 +16,12 @@ export PGPOOL_LOG_DIR="${PGPOOL_LOG_DIR:-/var/log/pgpool}"
 export PGPOOL_RUN_DIR="${PGPOOL_RUN_DIR:-/var/run/pgpool}"
 export PGPOOL_USER="${PGPOOL_USER:-postgres}"
 
+# SSL/TLS Configuration
+export PGPOOL_SSL="${PGPOOL_SSL:-off}"
+export PGPOOL_SSL_KEY="${PGPOOL_SSL_KEY:-}"
+export PGPOOL_SSL_CERT="${PGPOOL_SSL_CERT:-}"
+export PGPOOL_SSL_SECURITY_MODE="${PGPOOL_SSL_SECURITY_MODE:-postgresql}"
+
 # PostgreSQL backend configuration
 export PGPOOL_BACKENDS="${PGPOOL_BACKENDS:-}"
 export PGPOOL_BACKEND_WEIGHTS="${PGPOOL_BACKEND_WEIGHTS:-}"
@@ -54,6 +60,14 @@ export PGPOOL_HEALTH_CHECK_RETRY_DELAY="${PGPOOL_HEALTH_CHECK_RETRY_DELAY:-1}"
 # Connection timeout
 export PGPOOL_CONNECT_TIMEOUT="${PGPOOL_CONNECT_TIMEOUT:-10000}"
 
+# PCP (PgPool Control Protocol)
+export PGPOOL_PCP_TIMEOUT="${PGPOOL_PCP_TIMEOUT:-10}"
+export PGPOOL_PCP_NUM_CHILDREN="${PGPOOL_PCP_NUM_CHILDREN:-32}"
+
+# Logging
+export PGPOOL_LOG_MIN_MESSAGES="${PGPOOL_LOG_MIN_MESSAGES:-warning}"
+export PGPOOL_LOG_HOSTNAME="${PGPOOL_LOG_HOSTNAME:-on}"
+
 # Streaming replication check
 export PGPOOL_SR_CHECK_PERIOD="${PGPOOL_SR_CHECK_PERIOD:-10}"
 export PGPOOL_SR_CHECK_USER="${PGPOOL_SR_CHECK_USER:-$PGPOOL_BACKEND_USER}"
@@ -70,13 +84,39 @@ export PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT="${PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT:
 # Failover configuration
 export PGPOOL_FAILOVER_COMMAND="${PGPOOL_FAILOVER_COMMAND:-}"
 
+# Watchdog (High Availability)
+export PGPOOL_ENABLE_WATCHDOG="${PGPOOL_ENABLE_WATCHDOG:-off}"
+export PGPOOL_WD_HOSTNAME="${PGPOOL_WD_HOSTNAME:-}"
+export PGPOOL_WD_PORT="${PGPOOL_WD_PORT:-9000}"
+export PGPOOL_WD_AUTHENTICATION="${PGPOOL_WD_AUTHENTICATION:-}"
+export PGPOOL_DELegate_IP="${PGPOOL_DELegate_IP:-}"
+export PGPOOL_WD_LIFECHECK_METHOD="${PGPOOL_WD_LIFECHECK_METHOD:-heartbeat}"
+export PGPOOL_WD_INTERVAL="${PGPOOL_WD_INTERVAL:-10}"
+export PGPOOL_WD_PRIORITY="${PGPOOL_WD_PRIORITY:-1}"
+export PGPOOL_WD_FAILOVER_TIMEOUT="${PGPOOL_WD_FAILOVER_TIMEOUT:-15}"
+
 # Master slave mode
 export PGPOOL_MASTER_SLAVE_MODE="${PGPOOL_MASTER_SLAVE_MODE:-on}"
 export PGPOOL_MASTER_SLAVE_SUB_MODE="${PGPOOL_MASTER_SLAVE_SUB_MODE:-stream}"
 
+# Memory Cache (Query Cache)
+export PGPOOL_MEMORY_CACHE_MODE="${PGPOOL_MEMORY_CACHE_MODE:-off}"
+export PGPOOL_MEMQCACHE_CACHE_BLOCKS="${PGPOOL_MEMQCACHE_CACHE_BLOCKS:-8192}"
+export PGPOOL_MEMQCACHE_BLOCK_SIZE="${PGPOOL_MEMQCACHE_BLOCK_SIZE:-1048576}"
+export PGPOOL_MEMQCACHE_MAXCACHE="${PGPOOL_MEMQCACHE_MAXCACHE:-50}"
+export PGPOOL_MEMQCACHE_EXPIRE_TIME="${PGPOOL_MEMQCACHE_EXPIRE_TIME:-10000}"
+export PGPOOL_MEMQCACHE_TOTAL_SIZE="${PGPOOL_MEMQCACHE_TOTAL_SIZE:-1024}"
+
 # Connection pooling
 export PGPOOL_CONNECTION_CACHE="${PGPOOL_CONNECTION_CACHE:-on}"
 export PGPOOL_RESET_QUERY_LIST="${PGPOOL_RESET_QUERY_LIST:-ABORT; DISCARD ALL}"
+
+# Query Routing & Validation
+export PGPOOL_ENABLE_HINT_QUERY="${PGPOOL_ENABLE_HINT_QUERY:-off}"
+export PGPOOL_VALIDATE_QUERY="${PGPOOL_VALIDATE_QUERY:-off}"
+export PGPOOL_REPLICATION_CHECK="${PGPOOL_REPLICATION_CHECK:-off}"
+export PGPOOL_AUTO_DB_REMOVE="${PGPOOL_AUTO_DB_REMOVE:-off}"
+export PGPOOL_AUTOICACHE_REMOVE="${PGPOOL_AUTOICACHE_REMOVE:-off}"
 
 # Logging functions
 log_info() {
@@ -117,6 +157,26 @@ validate_environment() {
         if ! command -v jq >/dev/null 2>&1; then
             log_error "jq is required for Patroni integration but not found"
             exit 1
+        fi
+    fi
+    
+    # Validate Watchdog configuration
+    if [ "${PGPOOL_ENABLE_WATCHDOG:-off}" = "on" ]; then
+        log_info "Watchdog enabled"
+        if [ -z "${PGPOOL_WD_HOSTNAME:-}" ]; then
+            log_error "PGPOOL_WD_HOSTNAME is required when watchdog is enabled"
+            exit 1
+        fi
+        if [ -z "${PGPOOL_DELegate_IP:-}" ]; then
+            log_error "PGPOOL_DELegate_IP is required when watchdog is enabled"
+            exit 1
+        fi
+    fi
+    
+    # Validate SSL configuration
+    if [ "${PGPOOL_SSL:-off}" = "on" ]; then
+        if [ -z "${PGPOOL_SSL_KEY:-}" ] || [ -z "${PGPOOL_SSL_CERT:-}" ]; then
+            log_warn "SSL enabled but SSL_KEY or SSL_CERT not provided"
         fi
     fi
     
@@ -366,6 +426,7 @@ listen_addresses = '*'
 port = $PGPOOL_PORT
 pcp_listen_addresses = '*'
 pcp_port = $PGPOOL_PCP_PORT
+pcp_timeout = $PGPOOL_PCP_TIMEOUT
 
 # Pool settings
 num_init_children = $PGPOOL_NUM_INIT_CHILDREN
@@ -381,6 +442,11 @@ ignore_leading_white_space = $PGPOOL_IGNORE_LEADING_WHITE_SPACE
 # Master slave mode
 master_slave_mode = $PGPOOL_MASTER_SLAVE_MODE
 master_slave_sub_mode = '$PGPOOL_MASTER_SLAVE_SUB_MODE'
+
+# Query routing and validation
+enable_hint_query = $PGPOOL_ENABLE_HINT_QUERY
+validate_query = $PGPOOL_VALIDATE_QUERY
+replication_check = $PGPOOL_REPLICATION_CHECK
 EOF
 
     # Add follow_master_command if the script exists
@@ -388,11 +454,27 @@ EOF
         echo "follow_master_command = '$PGPOOL_CONFIG_DIR/follow_master.sh'" >> "$config_file"
     fi
 
+    # Add Memory Cache configuration if enabled
+    if [ "$PGPOOL_MEMORY_CACHE_MODE" = "on" ]; then
+        cat >> "$config_file" << EOF
+
+# Memory Cache (Query Cache)
+memory_cache_mode = on
+memqcache_cache_blocks = $PGPOOL_MEMQCACHE_CACHE_BLOCKS
+memqcache_block_size = $PGPOOL_MEMQCACHE_BLOCK_SIZE
+memqcache_maxcache = $PGPOOL_MEMQCACHE_MAXCACHE
+memqcache_expire_time = $PGPOOL_MEMQCACHE_EXPIRE_TIME
+memqcache_total_size = $PGPOOL_MEMQCACHE_TOTAL_SIZE
+EOF
+    fi
+
     cat >> "$config_file" << EOF
 
 # Connection pooling
 connection_cache = $PGPOOL_CONNECTION_CACHE
 reset_query_list = '$PGPOOL_RESET_QUERY_LIST'
+auto_db_remove = $PGPOOL_AUTO_DB_REMOVE
+autoicache_remove = $PGPOOL_AUTOICACHE_REMOVE
 
 # Authentication
 enable_pool_hba = $PGPOOL_ENABLE_POOL_HBA
@@ -423,17 +505,55 @@ log_standby_delay = '$PGPOOL_LOG_STANDBY_DELAY'
 # Primary node detection
 search_primary_node_timeout = $PGPOOL_SEARCH_PRIMARY_NODE_TIMEOUT
 
+# SSL/TLS Configuration
+ssl = $PGPOOL_SSL
+EOF
+
+    # Add SSL certificate paths if SSL is enabled
+    if [ "$PGPOOL_SSL" = "on" ]; then
+        if [ -n "${PGPOOL_SSL_KEY:-}" ]; then
+            echo "ssl_key = '$PGPOOL_SSL_KEY'" >> "$config_file"
+        fi
+        if [ -n "${PGPOOL_SSL_CERT:-}" ]; then
+            echo "ssl_cert = '$PGPOOL_SSL_CERT'" >> "$config_file"
+        fi
+        if [ -n "${PGPOOL_SSL_SECURITY_MODE:-}" ]; then
+            echo "ssl_security_mode = '$PGPOOL_SSL_SECURITY_MODE'" >> "$config_file"
+        fi
+    fi
+
+    # Add Watchdog configuration if enabled
+    if [ "${PGPOOL_ENABLE_WATCHDOG:-off}" = "on" ]; then
+        cat >> "$config_file" << EOF
+
+# Watchdog (High Availability)
+use_watchdog = on
+wd_hostname = '$PGPOOL_WD_HOSTNAME'
+wd_port = $PGPOOL_WD_PORT
+delegate_IP = '$PGPOOL_DELegate_IP'
+wd_lifecheck_method = '$PGPOOL_WD_LIFECHECK_METHOD'
+wd_interval = $PGPOOL_WD_INTERVAL
+wd_priority = $PGPOOL_WD_PRIORITY
+wd_failover_timeout = $PGPOOL_WD_FAILOVER_TIMEOUT
+EOF
+        if [ -n "${PGPOOL_WD_AUTHENTICATION:-}" ]; then
+            echo "wd_authentication = '$PGPOOL_WD_AUTHENTICATION'" >> "$config_file"
+        fi
+    fi
+
+    cat >> "$config_file" << EOF
+
 # Logging
 log_destination = 'stderr'
 log_line_prefix = '%t: pid %p: '
 log_connections = on
-log_hostname = on
+log_hostname = $PGPOOL_LOG_HOSTNAME
 log_statement = off
 
 # Error reporting
 log_error_verbosity = default
 client_min_messages = notice
-log_min_messages = warning
+log_min_messages = $PGPOOL_LOG_MIN_MESSAGES
 
 EOF
 
