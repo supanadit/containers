@@ -27,6 +27,40 @@ else # event
     sed -i 's/^LoadModule mpm_prefork_module/#LoadModule mpm_prefork_module/' /usr/local/apache2/conf/httpd.conf
 fi
 
+# Low Memory Mode - auto-tune for constrained environments (e.g., 256MB RAM)
+if [ "${APACHE_LOW_MEMORY_MODE:-false}" = "true" ]; then
+    log_info "Enabling Apache low memory mode"
+    export APACHE_INCLUDE_CONFIG_MPM="true"
+
+    if [ "$APACHE_MPM" = "prefork" ]; then
+        log_info "Applying low memory settings for Prefork MPM"
+        export APACHE_CUSTOM_MPM_PREFORK="true"
+        export APACHE_MPM_PREFORK_START_SERVERS="${APACHE_MPM_PREFORK_START_SERVERS:-2}"
+        export APACHE_MPM_PREFORK_MIN_SPARE_SERVERS="${APACHE_MPM_PREFORK_MIN_SPARE_SERVERS:-1}"
+        export APACHE_MPM_PREFORK_MAX_SPARE_SERVERS="${APACHE_MPM_PREFORK_MAX_SPARE_SERVERS:-3}"
+        export APACHE_MPM_PREFORK_MAX_REQUEST_WORKERS="${APACHE_MPM_PREFORK_MAX_REQUEST_WORKERS:-10}"
+        export APACHE_MPM_PREFORK_MAX_REQUESTS_PER_CHILD="${APACHE_MPM_PREFORK_MAX_REQUESTS_PER_CHILD:-100}"
+    elif [ "$APACHE_MPM" = "worker" ]; then
+        log_info "Applying low memory settings for Worker MPM"
+        export APACHE_CUSTOM_MPM_WORKER="true"
+        export APACHE_MPM_WORKER_START_SERVERS="${APACHE_MPM_WORKER_START_SERVERS:-1}"
+        export APACHE_MPM_WORKER_MIN_SPARE_THREADS="${APACHE_MPM_WORKER_MIN_SPARE_THREADS:-10}"
+        export APACHE_MPM_WORKER_MAX_SPARE_THREADS="${APACHE_MPM_WORKER_MAX_SPARE_THREADS:-25}"
+        export APACHE_MPM_WORKER_THREADS_PER_CHILD="${APACHE_MPM_WORKER_THREADS_PER_CHILD:-10}"
+        export APACHE_MPM_WORKER_MAX_REQUEST_WORKERS="${APACHE_MPM_WORKER_MAX_REQUEST_WORKERS:-50}"
+        export APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD="${APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD:-100}"
+    else # event
+        log_info "Applying low memory settings for Event MPM"
+        export APACHE_CUSTOM_MPM_EVENT="true"
+        export APACHE_MPM_EVENT_START_SERVERS="${APACHE_MPM_EVENT_START_SERVERS:-1}"
+        export APACHE_MPM_EVENT_MIN_SPARE_THREADS="${APACHE_MPM_EVENT_MIN_SPARE_THREADS:-10}"
+        export APACHE_MPM_EVENT_MAX_SPARE_THREADS="${APACHE_MPM_EVENT_MAX_SPARE_THREADS:-25}"
+        export APACHE_MPM_EVENT_THREADS_PER_CHILD="${APACHE_MPM_EVENT_THREADS_PER_CHILD:-10}"
+        export APACHE_MPM_EVENT_MAX_REQUEST_WORKERS="${APACHE_MPM_EVENT_MAX_REQUEST_WORKERS:-50}"
+        export APACHE_MPM_EVENT_MAX_CONNECTIONS_PER_CHILD="${APACHE_MPM_EVENT_MAX_CONNECTIONS_PER_CHILD:-100}"
+    fi
+fi
+
 # APACHE_INCLUDE_CONFIG_MPM is true, it will include extra MPM config
 if [ "${APACHE_INCLUDE_CONFIG_MPM:-false}" = "true" ]; then
     log_info "Including MPM configuration file"
