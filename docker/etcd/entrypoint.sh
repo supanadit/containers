@@ -16,6 +16,15 @@ ETCD_INITIAL_CLUSTER=${ETCD_INITIAL_CLUSTER:-${ETCD_NAME}=http://${CONTAINER_IP}
 ETCD_INITIAL_CLUSTER_STATE=${ETCD_INITIAL_CLUSTER_STATE:-new}
 ETCD_INITIAL_CLUSTER_TOKEN=${ETCD_INITIAL_CLUSTER_TOKEN:-etcd-cluster}
 
+ETCD_CERT_FILE=${ETCD_CERT_FILE:-}
+ETCD_KEY_FILE=${ETCD_KEY_FILE:-}
+ETCD_CLIENT_CERT_AUTH=${ETCD_CLIENT_CERT_AUTH:-false}
+ETCD_TRUSTED_CA_FILE=${ETCD_TRUSTED_CA_FILE:-}
+ETCD_PEER_CERT_FILE=${ETCD_PEER_CERT_FILE:-}
+ETCD_PEER_KEY_FILE=${ETCD_PEER_KEY_FILE:-}
+ETCD_PEER_CLIENT_CERT_AUTH=${ETCD_PEER_CLIENT_CERT_AUTH:-false}
+ETCD_PEER_TRUSTED_CA_FILE=${ETCD_PEER_TRUSTED_CA_FILE:-}
+
 # Create data directory
 if [ ! -d "$ETCD_DATA_DIR" ]; then
     echo "Creating ETCD data directory at $ETCD_DATA_DIR"
@@ -47,7 +56,6 @@ start_etcd() {
     local initial_cluster_state="$ETCD_INITIAL_CLUSTER_STATE"
     local initial_cluster_token="$ETCD_INITIAL_CLUSTER_TOKEN"
     
-    # Unset environment variables to avoid conflicts with command-line flags
     unset ETCD_NAME
     unset ETCD_DATA_DIR
     unset ETCD_LISTEN_PEER_URLS
@@ -58,18 +66,49 @@ start_etcd() {
     unset ETCD_INITIAL_CLUSTER_STATE
     unset ETCD_INITIAL_CLUSTER_TOKEN
     
-    exec etcd \
-        --name="$name" \
-        --data-dir="$data_dir" \
-        --listen-peer-urls="$listen_peer_urls" \
-        --listen-client-urls="$listen_client_urls" \
-        --advertise-client-urls="$advertise_client_urls" \
-        --initial-advertise-peer-urls="$initial_advertise_peer_urls" \
-        --initial-cluster="$initial_cluster" \
-        --initial-cluster-state="$initial_cluster_state" \
-        --initial-cluster-token="$initial_cluster_token" \
-        --heartbeat-interval=1000 \
+    local etcd_args=(
+        --name="$name"
+        --data-dir="$data_dir"
+        --listen-peer-urls="$listen_peer_urls"
+        --listen-client-urls="$listen_client_urls"
+        --advertise-client-urls="$advertise_client_urls"
+        --initial-advertise-peer-urls="$initial_advertise_peer_urls"
+        --initial-cluster="$initial_cluster"
+        --initial-cluster-state="$initial_cluster_state"
+        --initial-cluster-token="$initial_cluster_token"
+        --heartbeat-interval=1000
         --election-timeout=5000
+        --snapshot-count=5000
+        --auto-compaction-retention=1
+        --max-request-bytes=10485760
+    )
+    
+    if [ -n "$ETCD_CERT_FILE" ]; then
+        etcd_args+=(--cert-file="$ETCD_CERT_FILE")
+    fi
+    if [ -n "$ETCD_KEY_FILE" ]; then
+        etcd_args+=(--key-file="$ETCD_KEY_FILE")
+    fi
+    if [ "$ETCD_CLIENT_CERT_AUTH" = "true" ]; then
+        etcd_args+=(--client-cert-auth=true)
+    fi
+    if [ -n "$ETCD_TRUSTED_CA_FILE" ]; then
+        etcd_args+=(--trusted-ca-file="$ETCD_TRUSTED_CA_FILE")
+    fi
+    if [ -n "$ETCD_PEER_CERT_FILE" ]; then
+        etcd_args+=(--peer-cert-file="$ETCD_PEER_CERT_FILE")
+    fi
+    if [ -n "$ETCD_PEER_KEY_FILE" ]; then
+        etcd_args+=(--peer-key-file="$ETCD_PEER_KEY_FILE")
+    fi
+    if [ "$ETCD_PEER_CLIENT_CERT_AUTH" = "true" ]; then
+        etcd_args+=(--peer-client-cert-auth=true)
+    fi
+    if [ -n "$ETCD_PEER_TRUSTED_CA_FILE" ]; then
+        etcd_args+=(--peer-trusted-ca-file="$ETCD_PEER_TRUSTED_CA_FILE")
+    fi
+    
+    exec etcd "${etcd_args[@]}"
 }
 
 # Check if first argument is etcd or if no arguments provided
