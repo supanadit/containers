@@ -70,13 +70,9 @@ validate_environment() {
         fi
     fi
 
-    # Validate REPLICATION_SYNCHRONOUS_REPLICAS (comma-separated list of replica app names for quorum)
-    if [ "${REPLICATION_SYNCHRONOUS_MODE:-true}" = "true" ] && [ -n "${REPLICATION_SYNCHRONOUS_COUNT:-}" ]; then
-        if [ -z "${REPLICATION_SYNCHRONOUS_REPLICAS:-}" ]; then
-            log_error "REPLICATION_SYNCHRONOUS_REPLICAS must be set when REPLICATION_SYNCHRONOUS_COUNT is specified"
-            exit_code=1
-        fi
-    fi
+    # Note: REPLICATION_SYNCHRONOUS_REPLICAS is optional
+    # If REPLICATION_SYNCHRONOUS_COUNT is set without REPLICATION_SYNCHRONOUS_REPLICAS,
+    # the config will fall back to synchronous_standby_names='*'
 
     case "${SLEEP_MODE:-false}" in
         true|false) ;;

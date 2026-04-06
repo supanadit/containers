@@ -131,6 +131,7 @@ run_initialization() {
     log_info "Running initialization scripts"
 
     local init_scripts=(
+        "/opt/container/entrypoint.d/scripts/init/00-misc-scripts.sh"
         "/opt/container/entrypoint.d/scripts/init/01-directories.sh"
         "/opt/container/entrypoint.d/scripts/init/02-database.sh"
         "/opt/container/entrypoint.d/scripts/init/03-config.sh"

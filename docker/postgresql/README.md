@@ -66,8 +66,9 @@ PostgreSQL listens on port 5432, PgBouncer on port 6432.
   - When set along with `REPLICATION_SYNCHRONOUS_REPLICAS`, enables quorum-based synchronous replication
   - Example: `2` means primary waits for at least 2 replicas to acknowledge
 - `REPLICATION_SYNCHRONOUS_REPLICAS` - Comma-separated list of replica application names for quorum
-  - Only applicable when `REPLICATION_SYNCHRONOUS_COUNT` is set
+  - Only applicable when `REPLICATION_SYNCHRONOUS_MODE` is `true` and `REPLICATION_SYNCHRONOUS_COUNT` is set
   - These names must match what replicas send via `application_name` in their connection
+  - Use names without special characters (e.g., underscores instead of hyphens)
   - Example: `replica1,replica2` with `REPLICATION_SYNCHRONOUS_COUNT=2` produces `ANY 2 (replica1,replica2)`
 - `REPLICATION_APPNAME` - Application name for this replica to use when connecting to primary
   - Used on replica nodes to identify itself to the primary
@@ -137,6 +138,62 @@ For non patroni setup, please manage Citus extension manually.
 - `SLEEP_MODE` - Enable maintenance sleep mode, this will keep container running without PostgreSQL (default: false)
 
 This is useful for performing maintenance tasks on the data volume without starting the database server.
+
+## Dynamic Synchronous Replication Management
+
+For Native HA mode, you can dynamically change sync replication settings at runtime without restarting PostgreSQL using the `pg-reload-sync-config.sh` script.
+
+### pg-reload-sync-config.sh
+
+Located at `/usr/local/bin/pg-reload-sync-config.sh`, this script allows changing synchronous replication settings dynamically.
+
+**Usage:**
+```bash
+# Disable sync replication (async mode)
+pg-reload-sync-config.sh --sync-mode=false
+
+# Enable quorum sync with 2 replicas
+pg-reload-sync-config.sh --sync-mode=true --sync-count=2 --sync-replicas="replica1,replica2"
+
+# Change to single sync mode (any available replica)
+pg-reload-sync-config.sh --sync-mode=true
+
+# Change sync count
+pg-reload-sync-config.sh --sync-mode=true --sync-count=1 --sync-replicas="replica1"
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--sync-mode MODE` | Enable/disable sync replication (`true` or `false`) |
+| `--sync-count N` | Number of replicas required for sync (quorum mode) |
+| `--sync-replicas NAMES` | Comma-separated list of replica application names |
+
+**Verification:**
+```sql
+SELECT client_addr, state, sync_state FROM pg_stat_replication;
+```
+
+| sync_state | Meaning |
+|------------|---------|
+| `sync` | Replica is synchronous - primary waits for it |
+| `potential` | Backup sync - will become sync if current sync fails |
+| `async` | Async replica - primary does not wait |
+
+**Kubernetes Usage:**
+```bash
+# Change sync mode
+kubectl exec postgresql-primary -- /usr/local/bin/pg-reload-sync-config.sh --sync-mode=false
+
+# Add a new replica to sync quorum
+kubectl exec postgresql-primary -- /usr/local/bin/pg-reload-sync-config.sh \
+  --sync-mode=true --sync-count=3 --sync-replicas="replica1,replica2,replica3"
+```
+
+**Notes:**
+- The script validates configuration before applying
+- On error, it exits with code 1 and does not modify configuration
+- Previous configuration is backed up before changes
 
 ## For Direct Volume Usage
 
