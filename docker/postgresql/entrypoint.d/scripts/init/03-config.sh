@@ -516,6 +516,12 @@ apply_native_ha_config() {
         apply_postgres_setting "wal_keep_size" "256MB"
         apply_postgres_setting "hot_standby" "on"
 
+        if [[ "${REPLICATION_ROLE:-}" == "replica" ]]; then
+            apply_postgres_setting "hot_standby_feedback" "on"
+            apply_postgres_setting "max_standby_streaming_delay" "-1"
+            apply_postgres_setting "max_standby_archive_delay" "-1"
+        fi
+
         # Configure synchronous replication based on REPLICATION_SYNCHRONOUS_MODE
         local repl_sync="${REPLICATION_SYNCHRONOUS_MODE:-true}"
         local repl_sync_count="${REPLICATION_SYNCHRONOUS_COUNT:-}"
