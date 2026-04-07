@@ -809,6 +809,16 @@ postgresql:
         unix_socket_directories: '${PGRUN:-/usr/local/pgsql/run}'
         timezone: '${POSTGRESQL_TIMEZONE:-UTC}'
 EOF_FOOTER
+        if is_truthy "${PGBACKREST_ENABLE:-false}" && is_truthy "${PATRONI_PGBACKREST_CALLBACKS:-true}"; then
+            cat <<'EOF_CALLBACKS'
+    callbacks:
+        on_start: /usr/local/bin/pgbackrest-patroni-callback.sh on_start
+        on_stop: /usr/local/bin/pgbackrest-patroni-callback.sh on_stop
+        on_role_change: /usr/local/bin/pgbackrest-patroni-callback.sh on_role_change
+        post_backup: /usr/local/bin/pgbackrest-patroni-callback.sh post_backup
+        post_restore: /usr/local/bin/pgbackrest-patroni-callback.sh post_restore
+EOF_CALLBACKS
+        fi
         if [ "$citus_enabled" = true ]; then
             cat <<EOF
         shared_preload_libraries: 'citus'
