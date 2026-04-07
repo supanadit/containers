@@ -116,8 +116,22 @@ regenerate_pgbackrest_config_for_replica() {
             echo "pg2-port=${primary_pg_port}" >> "$temp_config"
             echo "pg2-user=${primary_pg_user}" >> "$temp_config"
             echo "pg2-host-key-file=${primary_ssh_key}" >> "$temp_config"
+            # Create SSH config for postgres user when strict host key checking is disabled
             if ! is_truthy "$primary_ssh_strict"; then
-                echo "pg2-host-key-check-type=none" >> "$temp_config"
+                local ssh_config_dir="/home/postgres/.ssh"
+                local ssh_config_file="$ssh_config_dir/config"
+                mkdir -p "$ssh_config_dir"
+                chmod 700 "$ssh_config_dir"
+                {
+                    echo "Host ${primary_host}"
+                    echo "    StrictHostKeyChecking=no"
+                    echo "    UserKnownHostsFile=/dev/null"
+                    echo "    Port=${primary_ssh_port}"
+                    echo "    User=${primary_ssh_user}"
+                    echo "    IdentityFile=${primary_ssh_key}"
+                } >> "$ssh_config_file"
+                chmod 600 "$ssh_config_file"
+                chown -R postgres:postgres "$ssh_config_dir" 2>/dev/null || true
             fi
             mv "$temp_config" "$PGBACKREST_CONFIG"
             chmod 640 "$PGBACKREST_CONFIG"

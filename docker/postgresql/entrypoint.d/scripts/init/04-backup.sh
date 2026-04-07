@@ -331,15 +331,48 @@ EOF
             fi
             
             # Add custom SSH options if specified
+            # Note: cmd-ssh should be just the path to ssh binary, NOT options
+            # SSH options for hosts are managed via ~/.ssh/config (pgBackRest reads this)
             if [ -n "$primary_ssh_options" ]; then
-                echo "pg2-host-cmd-ssh=${primary_ssh_options}" >> "$config_file"
+                log_info "SSH options configured via PGBACKREST_PRIMARY_SSH_OPTIONS; note: options are passed to SSH client directly, not via cmd-ssh"
             fi
-            
-            # Handle strict host key checking
+
+            # Create SSH config for postgres user when strict host key checking is disabled
+            # This is the proper way pgBackRest handles SSH options - via SSH config
             if ! is_truthy "$primary_ssh_strict_check"; then
-                echo "pg2-host-key-check-type=none" >> "$config_file"
+                local ssh_config_dir="/home/postgres/.ssh"
+                local ssh_config_file="$ssh_config_dir/config"
+                # Check if SSH config is writable (not mounted read-only)
+                if mkdir -p "$ssh_config_dir" 2>/dev/null && touch "$ssh_config_file" 2>/dev/null; then
+                    mkdir -p "$ssh_config_dir"
+                    chmod 700 "$ssh_config_dir"
+                    {
+                        echo "Host ${primary_host}"
+                        echo "    StrictHostKeyChecking=no"
+                        echo "    UserKnownHostsFile=/dev/null"
+                        echo "    Port=${primary_ssh_port}"
+                        echo "    User=${primary_ssh_user}"
+                        if [ -n "$primary_ssh_key" ]; then
+                            echo "    IdentityFile=${primary_ssh_key}"
+                        fi
+                    } >> "$ssh_config_file"
+                    chmod 600 "$ssh_config_file"
+                    # Only chown the directory and config file, not existing mounted files
+                    chown postgres:postgres "$ssh_config_dir" "$ssh_config_file" 2>/dev/null || true
+                    log_info "Created SSH config for ${primary_host} with StrictHostKeyChecking=no"
+                else
+                    # SSH config is read-only; create a wrapper script for SSH with options
+                    log_info "SSH config is read-only; creating wrapper script for SSH options"
+                    local ssh_wrapper="/usr/local/bin/ssh-with-options"
+                    cat > "$ssh_wrapper" << 'WRAPPER_EOF'
+#!/bin/bash
+exec /usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes "$@"
+WRAPPER_EOF
+                    chmod +x "$ssh_wrapper"
+                    echo "cmd-ssh=${ssh_wrapper}" >> "$config_file"
+                fi
             fi
-            
+
             # Auto-enable backup-standby when SSH mode is configured
             # Only auto-set if user hasn't explicitly configured PGBACKREST_BACKUP_STANDBY
             if [ -z "${PGBACKREST_BACKUP_STANDBY:-}" ] && ! grep -q "^backup-standby=" "$config_file"; then

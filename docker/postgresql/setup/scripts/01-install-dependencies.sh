@@ -36,7 +36,8 @@ apt-get update -y && apt-get install -y \
     gettext-base \
     ruby \
     ruby-dev \
-    ruby-bundler
+    ruby-bundler \
+    openssh-client
 
 # Install bison and flex for PostgreSQL 17+
 if [[ "${POSTGRESQL_VERSION%%.*}" -ge 17 ]]; then
