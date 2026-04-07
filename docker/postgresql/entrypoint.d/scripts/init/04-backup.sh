@@ -278,8 +278,13 @@ EOF
     fi
 
     # Enable backup from standby if configured (manual override)
-    if is_truthy "${PGBACKREST_BACKUP_STANDBY:-false}"; then
-        echo "backup-standby=y" >> "$config_file"
+    # Supports: y, yes, 1, on, true (maps to backup-standby=y)
+    #            prefer (maps to backup-standby=prefer)
+    #            n, no, 0, off, false (disables, backup-standby=n)
+    local standby_mode
+    standby_mode=$(normalize_backup_standby "${PGBACKREST_BACKUP_STANDBY:-}")
+    if [ -n "$standby_mode" ]; then
+        echo "backup-standby=${standby_mode}" >> "$config_file"
     fi
 
     # Configure primary connection for standby backup via SSH
@@ -336,8 +341,10 @@ EOF
             fi
             
             # Auto-enable backup-standby when SSH mode is configured
-            if ! grep -q "^backup-standby=y" "$config_file"; then
+            # Only auto-set if user hasn't explicitly configured PGBACKREST_BACKUP_STANDBY
+            if [ -z "${PGBACKREST_BACKUP_STANDBY:-}" ] && ! grep -q "^backup-standby=" "$config_file"; then
                 echo "backup-standby=y" >> "$config_file"
+                log_debug "Auto-enabled backup-standby=y for SSH standby backup (use PGBACKREST_BACKUP_STANDBY=prefer to prefer standby with primary fallback)"
             fi
             
             log_info "Added pg2-* SSH settings for primary: ${primary_host}:${primary_ssh_port} (pg port: ${primary_pg_port})"

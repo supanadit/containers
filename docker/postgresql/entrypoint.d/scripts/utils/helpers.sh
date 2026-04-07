@@ -38,7 +38,26 @@ normalize_bool() {
     esac
 }
 
+normalize_backup_standby() {
+    local value="${1:-}"
+    case "${value,,}" in
+        y | yes | 1 | on | true)
+            echo "y"
+            ;;
+        prefer)
+            echo "prefer"
+            ;;
+        n | no | 0 | off | false)
+            echo "n"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
 export -f is_truthy
 export -f is_falsy
 export -f assert_pgbackrest_enabled
 export -f normalize_bool
+export -f normalize_backup_standby
