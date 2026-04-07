@@ -238,7 +238,7 @@ generate_secure_defaults() {
     log_info "Generating secure default configurations"
 
     # Skip generating configs in data dir for Patroni - let Patroni manage them
-    if ! is_truthy "${PATRONI_ENABLE:-false}"; then
+    if is_truthy "${PATRONI_ENABLE:-false}"; then
         log_info "Patroni mode enabled, skipping config generation in data directory"
         return 0
     fi

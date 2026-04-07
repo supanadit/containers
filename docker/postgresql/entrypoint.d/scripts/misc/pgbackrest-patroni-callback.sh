@@ -69,7 +69,7 @@ log_callback_error() {
 }
 
 is_patroni_callback() {
-    [ -n "$PATRONI_ROLE" ] && [ -n "$PATRONI_SCOPE" ]
+    [ -n "${PATRONI_ROLE:-}" ] && [ -n "${PATRONI_SCOPE:-}" ]
 }
 
 regenerate_pgbackrest_config_for_primary() {
@@ -131,7 +131,8 @@ regenerate_pgbackrest_config_for_replica() {
 
 handle_on_role_change() {
     local new_role="$1"
-    log_callback "on_role_change: new_role=${new_role}, old_role=${PATRONI_ROLE}"
+    local old_role="${PATRONI_ROLE:-unknown}"
+    log_callback "on_role_change: new_role=${new_role}, old_role=${old_role}"
     case "$new_role" in
         promote)
             regenerate_pgbackrest_config_for_primary
@@ -159,7 +160,8 @@ handle_post_backup() {
 
 handle_post_restore() {
     log_callback "post_restore: Node has completed restore"
-    if [ "$PATRONI_ROLE" = "master" ] || [ "$PATRONI_ROLE" = "primary" ]; then
+    local role="${PATRONI_ROLE:-}"
+    if [ "$role" = "master" ] || [ "$role" = "primary" ]; then
         regenerate_pgbackrest_config_for_primary
     else
         regenerate_pgbackrest_config_for_replica
