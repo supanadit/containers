@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Source logging utilities
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 
 # Default values
 DEFAULT_PGDATA="/usr/local/pgsql/data"
@@ -82,47 +83,58 @@ validate_environment() {
             ;;
     esac
 
-    case "${PGBACKREST_ENABLE:-false}" in
-        true|false) ;;
-        *)
-            log_error "Invalid PGBACKREST_ENABLE: $PGBACKREST_ENABLE (must be true or false)"
-            exit_code=1
-            ;;
-    esac
+    # Validate PGBACKREST_ENABLE - use lenient validation
+    if ! is_truthy "${PGBACKREST_ENABLE:-false}" && ! is_truthy "${PGBACKREST_ENABLE:-}"; then
+        if [ -n "${PGBACKREST_ENABLE:-}" ]; then
+            log_warn "PGBACKREST_ENABLE='${PGBACKREST_ENABLE}' is not recognized as true; treating as false"
+        fi
+    fi
 
-    case "${PGBACKREST_ARCHIVE_ENABLE:-true}" in
-        true|false) ;;
-        *)
-            log_error "Invalid PGBACKREST_ARCHIVE_ENABLE: ${PGBACKREST_ARCHIVE_ENABLE} (must be true or false)"
-            exit_code=1
-            ;;
-    esac
+    # Cross-variable warnings for pgbackrest settings
+    if ! is_truthy "${PGBACKREST_ENABLE:-false}"; then
+        if is_truthy "${PGBACKREST_AUTO_ENABLE:-false}"; then
+            log_warn "PGBACKREST_AUTO_ENABLE=true is ignored because PGBACKREST_ENABLE=false"
+        fi
+        if is_truthy "${PGBACKREST_RESTORE:-false}"; then
+            log_warn "PGBACKREST_RESTORE=true requires PGBACKREST_ENABLE=true; restore will be disabled"
+        fi
+        if is_truthy "${PGBACKREST_ARCHIVE_ENABLE:-true}" && [ "${PGBACKREST_ARCHIVE_ENABLE:-true}" != "false" ]; then
+            log_warn "PGBACKREST_ARCHIVE_ENABLE=true has no effect when PGBACKREST_ENABLE=false; archiving will be disabled"
+        fi
+    fi
 
-    case "${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY:-true}" in
-        true|false) ;;
-        *)
-            log_error "Invalid PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY: ${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY} (must be true or false)"
-            exit_code=1
-            ;;
-    esac
+    # Validate PGBACKREST_ARCHIVE_ENABLE - lenient (accepts true/false/1/0/yes/no/on/off)
+    local archive_enable_val
+    archive_enable_val=$(normalize_bool "${PGBACKREST_ARCHIVE_ENABLE:-true}")
+    if [ -z "$archive_enable_val" ] && [ -n "${PGBACKREST_ARCHIVE_ENABLE:-}" ]; then
+        log_warn "PGBACKREST_ARCHIVE_ENABLE='${PGBACKREST_ARCHIVE_ENABLE}' not recognized; using default (true)"
+        archive_enable_val="true"
+    fi
+
+    # Validate PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY - lenient
+    local stanza_create_on_primary
+    stanza_create_on_primary=$(normalize_bool "${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY:-true}")
+    if [ -z "$stanza_create_on_primary" ]; then
+        log_warn "PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY='${PGBACKREST_STANZA_CREATE_ON_PRIMARY_ONLY}' not recognized; using default (true)"
+        stanza_create_on_primary="true"
+    fi
 
     # If pgBackRest enabled, validate repository type specifics
-    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
-        # Auto-backup feature validation
-        case "${PGBACKREST_AUTO_ENABLE:-false}" in
-            true|false) ;;
-            *)
-                log_error "Invalid PGBACKREST_AUTO_ENABLE: ${PGBACKREST_AUTO_ENABLE} (must be true or false)"
-                exit_code=1
-                ;;
-        esac
-        case "${PGBACKREST_AUTO_PRIMARY_ONLY:-true}" in
-            true|false) ;;
-            *)
-                log_error "Invalid PGBACKREST_AUTO_PRIMARY_ONLY: ${PGBACKREST_AUTO_PRIMARY_ONLY} (must be true or false)"
-                exit_code=1
-                ;;
-        esac
+    if is_truthy "${PGBACKREST_ENABLE:-false}"; then
+        # Auto-backup feature validation - lenient (accepts true/false/1/0/yes/no/on/off)
+        local auto_enable_val
+        auto_enable_val=$(normalize_bool "${PGBACKREST_AUTO_ENABLE:-false}")
+        if [ -z "$auto_enable_val" ]; then
+            log_warn "PGBACKREST_AUTO_ENABLE='${PGBACKREST_AUTO_ENABLE}' not recognized; using default (false)"
+            auto_enable_val="false"
+        fi
+
+        local auto_primary_only_val
+        auto_primary_only_val=$(normalize_bool "${PGBACKREST_AUTO_PRIMARY_ONLY:-true}")
+        if [ -z "$auto_primary_only_val" ]; then
+            log_warn "PGBACKREST_AUTO_PRIMARY_ONLY='${PGBACKREST_AUTO_PRIMARY_ONLY}' not recognized; using default (true)"
+            auto_primary_only_val="true"
+        fi
         # Validate cron expressions if set
         for cron_var in PGBACKREST_AUTO_FULL_CRON PGBACKREST_AUTO_DIFF_CRON PGBACKREST_AUTO_INCR_CRON; do
             local val="${!cron_var:-}"
@@ -366,7 +378,7 @@ validate_dependencies() {
     fi
 
     # Check for pgBackRest if backup enabled
-    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PGBACKREST_ENABLE:-false}"; then
         if ! command -v "pgbackrest" >/dev/null 2>&1; then
             log_error "Backup is enabled but pgbackrest command not found"
             exit_code=1

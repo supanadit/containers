@@ -36,7 +36,7 @@ main() {
     create_run_directory
 
     # Create backup directory if backup is enabled
-    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PGBACKREST_ENABLE:-false}"; then
         create_backup_directory
     fi
 
@@ -161,7 +161,7 @@ set_directory_ownership() {
     local dirs=("${PGDATA:-$DEFAULT_PGDATA}" "${PGCONFIG:-$DEFAULT_PGCONFIG}" "${PGLOG:-$DEFAULT_PGLOG}" "${PGRUN:-$DEFAULT_PGRUN}")
 
     # Add backup directory if it exists
-    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PGBACKREST_ENABLE:-false}"; then
         dirs+=("${PGBACKUP:-$DEFAULT_PGBACKUP}")
     fi
 

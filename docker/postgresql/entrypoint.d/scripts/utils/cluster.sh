@@ -77,7 +77,7 @@ export -f is_primary_role
 # Replicas without SSH will skip backup operations silently.
 determine_pgbackrest_mode() {
     # Check if backup is enabled
-    if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
+    if is_falsy "${PGBACKREST_ENABLE:-false}"; then
         echo "disabled"
         return 0
     fi

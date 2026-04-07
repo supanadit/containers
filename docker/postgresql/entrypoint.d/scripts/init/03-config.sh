@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Source utility functions
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
@@ -123,35 +124,35 @@ main() {
         generate_secure_defaults
 
         # Apply external access configuration
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+        if ! is_truthy "${PATRONI_ENABLE:-false}"; then
             apply_external_access_config
         else
             log_info "Patroni mode enabled, external access will be configured in patroni.yml"
         fi
 
         # Apply custom pg_hba.conf entries from environment variables
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+        if ! is_truthy "${PATRONI_ENABLE:-false}"; then
             apply_custom_pg_hba_entries
         else
             log_info "Patroni mode enabled, custom pg_hba entries will be applied to patroni.yml"
         fi
 
         # Apply native HA configuration
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+        if ! is_truthy "${PATRONI_ENABLE:-false}"; then
             apply_native_ha_config
         else
             log_info "Patroni mode enabled, HA configuration is handled by Patroni"
         fi
 
         # Apply environment variable overrides (run LAST to ensure user settings override all)
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+        if ! is_truthy "${PATRONI_ENABLE:-false}"; then
             apply_environment_overrides
         else
             log_info "Patroni mode enabled, skipping environment overrides on config files"
         fi
 
         # Validate final configurations
-        if [ "${PATRONI_ENABLE:-false}" != "true" ]; then
+        if ! is_truthy "${PATRONI_ENABLE:-false}"; then
             validate_final_configs
         else
             log_info "Patroni mode enabled, skipping config file validation - Patroni manages configs"
@@ -161,7 +162,7 @@ main() {
     fi
 
     # Generate Patroni configuration if needed
-    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PATRONI_ENABLE:-false}"; then
         generate_patroni_config
     fi
 
@@ -237,7 +238,7 @@ generate_secure_defaults() {
     log_info "Generating secure default configurations"
 
     # Skip generating configs in data dir for Patroni - let Patroni manage them
-    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+    if ! is_truthy "${PATRONI_ENABLE:-false}"; then
         log_info "Patroni mode enabled, skipping config generation in data directory"
         return 0
     fi
@@ -407,7 +408,7 @@ apply_environment_overrides() {
     done < <(env | grep '^POSTGRESQL_CONFIG_')
 
     # Archive settings
-    if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PGBACKREST_ENABLE:-false}"; then
         local clean_env_cmd
         clean_env_cmd="$(generate_clean_env_command)"
         apply_postgres_setting "archive_mode" "on"
@@ -649,7 +650,7 @@ generate_patroni_config() {
 
     local archive_mode="off"
     local archive_command=""
-    if [ "${PGBACKREST_ENABLE:-false}" = "true" ] && [ "${PGBACKREST_ARCHIVE_ENABLE:-true}" = "true" ]; then
+    if is_truthy "${PGBACKREST_ENABLE:-false}" && is_truthy "${PGBACKREST_ARCHIVE_ENABLE:-true}"; then
         archive_mode="on"
         local archive_extra=""
         if [ -n "${PGBACKREST_ARCHIVE_COMMAND_EXTRA:-}" ]; then

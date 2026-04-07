@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Source utility functions
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
@@ -57,14 +58,8 @@ handle_shutdown() {
   exit 0
 }
 
-# Interpret truthy/falsey values
-is_truthy() {
-  local value="${1:-}"
-  case "${value,,}" in
-  true | 1 | yes | on | y) return 0 ;;
-  *) return 1 ;;
-  esac
-}
+# Interpret truthy/falsey values - now provided by helpers.sh
+# Kept here for backward compatibility with scripts that source startup.sh directly
 
 # Determine whether a pgBackRest restore is pending
 is_restore_pending() {
@@ -78,7 +73,7 @@ perform_pgbackrest_restore() {
   local postgres_group="${POSTGRES_GROUP:-postgres}"
   local stanza="${PGBACKREST_STANZA:-default}"
 
-  if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
+  if ! is_truthy "${PGBACKREST_ENABLE:-false}"; then
     log_error "[restore] PGBACKREST_RESTORE requested but PGBACKREST_ENABLE is not true"
     return 1
   fi
@@ -291,14 +286,14 @@ select_startup_mode() {
   log_info "Selecting startup mode"
 
   # Check for sleep mode (maintenance)
-  if [ "${SLEEP_MODE:-false}" = "true" ]; then
+  if is_truthy "${SLEEP_MODE:-false}"; then
     log_info "Sleep mode enabled, entering maintenance mode"
     start_sleep_mode
     return $?
   fi
 
   # Check for Patroni mode
-  if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+  if is_truthy "${PATRONI_ENABLE:-false}"; then
     log_info "Patroni mode enabled, starting Patroni"
     start_patroni
     return $?
@@ -352,17 +347,17 @@ start_postgresql_direct() {
    wait_for_postgresql_ready
 
    # Start PgBouncer
-   if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+   if is_truthy "${PGBOUNCER_ENABLE:-false}"; then
        start_pgbouncer
    fi
 
-  # Initialize pgBackRest stanza if backup is enabled
-  if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
-    initialize_pgbackrest_stanza
-    if [ "${PGBACKREST_AUTO_ENABLE:-false}" = "true" ]; then
-      start_pgbackrest_scheduler "$pg_pid"
-    fi
-  fi
+   # Initialize pgBackRest stanza if backup is enabled
+   if is_truthy "${PGBACKREST_ENABLE:-false}"; then
+     initialize_pgbackrest_stanza
+     if is_truthy "${PGBACKREST_AUTO_ENABLE:-false}"; then
+       start_pgbackrest_scheduler "$pg_pid"
+     fi
+   fi
 
   # Log successful startup
   log_info "PostgreSQL is ready and accepting connections"
@@ -408,14 +403,14 @@ start_patroni() {
   wait_for_postgresql_ready
 
   # Start PgBouncer
-  if [ "${PGBOUNCER_ENABLE:-false}" = "true" ]; then
+  if is_truthy "${PGBOUNCER_ENABLE:-false}"; then
     start_pgbouncer
   fi
 
   # Initialize pgBackRest stanza if backup is enabled
-  if [ "${PGBACKREST_ENABLE:-false}" = "true" ]; then
+  if is_truthy "${PGBACKREST_ENABLE:-false}"; then
     initialize_pgbackrest_stanza
-    if [ "${PGBACKREST_AUTO_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PGBACKREST_AUTO_ENABLE:-false}"; then
       # Patroni main process is patroni_pid; pass it
       start_pgbackrest_scheduler "$patroni_pid"
     fi

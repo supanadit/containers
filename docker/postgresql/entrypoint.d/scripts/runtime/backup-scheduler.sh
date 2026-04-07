@@ -5,6 +5,7 @@
 set -euo pipefail
 
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
 STANZA="${PGBACKREST_STANZA:-default}"
@@ -212,7 +213,7 @@ write_pid
 graceful_sleep "$FIRST_INCR_DELAY"
 
 while true; do
-	if [ "$PRIMARY_ONLY" = "true" ] && ! is_primary_role; then
+	if is_truthy "$PRIMARY_ONLY" && ! is_primary_role; then
 		log_debug "[auto-backup] Instance not primary; skipping backups this cycle"
 		graceful_sleep 30
 		continue

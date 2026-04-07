@@ -52,6 +52,7 @@ set -euo pipefail
 
 # Source utility functions
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
@@ -99,7 +100,7 @@ main() {
     log_script_start "04-backup.sh"
 
     # Only proceed if backup is enabled
-    if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
+    if ! is_truthy "${PGBACKREST_ENABLE:-false}"; then
         log_info "Backup not enabled, skipping backup setup"
         return 0
     fi
@@ -277,7 +278,7 @@ EOF
     fi
 
     # Enable backup from standby if configured (manual override)
-    if [ "${PGBACKREST_BACKUP_STANDBY:-false}" = "true" ]; then
+    if is_truthy "${PGBACKREST_BACKUP_STANDBY:-false}"; then
         echo "backup-standby=y" >> "$config_file"
     fi
 
@@ -330,7 +331,7 @@ EOF
             fi
             
             # Handle strict host key checking
-            if [ "$primary_ssh_strict_check" = "no" ] || [ "$primary_ssh_strict_check" = "false" ]; then
+            if ! is_truthy "$primary_ssh_strict_check"; then
                 echo "pg2-host-key-check-type=none" >> "$config_file"
             fi
             
@@ -444,7 +445,7 @@ enable_archiving() {
         return 1
     fi
 
-    if [ "${PGBACKREST_ARCHIVE_ENABLE:-true}" != "true" ]; then
+    if ! is_truthy "${PGBACKREST_ARCHIVE_ENABLE:-true}"; then
         log_info "PGBACKREST_ARCHIVE_ENABLE=false; skipping archive configuration"
     else
         if [ "${PATRONI_ENABLE:-false}" = "true" ]; then

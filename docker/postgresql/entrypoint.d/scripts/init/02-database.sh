@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Source utility functions
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 
@@ -43,7 +44,7 @@ main() {
     fi
 
     if is_restore_requested; then
-        if [ "${PGBACKREST_ENABLE:-false}" != "true" ]; then
+        if ! is_truthy "${PGBACKREST_ENABLE:-false}"; then
             log_error "PGBACKREST_RESTORE=true requires PGBACKREST_ENABLE=true"
             return 1
         fi
@@ -67,7 +68,7 @@ main() {
     fi
 
     # Skip initialization in Patroni mode - let Patroni handle bootstrap
-    if [ "${PATRONI_ENABLE:-false}" = "true" ]; then
+    if is_truthy "${PATRONI_ENABLE:-false}"; then
         log_info "Patroni mode enabled, skipping database initialization - Patroni will handle bootstrap"
         return 0
     fi
