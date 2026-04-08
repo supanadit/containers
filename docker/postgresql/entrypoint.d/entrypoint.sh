@@ -136,6 +136,7 @@ run_initialization() {
         "/opt/container/entrypoint.d/scripts/init/02-database.sh"
         "/opt/container/entrypoint.d/scripts/init/03-config.sh"
         "/opt/container/entrypoint.d/scripts/init/04-backup.sh"
+        "/opt/container/entrypoint.d/scripts/init/05-sshd.sh"
     )
 
     for script in "${init_scripts[@]}"; do

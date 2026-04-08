@@ -351,6 +351,9 @@ start_postgresql_direct() {
        start_pgbouncer
    fi
 
+   # Start SSH daemon on primary
+   start_sshd_on_primary
+
    # Initialize pgBackRest stanza if backup is enabled
    if is_truthy "${PGBACKREST_ENABLE:-false}"; then
      initialize_pgbackrest_stanza
@@ -406,6 +409,9 @@ start_patroni() {
   if is_truthy "${PGBOUNCER_ENABLE:-false}"; then
     start_pgbouncer
   fi
+
+  # Start SSH daemon on primary
+  start_sshd_on_primary
 
   # Initialize pgBackRest stanza if backup is enabled
   if is_truthy "${PGBACKREST_ENABLE:-false}"; then
@@ -573,6 +579,32 @@ start_pgbackrest_scheduler() {
   log_info "pgBackRest backup scheduler started with PID ${sched_pid} (log: /var/log/pgbackrest-auto.log)"
 }
 export -f start_pgbackrest_scheduler
+
+# Start SSH daemon on primary nodes
+start_sshd_on_primary() {
+  log_info "Checking if SSH daemon should be started"
+
+  if ! is_primary_role; then
+    log_debug "This node is not primary, skipping SSH daemon"
+    return 0
+  fi
+
+  if command -v sshd >/dev/null 2>&1; then
+    log_info "Starting SSH daemon on primary node"
+    mkdir -p /run/sshd
+    /usr/sbin/sshd
+    sleep 1
+    if pgrep -x sshd >/dev/null; then
+      log_info "SSH daemon started successfully"
+    else
+      log_warn "SSH daemon may have failed to start"
+    fi
+  else
+    log_warn "sshd command not found, skipping SSH daemon"
+  fi
+
+  return 0
+}
 
 # Create replication user for native HA
 create_replication_user() {
