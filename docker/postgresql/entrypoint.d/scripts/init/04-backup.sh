@@ -259,6 +259,12 @@ EOF
         echo "repo1-retention-archive-type=${retention_archive_type}" >> "$config_file"
     fi
 
+    # Add retention history for backup manifests (0 = retain only for unexpired backups)
+    local retention_history="${PGBACKREST_REPO_RETENTION_HISTORY:-}"
+    if [ -n "$retention_history" ]; then
+        echo "repo1-retention-history=${retention_history}" >> "$config_file"
+    fi
+
     # Add archive queue tuning for async archiving
     local archive_get_queue_max="${PGBACKREST_ARCHIVE_GET_QUEUE_MAX:-}"
     if [ -n "$archive_get_queue_max" ]; then
