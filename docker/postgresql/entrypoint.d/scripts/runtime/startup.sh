@@ -137,6 +137,10 @@ perform_pgbackrest_restore() {
       restore_args+=("--tablespace-map=$pair")
     done
   fi
+  # Add --tablespace-map-all for restoring all tablespaces to a specific directory
+  if [ -n "${PGBACKREST_RESTORE_TABLESPACE_MAP_ALL:-}" ]; then
+    restore_args+=("--tablespace-map-all=${PGBACKREST_RESTORE_TABLESPACE_MAP_ALL}")
+  fi
   # Add --link-all if configured (restore all symlinks)
   if is_truthy "${PGBACKREST_RESTORE_LINK_ALL:-false}"; then
     restore_args+=("--link-all")

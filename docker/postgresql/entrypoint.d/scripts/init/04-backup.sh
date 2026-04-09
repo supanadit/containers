@@ -345,6 +345,13 @@ EOF
         [ -n "${PGBACKREST_REPO_S3_CA_PATH:-${PGBACKREST_REPO1_S3_CA_PATH:-}}" ] && echo "repo1-s3-ca-path=${PGBACKREST_REPO_S3_CA_PATH:-${PGBACKREST_REPO1_S3_CA_PATH}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_S3_BUCKET_REGION:-${PGBACKREST_REPO1_S3_BUCKET_REGION:-}}" ] && echo "repo1-s3-bucket-region=${PGBACKREST_REPO_S3_BUCKET_REGION:-${PGBACKREST_REPO1_S3_BUCKET_REGION}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_S3_ENDPOINT_FLEXIBLE:-${PGBACKREST_REPO1_S3_ENDPOINT_FLEXIBLE:-}}" ] && echo "repo1-s3-endpoint-flexible=${PGBACKREST_REPO_S3_ENDPOINT_FLEXIBLE:-${PGBACKREST_REPO1_S3_ENDPOINT_FLEXIBLE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_S3_KMS_KEY_ID:-${PGBACKREST_REPO1_S3_KMS_KEY_ID:-}}" ] && echo "repo1-s3-kms-key-id=${PGBACKREST_REPO_S3_KMS_KEY_ID:-${PGBACKREST_REPO1_S3_KMS_KEY_ID}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_S3_SSE_CUSTOMER_KEY:-${PGBACKREST_REPO1_S3_SSE_CUSTOMER_KEY:-}}" ] && echo "repo1-s3-sse-customer-key=${PGBACKREST_REPO_S3_SSE_CUSTOMER_KEY:-${PGBACKREST_REPO1_S3_SSE_CUSTOMER_KEY}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_S3_ROLE:-${PGBACKREST_REPO1_S3_ROLE:-}}" ] && echo "repo1-s3-role=${PGBACKREST_REPO_S3_ROLE:-${PGBACKREST_REPO1_S3_ROLE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_S3_KEY_TYPE:-${PGBACKREST_REPO1_S3_KEY_TYPE:-}}" ] && echo "repo1-s3-key-type=${PGBACKREST_REPO_S3_KEY_TYPE:-${PGBACKREST_REPO1_S3_KEY_TYPE}}" >> "$config_file"
+        if is_truthy "${PGBACKREST_REPO_S3_REQUESTER_PAYS:-false}"; then
+            echo "repo1-s3-requester-pays=y" >> "$config_file"
+        fi
         # Set the S3 repository path (prefer override if provided)
         if [ -n "$repo1_path_override" ]; then
             echo "repo1-path=${repo1_path_override}" >> "$config_file"
@@ -412,9 +419,44 @@ EOF
         if [ -n "$repo1_path_override" ]; then
             echo "repo1-path=${repo1_path_override}" >> "$config_file"
         else
-            echo "repo1-path=${backup_dir}" >> "$config_file"
+            echo "repo1-path=/pgbackrest" >> "$config_file"
         fi
     fi
+
+    # Add Repository Storage options (unified storage config for S3/GCS/Azure)
+    [ -n "${PGBACKREST_REPO_STORAGE_HOST:-}" ] && echo "repo1-storage-host=${PGBACKREST_REPO_STORAGE_HOST}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_STORAGE_PORT:-}" ] && echo "repo1-storage-port=${PGBACKREST_REPO_STORAGE_PORT}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_STORAGE_CA_FILE:-}" ] && echo "repo1-storage-ca-file=${PGBACKREST_REPO_STORAGE_CA_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_STORAGE_CA_PATH:-}" ] && echo "repo1-storage-ca-path=${PGBACKREST_REPO_STORAGE_CA_PATH}" >> "$config_file"
+    if [ -n "${PGBACKREST_REPO_STORAGE_VERIFY_TLS:-}" ]; then
+        local storage_verify_tls_val
+        case "${PGBACKREST_REPO_STORAGE_VERIFY_TLS}" in
+            true|TRUE|1|y|Y) storage_verify_tls_val="y" ;;
+            false|FALSE|0|n|N) storage_verify_tls_val="n" ;;
+            *) storage_verify_tls_val="y" ;;
+        esac
+        echo "repo1-storage-verify-tls=${storage_verify_tls_val}" >> "$config_file"
+    fi
+    [ -n "${PGBACKREST_REPO_STORAGE_UPLOAD_CHUNK_SIZE:-}" ] && echo "repo1-storage-upload-chunk-size=${PGBACKREST_REPO_STORAGE_UPLOAD_CHUNK_SIZE}" >> "$config_file"
+    if [ -n "${PGBACKREST_REPO_STORAGE_TAG:-}" ]; then
+        local storage_tags="${PGBACKREST_REPO_STORAGE_TAG}"
+        IFS=', ' read -ra STORAGE_TAGS <<< "$storage_tags"
+        for tag in "${STORAGE_TAGS[@]}"; do
+            [ -n "$tag" ] && echo "repo1-storage-tag=$tag" >> "$config_file"
+        done
+    fi
+
+    # Add Repository Host options (for remote repository via SSH/TLS)
+    [ -n "${PGBACKREST_REPO_HOST:-}" ] && echo "repo1-host=${PGBACKREST_REPO_HOST}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_PORT:-}" ] && echo "repo1-host-port=${PGBACKREST_REPO_HOST_PORT}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_USER:-}" ] && echo "repo1-host-user=${PGBACKREST_REPO_HOST_USER}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_TYPE:-}" ] && echo "repo1-host-type=${PGBACKREST_REPO_HOST_TYPE}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_KEY_FILE:-}" ] && echo "repo1-host-key-file=${PGBACKREST_REPO_HOST_KEY_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_CA_FILE:-}" ] && echo "repo1-host-ca-file=${PGBACKREST_REPO_HOST_CA_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_CA_PATH:-}" ] && echo "repo1-host-ca-path=${PGBACKREST_REPO_HOST_CA_PATH}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_CERT_FILE:-}" ] && echo "repo1-host-cert-file=${PGBACKREST_REPO_HOST_CERT_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_CONFIG:-}" ] && echo "repo1-host-config=${PGBACKREST_REPO_HOST_CONFIG}" >> "$config_file"
+    [ -n "${PGBACKREST_REPO_HOST_CONFIG_PATH:-}" ] && echo "repo1-host-config-path=${PGBACKREST_REPO_HOST_CONFIG_PATH}" >> "$config_file"
 
     # Add stanza configuration section
     cat >> "$config_file" << EOF
@@ -425,6 +467,22 @@ pg1-port=${POSTGRESQL_PORT:-5432}
 pg1-user=${POSTGRES_USER:-postgres}
 pg1-socket-path=${PGRUN:-/usr/local/pgsql/run}
 EOF
+
+    # Add PostgreSQL database for connection
+    [ -n "${PGBACKREST_PG_DATABASE:-}" ] && echo "pg1-database=${PGBACKREST_PG_DATABASE}" >> "$config_file"
+
+    # Add pg1-host options for remote PostgreSQL
+    [ -n "${PGBACKREST_PG_HOST:-}" ] && echo "pg1-host=${PGBACKREST_PG_HOST}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_PORT:-}" ] && echo "pg1-host-port=${PGBACKREST_PG_HOST_PORT}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_USER:-}" ] && echo "pg1-host-user=${PGBACKREST_PG_HOST_USER}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_TYPE:-}" ] && echo "pg1-host-type=${PGBACKREST_PG_HOST_TYPE}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_KEY_FILE:-}" ] && echo "pg1-host-key-file=${PGBACKREST_PG_HOST_KEY_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_CA_FILE:-}" ] && echo "pg1-host-ca-file=${PGBACKREST_PG_HOST_CA_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_CA_PATH:-}" ] && echo "pg1-host-ca-path=${PGBACKREST_PG_HOST_CA_PATH}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_CERT_FILE:-}" ] && echo "pg1-host-cert-file=${PGBACKREST_PG_HOST_CERT_FILE}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_CONFIG:-}" ] && echo "pg1-host-config=${PGBACKREST_PG_HOST_CONFIG}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_CONFIG_PATH:-}" ] && echo "pg1-host-config-path=${PGBACKREST_PG_HOST_CONFIG_PATH}" >> "$config_file"
+    [ -n "${PGBACKREST_PG_HOST_CMD:-}" ] && echo "pg1-host-cmd=${PGBACKREST_PG_HOST_CMD}" >> "$config_file"
 
     # Add password if provided
     if [ -n "${PGBACKREST_PASSWORD:-}" ]; then
@@ -478,6 +536,13 @@ EOF
             elif [ -n "$primary_ssh_key" ]; then
                 log_warn "SSH key file not found: $primary_ssh_key"
             fi
+            
+            # Add pg2-host CA and certificate options for TLS
+            [ -n "${PGBACKREST_PRIMARY_HOST_CA_FILE:-}" ] && echo "pg2-host-ca-file=${PGBACKREST_PRIMARY_HOST_CA_FILE}" >> "$config_file"
+            [ -n "${PGBACKREST_PRIMARY_HOST_CA_PATH:-}" ] && echo "pg2-host-ca-path=${PGBACKREST_PRIMARY_HOST_CA_PATH}" >> "$config_file"
+            [ -n "${PGBACKREST_PRIMARY_HOST_CERT_FILE:-}" ] && echo "pg2-host-cert-file=${PGBACKREST_PRIMARY_HOST_CERT_FILE}" >> "$config_file"
+            [ -n "${PGBACKREST_PRIMARY_HOST_CONFIG:-}" ] && echo "pg2-host-config=${PGBACKREST_PRIMARY_HOST_CONFIG}" >> "$config_file"
+            [ -n "${PGBACKREST_PRIMARY_HOST_CONFIG_PATH:-}" ] && echo "pg2-host-config-path=${PGBACKREST_PRIMARY_HOST_CONFIG_PATH}" >> "$config_file"
             
             # Add known hosts if specified
             if [ -n "$primary_ssh_known_hosts" ] && [ -f "$primary_ssh_known_hosts" ]; then

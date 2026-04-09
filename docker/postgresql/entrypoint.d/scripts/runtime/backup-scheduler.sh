@@ -233,6 +233,12 @@ run_backup() {
 		log_debug "[auto-backup] Added --annotation options for ${type} backup"
 	fi
 
+	# Add --archive-missing-retry if configured (retry WAL segments previously reported missing)
+	if is_truthy "${PGBACKREST_BACKUP_ARCHIVE_MISSING_RETRY:-true}"; then
+		backup_args+=("--archive-missing-retry")
+		log_debug "[auto-backup] Enabled --archive-missing-retry for ${type} backup"
+	fi
+
 	# Build and execute the backup command
 	local backup_cmd="$clean_env_cmd pgbackrest --config=$CFG --stanza=$STANZA backup"
 	local arg
