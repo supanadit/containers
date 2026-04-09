@@ -159,6 +159,39 @@ log-level-file=debug
 log-path=${backup_dir}/log
 lock-path=${backup_dir}/lock
 spool-path=${backup_dir}/spool
+EOF
+
+    # Add WAL retention type (full = retain full backups only, default is full for safety)
+    local retention_full_type="${PGBACKREST_REPO_RETENTION_FULL_TYPE:-}"
+    if [ -n "$retention_full_type" ]; then
+        echo "repo1-retention-full-type=${retention_full_type}" >> "$config_file"
+    fi
+
+    # Add process-max for parallel backup/restore operations
+    local process_max="${PGBACKREST_PROCESS_MAX:-}"
+    if [ -n "$process_max" ]; then
+        echo "process-max=${process_max}" >> "$config_file"
+    fi
+
+    # Add archive async for better WAL archiving performance
+    local archive_async="${PGBACKREST_ARCHIVE_ASYNC:-}"
+    if is_truthy "$archive_async"; then
+        echo "archive-async=y" >> "$config_file"
+    fi
+
+    # Add sparse-table option for faster backup on filesystems that support it
+    local sparse_table="${PGBACKREST_SPARSE_TABLE:-}"
+    if is_truthy "$sparse_table"; then
+        echo "sparse-table=y" >> "$config_file"
+    fi
+
+    # Add compression type for backup files (gzip, lz4, zstd)
+    local repo_compression="${PGBACKREST_REPO_COMPRESSION:-}"
+    if [ -n "$repo_compression" ]; then
+        echo "repo1-compression=${repo_compression}" >> "$config_file"
+    fi
+
+    cat >> "$config_file" << EOF
 
 # Repository 1 configuration
 repo1-type=${repo1_type}
@@ -194,6 +227,8 @@ EOF
         [ -n "${PGBACKREST_REPO_S3_TOKEN:-${PGBACKREST_REPO1_S3_TOKEN:-}}" ] && echo "repo1-s3-token=${PGBACKREST_REPO_S3_TOKEN:-${PGBACKREST_REPO1_S3_TOKEN}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_S3_CA_FILE:-${PGBACKREST_REPO1_S3_CA_FILE:-}}" ] && echo "repo1-s3-ca-file=${PGBACKREST_REPO_S3_CA_FILE:-${PGBACKREST_REPO1_S3_CA_FILE}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_S3_CA_PATH:-${PGBACKREST_REPO1_S3_CA_PATH:-}}" ] && echo "repo1-s3-ca-path=${PGBACKREST_REPO_S3_CA_PATH:-${PGBACKREST_REPO1_S3_CA_PATH}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_S3_BUCKET_REGION:-${PGBACKREST_REPO1_S3_BUCKET_REGION:-}}" ] && echo "repo1-s3-bucket-region=${PGBACKREST_REPO_S3_BUCKET_REGION:-${PGBACKREST_REPO1_S3_BUCKET_REGION}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_S3_ENDPOINT_FLEXIBLE:-${PGBACKREST_REPO1_S3_ENDPOINT_FLEXIBLE:-}}" ] && echo "repo1-s3-endpoint-flexible=${PGBACKREST_REPO_S3_ENDPOINT_FLEXIBLE:-${PGBACKREST_REPO1_S3_ENDPOINT_FLEXIBLE}}" >> "$config_file"
         # Set the S3 repository path (prefer override if provided)
         if [ -n "$repo1_path_override" ]; then
             echo "repo1-path=${repo1_path_override}" >> "$config_file"
@@ -207,6 +242,9 @@ EOF
         [ -n "${PGBACKREST_REPO_GCS_KEY:-${PGBACKREST_REPO1_GCS_KEY:-}}" ] && echo "repo1-gcs-key=${PGBACKREST_REPO_GCS_KEY:-${PGBACKREST_REPO1_GCS_KEY}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_GCS_KEY_TYPE:-${PGBACKREST_REPO1_GCS_KEY_TYPE:-}}" ] && echo "repo1-gcs-key-type=${PGBACKREST_REPO_GCS_KEY_TYPE:-${PGBACKREST_REPO1_GCS_KEY_TYPE}}" >> "$config_file"
         [ -n "${PGBACKREST_REPO_GCS_USER_PROJECT:-${PGBACKREST_REPO1_GCS_USER_PROJECT:-}}" ] && echo "repo1-gcs-user-project=${PGBACKREST_REPO_GCS_USER_PROJECT:-${PGBACKREST_REPO1_GCS_USER_PROJECT}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_GCS_ENDPOINT_FLEXIBLE:-${PGBACKREST_REPO1_GCS_ENDPOINT_FLEXIBLE:-}}" ] && echo "repo1-gcs-endpoint-flexible=${PGBACKREST_REPO_GCS_ENDPOINT_FLEXIBLE:-${PGBACKREST_REPO1_GCS_ENDPOINT_FLEXIBLE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_GCS_CA_BUNDLE_FILE:-${PGBACKREST_REPO1_GCS_CA_BUNDLE_FILE:-}}" ] && echo "repo1-gcs-ca-bundle-file=${PGBACKREST_REPO_GCS_CA_BUNDLE_FILE:-${PGBACKREST_REPO1_GCS_CA_BUNDLE_FILE}}" >> "$config_file"
+        [ -n "${PGBACKREST_REPO_GCS_CA_BUNDLE_PATH:-${PGBACKREST_REPO1_GCS_CA_BUNDLE_PATH:-}}" ] && echo "repo1-gcs-ca-bundle-path=${PGBACKREST_REPO_GCS_CA_BUNDLE_PATH:-${PGBACKREST_REPO1_GCS_CA_BUNDLE_PATH}}" >> "$config_file"
         # Set the GCS repository path (prefer override if provided)
         if [ -n "$repo1_path_override" ]; then
             echo "repo1-path=${repo1_path_override}" >> "$config_file"

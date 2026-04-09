@@ -108,6 +108,35 @@ perform_pgbackrest_restore() {
   if [ -n "${PGBACKREST_RESTORE_TARGET_ACTION:-}" ]; then
     restore_args+=("--target-action=${PGBACKREST_RESTORE_TARGET_ACTION}")
   fi
+  if [ -n "${PGBACKREST_RESTORE_TARGET_XID:-}" ]; then
+    restore_args+=("--target-xid=${PGBACKREST_RESTORE_TARGET_XID}")
+  fi
+  if [ -n "${PGBACKREST_RESTORE_TARGET_LSN:-}" ]; then
+    restore_args+=("--target-lsn=${PGBACKREST_RESTORE_TARGET_LSN}")
+  fi
+  if [ -n "${PGBACKREST_RESTORE_TARGET_NAME:-}" ]; then
+    restore_args+=("--target-name=${PGBACKREST_RESTORE_TARGET_NAME}")
+  fi
+  if is_truthy "${PGBACKREST_RESTORE_TARGET_IMMEDIATE:-false}"; then
+    restore_args+=("--target-immediate")
+  fi
+  if [ -n "${PGBACKREST_RESTORE_RECOVERY_TARGET_TLI:-}" ]; then
+    restore_args+=("--recovery-target-tli=${PGBACKREST_RESTORE_RECOVERY_TARGET_TLI}")
+  fi
+  if [ -n "${PGBACKREST_RESTORE_RECOVERY_TARGET_ACTION:-}" ]; then
+    restore_args+=("--recovery-target-action=${PGBACKREST_RESTORE_RECOVERY_TARGET_ACTION}")
+  fi
+  if [ -n "${PGBACKREST_RESTORE_SET:-}" ]; then
+    restore_args+=("--set=${PGBACKREST_RESTORE_SET}")
+  fi
+  if [ -n "${PGBACKREST_RESTORE_TABLESPACE_MAP:-}" ]; then
+    local tbs_mapping
+    tbs_mapping="${PGBACKREST_RESTORE_TABLESPACE_MAP}"
+    IFS=',' read -ra TBS_PAIRS <<< "$tbs_mapping"
+    for pair in "${TBS_PAIRS[@]}"; do
+      restore_args+=("--tablespace-map=$pair")
+    done
+  fi
   if ! is_truthy "${PGBACKREST_RESTORE_DELTA:-true}"; then
     :
   else

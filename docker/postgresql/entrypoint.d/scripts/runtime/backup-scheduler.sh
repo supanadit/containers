@@ -161,8 +161,37 @@ run_backup() {
 	local clean_env_cmd
 	clean_env_cmd="$(generate_clean_env_command)"
 	log_info "[auto-backup] Starting ${type} backup for stanza=${STANZA}"
-	if su -c "$clean_env_cmd pgbackrest --config=\"$CFG\" --stanza=\"$STANZA\" backup --type=\"$type\"" postgres; then
-		log_info "[auto-backup] ${type} backup completed successfully"
+	
+	# Build backup arguments
+	local backup_args=("--type=$type")
+	
+	# Add --start-fast if configured (faster full backups with checkpoint)
+	if is_truthy "${PGBACKREST_BACKUP_START_FAST:-false}"; then
+		backup_args+=("--start-fast")
+		log_debug "[auto-backup] Enabled --start-fast for ${type} backup"
+	fi
+	
+	# Add --stop-auto if configured (clean shutdown after backup)
+	if is_truthy "${PGBACKREST_BACKUP_STOP_AUTO:-false}"; then
+		backup_args+=("--stop-auto")
+		log_debug "[auto-backup] Enabled --stop-auto for ${type} backup"
+	fi
+	
+	# Add --verify if configured (validate backup after creation)
+	if is_truthy "${PGBACKREST_BACKUP_VERIFY:-true}"; then
+		backup_args+=("--verify")
+		log_debug "[auto-backup] Enabled --verify for ${type} backup"
+	fi
+	
+	# Build and execute the backup command
+	local backup_cmd="$clean_env_cmd pgbackrest --config=$CFG --stanza=$STANZA backup"
+	local arg
+	for arg in "${backup_args[@]}"; do
+		backup_cmd+=" $(printf '%q' "$arg")"
+	done
+	
+	if su -c "$backup_cmd" postgres; then
+		log_info "[auto-backup] ${type} backup completed and verified successfully"
 		echo $(ts_now) >"$state_dir/last_${type}"
 		return 0
 	else
