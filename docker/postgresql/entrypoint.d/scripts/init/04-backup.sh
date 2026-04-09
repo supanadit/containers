@@ -191,6 +191,122 @@ EOF
         echo "repo1-compression=${repo_compression}" >> "$config_file"
     fi
 
+    # Add compression level for finer control (0-9 for gzip, 0-19 for zstd)
+    local compress_level="${PGBACKREST_COMPRESS_LEVEL:-}"
+    if [ -n "$compress_level" ]; then
+        echo "compress-level=${compress_level}" >> "$config_file"
+    fi
+
+    # Add compression level for network transfers
+    local compress_level_network="${PGBACKREST_COMPRESS_LEVEL_NETWORK:-}"
+    if [ -n "$compress_level_network" ]; then
+        echo "compress-level-network=${compress_level_network}" >> "$config_file"
+    fi
+
+    # Add buffer size for I/O operations (16KiB-16MiB)
+    local buffer_size="${PGBACKREST_BUFFER_SIZE:-}"
+    if [ -n "$buffer_size" ]; then
+        echo "buffer-size=${buffer_size}" >> "$config_file"
+    fi
+
+    # Add I/O timeout for operations
+    local io_timeout="${PGBACKREST_IO_TIMEOUT:-}"
+    if [ -n "$io_timeout" ]; then
+        echo "io-timeout=${io_timeout}" >> "$config_file"
+    fi
+
+    # Add database timeout for queries
+    local db_timeout="${PGBACKREST_DB_TIMEOUT:-}"
+    if [ -n "$db_timeout" ]; then
+        echo "db-timeout=${db_timeout}" >> "$config_file"
+    fi
+
+    # Add protocol timeout for network operations
+    local protocol_timeout="${PGBACKREST_PROTOCOL_TIMEOUT:-}"
+    if [ -n "$protocol_timeout" ]; then
+        echo "protocol-timeout=${protocol_timeout}" >> "$config_file"
+    fi
+
+    # Add repository encryption (cipher-type: none, aes-256-cbc)
+    local repo_cipher_type="${PGBACKREST_REPO_CIPHER_TYPE:-}"
+    if [ -n "$repo_cipher_type" ]; then
+        echo "repo1-cipher-type=${repo_cipher_type}" >> "$config_file"
+    fi
+    local repo_cipher_pass="${PGBACKREST_REPO_CIPHER_PASS:-}"
+    if [ -n "$repo_cipher_pass" ]; then
+        echo "repo1-cipher-pass=${repo_cipher_pass}" >> "$config_file"
+    fi
+
+    # Add hardlink support for local posix filesystem (efficient for quick backups)
+    local repo_hardlink="${PGBACKREST_REPO_HARDLINK:-}"
+    if is_truthy "$repo_hardlink"; then
+        echo "repo1-hardlink=y" >> "$config_file"
+    fi
+
+    # Add symlink support for repository
+    local repo_symlink="${PGBACKREST_REPO_SYMLINK:-}"
+    if is_truthy "$repo_symlink"; then
+        echo "repo1-symlink=y" >> "$config_file"
+    fi
+
+    # Add WAL retention options
+    local retention_archive="${PGBACKREST_REPO_RETENTION_ARCHIVE:-}"
+    if [ -n "$retention_archive" ]; then
+        echo "repo1-retention-archive=${retention_archive}" >> "$config_file"
+    fi
+    local retention_archive_type="${PGBACKREST_REPO_RETENTION_ARCHIVE_TYPE:-}"
+    if [ -n "$retention_archive_type" ]; then
+        echo "repo1-retention-archive-type=${retention_archive_type}" >> "$config_file"
+    fi
+
+    # Add archive queue tuning for async archiving
+    local archive_get_queue_max="${PGBACKREST_ARCHIVE_GET_QUEUE_MAX:-}"
+    if [ -n "$archive_get_queue_max" ]; then
+        echo "archive-get-queue-max=${archive_get_queue_max}" >> "$config_file"
+    fi
+    local archive_push_queue_max="${PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX:-}"
+    if [ -n "$archive_push_queue_max" ]; then
+        echo "archive-push-queue-max=${archive_push_queue_max}" >> "$config_file"
+    fi
+
+    # Add archive timeout (pgBackRest's archive command timeout)
+    local archive_timeout="${PGBACKREST_ARCHIVE_TIMEOUT:-}"
+    if [ -n "$archive_timeout" ]; then
+        echo "archive-timeout=${archive_timeout}" >> "$config_file"
+    fi
+
+    # Add neutral umask for predictable file permissions
+    local neutral_umask="${PGBACKREST_NEUTRAL_UMASK:-}"
+    if is_truthy "$neutral_umask"; then
+        echo "neutral-umask=y" >> "$config_file"
+    fi
+
+    # Add TCP keep-alive settings for network stability
+    local tcp_keep_alive_count="${PGBACKREST_TCP_KEEP_ALIVE_COUNT:-}"
+    if [ -n "$tcp_keep_alive_count" ]; then
+        echo "tcp-keep-alive-count=${tcp_keep_alive_count}" >> "$config_file"
+    fi
+    local tcp_keep_alive_idle="${PGBACKREST_TCP_KEEP_ALIVE_IDLE:-}"
+    if [ -n "$tcp_keep_alive_idle" ]; then
+        echo "tcp-keep-alive-idle=${tcp_keep_alive_idle}" >> "$config_file"
+    fi
+    local tcp_keep_alive_interval="${PGBACKREST_TCP_KEEP_ALIVE_INTERVAL:-}"
+    if [ -n "$tcp_keep_alive_interval" ]; then
+        echo "tcp-keep-alive-interval=${tcp_keep_alive_interval}" >> "$config_file"
+    fi
+
+    # Add socket keep-alive
+    local sck_keep_alive="${PGBACKREST_SCK_KEEP_ALIVE:-}"
+    if is_truthy "$sck_keep_alive"; then
+        echo "sck-keep-alive=y" >> "$config_file"
+    fi
+
+    # Add backup manifest save threshold
+    local manifest_save_threshold="${PGBACKREST_MANIFEST_SAVE_THRESHOLD:-}"
+    if [ -n "$manifest_save_threshold" ]; then
+        echo "manifest-save-threshold=${manifest_save_threshold}" >> "$config_file"
+    fi
+
     cat >> "$config_file" << EOF
 
 # Repository 1 configuration

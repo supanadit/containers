@@ -182,7 +182,57 @@ run_backup() {
 		backup_args+=("--verify")
 		log_debug "[auto-backup] Enabled --verify for ${type} backup"
 	fi
-	
+
+	# Add --checksum-page if configured (validate data page checksums)
+	if is_truthy "${PGBACKREST_BACKUP_CHECKSUM_PAGE:-false}"; then
+		backup_args+=("--checksum-page")
+		log_debug "[auto-backup] Enabled --checksum-page for ${type} backup"
+	fi
+
+	# Add --archive-check if configured (verify WAL segments in archive)
+	if is_truthy "${PGBACKREST_BACKUP_ARCHIVE_CHECK:-true}"; then
+		backup_args+=("--archive-check")
+		log_debug "[auto-backup] Enabled --archive-check for ${type} backup"
+	fi
+
+	# Add --archive-copy if configured (copy WAL needed for backup consistency)
+	if is_truthy "${PGBACKREST_BACKUP_ARCHIVE_COPY:-false}"; then
+		backup_args+=("--archive-copy")
+		log_debug "[auto-backup] Enabled --archive-copy for ${type} backup"
+	fi
+
+	# Add --expire-auto if configured (auto-run expire after backup)
+	if is_truthy "${PGBACKREST_BACKUP_EXPIRE_AUTO:-false}"; then
+		backup_args+=("--expire-auto")
+		log_debug "[auto-backup] Enabled --expire-auto for ${type} backup"
+	fi
+
+	# Add --resume if configured (allow resuming failed backup)
+	if is_truthy "${PGBACKREST_BACKUP_RESUME:-true}"; then
+		backup_args+=("--resume")
+		log_debug "[auto-backup] Enabled --resume for ${type} backup"
+	fi
+
+	# Add --exclude options for excluding paths from backup
+	if [ -n "${PGBACKREST_BACKUP_EXCLUDE:-}" ]; then
+		local exclude_paths="${PGBACKREST_BACKUP_EXCLUDE}"
+		IFS=', ' read -ra EXCLUDE_PATHS <<< "$exclude_paths"
+		for excl_path in "${EXCLUDE_PATHS[@]}"; do
+			[ -n "$excl_path" ] && backup_args+=("--exclude=$excl_path")
+		done
+		log_debug "[auto-backup] Added --exclude options for ${type} backup"
+	fi
+
+	# Add --annotation options for backup metadata (format: key=value,key2=value2)
+	if [ -n "${PGBACKREST_BACKUP_ANNOTATION:-}" ]; then
+		local annotations="${PGBACKREST_BACKUP_ANNOTATION}"
+		IFS=', ' read -ra ANNOTATIONS <<< "$annotations"
+		for annotation in "${ANNOTATIONS[@]}"; do
+			[ -n "$annotation" ] && backup_args+=("--annotation=$annotation")
+		done
+		log_debug "[auto-backup] Added --annotation options for ${type} backup"
+	fi
+
 	# Build and execute the backup command
 	local backup_cmd="$clean_env_cmd pgbackrest --config=$CFG --stanza=$STANZA backup"
 	local arg

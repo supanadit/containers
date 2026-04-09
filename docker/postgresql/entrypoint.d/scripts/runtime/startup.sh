@@ -137,6 +137,46 @@ perform_pgbackrest_restore() {
       restore_args+=("--tablespace-map=$pair")
     done
   fi
+  # Add --link-all if configured (restore all symlinks)
+  if is_truthy "${PGBACKREST_RESTORE_LINK_ALL:-false}"; then
+    restore_args+=("--link-all")
+  fi
+  # Add --link-map for modifying symlink destinations (format: old=/new,old2=/new2)
+  if [ -n "${PGBACKREST_RESTORE_LINK_MAP:-}" ]; then
+    local link_map="${PGBACKREST_RESTORE_LINK_MAP}"
+    IFS=',' read -ra LINK_PAIRS <<< "$link_map"
+    for pair in "${LINK_PAIRS[@]}"; do
+      restore_args+=("--link-map=$pair")
+    done
+  fi
+  # Add --db-include for selective database restore
+  if [ -n "${PGBACKREST_RESTORE_DB_INCLUDE:-}" ]; then
+    local db_include="${PGBACKREST_RESTORE_DB_INCLUDE}"
+    IFS=',' read -ra DB_INCLUDE <<< "$db_include"
+    for db in "${DB_INCLUDE[@]}"; do
+      restore_args+=("--db-include=$db")
+    done
+  fi
+  # Add --db-exclude for excluding databases from restore
+  if [ -n "${PGBACKREST_RESTORE_DB_EXCLUDE:-}" ]; then
+    local db_exclude="${PGBACKREST_RESTORE_DB_EXCLUDE}"
+    IFS=',' read -ra DB_EXCLUDE <<< "$db_exclude"
+    for db in "${DB_EXCLUDE[@]}"; do
+      restore_args+=("--db-exclude=$db")
+    done
+  fi
+  # Add --recovery-option for postgresql.auto.conf settings
+  if [ -n "${PGBACKREST_RESTORE_RECOVERY_OPTION:-}" ]; then
+    local recovery_opts="${PGBACKREST_RESTORE_RECOVERY_OPTION}"
+    IFS=',' read -ra RECOVERY_OPTS <<< "$recovery_opts"
+    for opt in "${RECOVERY_OPTS[@]}"; do
+      restore_args+=("--recovery-option=$opt")
+    done
+  fi
+  # Add --archive-mode for archive mode handling on restore
+  if [ -n "${PGBACKREST_RESTORE_ARCHIVE_MODE:-}" ]; then
+    restore_args+=("--archive-mode=${PGBACKREST_RESTORE_ARCHIVE_MODE}")
+  fi
   if ! is_truthy "${PGBACKREST_RESTORE_DELTA:-true}"; then
     :
   else
