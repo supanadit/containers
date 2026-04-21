@@ -35,16 +35,9 @@ jobs:
       - name: Set matrix and context for Apache Kafka
         id: versions
         run: |
-          # Supported Kafka versions based on Apache Kafka releases
-          MATRIX='[
-            {"version": "3.9.2", "kafka_version": "3.9.2", "java_version": "21"},
-            {"version": "4.0.2", "kafka_version": "4.0.2", "java_version": "21"},
-            {"version": "4.1.2", "kafka_version": "4.1.2", "java_version": "21"},
-            {"version": "4.2.0", "kafka_version": "4.2.0", "java_version": "21"}
-          ]'
-          CONTEXT="docker/apache-kafka"
+          MATRIX='[{"version": "3.9.2", "kafka_version": "3.9.2", "java_version": "21"}, {"version": "4.0.2", "kafka_version": "4.0.2", "java_version": "21"}, {"version": "4.1.2", "kafka_version": "4.1.2", "java_version": "21"}, {"version": "4.2.0", "kafka_version": "4.2.0", "java_version": "21"}]'
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+          echo "context=docker/apache-kafka" >> $GITHUB_OUTPUT
 
   build:
     needs: setup
