@@ -5,6 +5,14 @@ echo "=========================================="
 echo "Starting Kafka Setup"
 echo "=========================================="
 
+# Export build args as environment variables for child scripts
+export KAFKA_VERSION=${KAFKA_VERSION:-3.9.1}
+export JAVA_VERSION=${JAVA_VERSION:-21}
+
+echo "Build configuration:"
+echo "  KAFKA_VERSION: ${KAFKA_VERSION}"
+echo "  JAVA_VERSION: ${JAVA_VERSION}"
+
 # Set script directory
 SCRIPT_DIR="/opt/setup/scripts"
 

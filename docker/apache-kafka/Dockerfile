@@ -19,6 +19,10 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
 # Setup layer - copy stable files first for better caching
 FROM base AS setup
 
+# Re-declare build args for this stage
+ARG JAVA_VERSION
+ARG KAFKA_VERSION
+
 # Copy setup scripts and configuration (stable files that change infrequently)
 COPY setup.sh /opt/setup.sh
 COPY setup/ /opt/setup/
@@ -27,7 +31,7 @@ COPY setup/ /opt/setup/
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
     chmod +x /opt/setup.sh && \
-    /opt/setup.sh && \
+    KAFKA_VERSION=${KAFKA_VERSION} JAVA_VERSION=${JAVA_VERSION} /opt/setup.sh && \
     rm /opt/setup.sh && \
     rm -rf /opt/setup/
 
