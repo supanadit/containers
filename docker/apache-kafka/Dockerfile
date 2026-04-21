@@ -13,7 +13,8 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
     org.opencontainers.image.revision=$VCS_REF \
     org.opencontainers.image.title="kafka" \
     org.opencontainers.image.description="Optimized Kafka container" \
-    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>"
+    org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>" \
+    org.opencontainers.image.source=https://github.com/supanadit/containers
 
 # Setup layer - copy stable files first for better caching
 FROM base AS setup
@@ -32,7 +33,6 @@ RUN --mount=type=cache,target=/var/cache/apt \
 
 # Runtime layer - copy volatile files later
 FROM setup AS runtime
-# Create postgres user for security (already created in setup stage)
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
@@ -40,11 +40,24 @@ COPY entrypoint.d/ /opt/container/entrypoint.d/
 # Copy configuration files
 COPY config/ /opt/kafka/config/
 
+# Set proper ownership
+RUN chown -R kafka:kafka /opt/container/ && \
+    chmod -R 755 /opt/container/ && \
+    chown -R kafka:kafka /opt/kafka/ && \
+    chmod -R 755 /opt/kafka/
+
 # Copy main entrypoint script
 COPY entrypoint.d/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Expose Kafka port
-EXPOSE 9092
+# Set the stop signal for proper container shutdown
+STOPSIGNAL SIGTERM
+
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
+
+# Expose Kafka ports (broker and controller)
+EXPOSE 9092 9093
 
 ENTRYPOINT ["/entrypoint.sh"]

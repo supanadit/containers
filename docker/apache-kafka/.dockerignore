@@ -1,0 +1,60 @@
+# Docker build context optimization
+# Exclude files that aren't needed for the build to avoid cache invalidation
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (except README)
+*.md
+!README.md
+docs/
+CHANGELOG*
+LICENSE*
+
+# Development and testing
+specs/
+test/
+*.test
+.coverage
+node_modules/
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build artifacts and caches
+build/
+dist/
+target/
+*.o
+*.so
+*.dylib
+*.dll
+*.tmp
+.cache/
+
+# CI/CD and deployment
+.github/
+.gitlab-ci.yml
+.travis.yml
+docker-compose*.yml
+!docker-compose.yml
+Dockerfile*
+!Dockerfile
+
+# Backup and temporary files
+*.bak
+*.backup
+*.orig
+*.rej
+*~
+.*.swp
+.*.swo

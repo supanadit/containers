@@ -17,10 +17,14 @@ echo "Installing Apache Kafka ${KAFKA_VERSION}"
 mkdir -p /temp/sources
 cd /temp/sources
 
-# Download Kafka
-KAFKA_URL="https://downloads.apache.org/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
+# Download Kafka (try archive first, fallback to mirror)
+KAFKA_URL="https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
 echo "Downloading from ${KAFKA_URL}"
-wget "${KAFKA_URL}"
+if ! wget "${KAFKA_URL}"; then
+    KAFKA_URL="https://downloads.apache.org/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
+    echo "Falling back to mirror: ${KAFKA_URL}"
+    wget "${KAFKA_URL}"
+fi
 
 # Extract Kafka
 tar -xzf "kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
