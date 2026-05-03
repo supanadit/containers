@@ -3,6 +3,12 @@
 FROM debian:bookworm-slim AS base
 
 ARG MARIADB_VERSION=11.8.3
+ARG MARIADB_GALERA_VERSION=26.4.16
+
+STOPSIGNAL SIGTERM
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
 
 # Build metadata
 ARG BUILD_DATE
