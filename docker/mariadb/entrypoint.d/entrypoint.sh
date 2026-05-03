@@ -1,127 +1,149 @@
 #!/bin/bash
+# entrypoint.sh - Main container orchestrator for MariaDB
+# Coordinates all modular scripts for MariaDB container initialization and runtime
+
 set -euo pipefail
 
-# MariaDB Entrypoint Script
-# Initializes and starts MariaDB server
+source /opt/container/entrypoint.d/scripts/utils/logging.sh
+source /opt/container/entrypoint.d/scripts/utils/validation.sh
+source /opt/container/entrypoint.d/scripts/utils/security.sh
 
-# Add MariaDB to PATH
-export PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
+SCRIPT_VERSION="1.0.0"
 
-# Default data directory
-MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+DEFAULT_MARIADB_DATA_DIR="${DEFAULT_MARIADB_DATA_DIR:-/var/lib/mysql}"
+DEFAULT_MARIADB_CONFIG_DIR="${DEFAULT_MARIADB_CONFIG_DIR:-/etc/mysql/mariadb.conf.d}"
+DEFAULT_MARIADB_LOG_DIR="${DEFAULT_MARIADB_LOG_DIR:-/var/log/mariadb}"
+DEFAULT_MARIADB_RUN_DIR="${DEFAULT_MARIADB_RUN_DIR:-/run/mariadb}"
+DEFAULT_MARIADB_BACKUP_DIR="${DEFAULT_MARIADB_BACKUP_DIR:-/var/lib/mariadb/backup}"
 
-# Environment variables for database setup
-MARIADB_ROOT_PASSWORD="${MARIADB_ROOT_PASSWORD:-}"
-MARIADB_DATABASE="${MARIADB_DATABASE:-}"
-MARIADB_USER="${MARIADB_USER:-}"
-MARIADB_PASSWORD="${MARIADB_PASSWORD:-}"
-MARIADB_ALLOW_EMPTY_PASSWORD="${MARIADB_ALLOW_EMPTY_PASSWORD:-no}"
+export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-$DEFAULT_MARIADB_DATA_DIR}"
+export MARIADB_CONFIG_DIR="${MARIADB_CONFIG_DIR:-$DEFAULT_MARIADB_CONFIG_DIR}"
+export MARIADB_LOG_DIR="${MARIADB_LOG_DIR:-$DEFAULT_MARIADB_LOG_DIR}"
+export MARIADB_RUN_DIR="${MARIADB_RUN_DIR:-$DEFAULT_MARIADB_RUN_DIR}"
+export MARIADB_BACKUP_DIR="${MARIADB_BACKUP_DIR:-$DEFAULT_MARIADB_BACKUP_DIR}"
 
-# Function to log messages
-log() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $@"
-}
+export MARIADB_ROOT_PASSWORD="${MARIADB_ROOT_PASSWORD:-}"
+export MARIADB_DATABASE="${MARIADB_DATABASE:-}"
+export MARIADB_USER="${MARIADB_USER:-}"
+export MARIADB_PASSWORD="${MARIADB_PASSWORD:-}"
+export MARIADB_ALLOW_EMPTY_PASSWORD="${MARIADB_ALLOW_EMPTY_PASSWORD:-no}"
 
-# Function to initialize database if data directory is empty
-initialize_database() {
-    if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
-        log "Initializing MariaDB data directory at $MARIADB_DATA_DIR"
-        
-        # Create data directory if it doesn't exist
-        mkdir -p "$MARIADB_DATA_DIR"
-        chown -R mysql:mysql "$MARIADB_DATA_DIR"
-        
-        # Initialize the database
-        mariadb-install-db --user=mysql --datadir="$MARIADB_DATA_DIR" --rpm
-        
-        log "Database initialized successfully"
-    else
-        log "Database already initialized, skipping initialization"
-    fi
-}
+export MARIADB_MAX_CONNECTIONS="${MARIADB_MAX_CONNECTIONS:-200}"
+export MARIADB_INNODB_BUFFER_POOL_SIZE="${MARIADB_INNODB_BUFFER_POOL_SIZE:-128M}"
+export MARIADB_INNODB_LOG_FILE_SIZE="${MARIADB_INNODB_LOG_FILE_SIZE:-48M}"
+export MARIADB_INNODB_FLUSH_LOG_AT_TRX_COMMIT="${MARIADB_INNODB_FLUSH_LOG_AT_TRX_COMMIT:-1}"
+export MARIADB_TIMEZONE="${MARIADB_TIMEZONE:-UTC}"
+export MARIADB_EXPIRE_LOGS_DAYS="${MARIADB_EXPIRE_LOGS_DAYS:-7}"
 
-# Function to setup initial database configuration
-setup_database() {
-    log "Setting up initial database configuration"
-    
-    # Create temporary SQL file for initial setup
-    local init_sql="/tmp/init.sql"
-    
-    # Start SQL commands
-    cat > "$init_sql" << EOF
--- Set root password if provided
-EOF
-    
-    if [ -n "$MARIADB_ROOT_PASSWORD" ]; then
-        echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '$MARIADB_ROOT_PASSWORD';" >> "$init_sql"
-    elif [ "$MARIADB_ALLOW_EMPTY_PASSWORD" != "yes" ]; then
-        log "Warning: No root password set and empty passwords not allowed"
-        echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '';" >> "$init_sql"
-    fi
-    
-    # Create database if specified
-    if [ -n "$MARIADB_DATABASE" ]; then
-        echo "CREATE DATABASE IF NOT EXISTS \`$MARIADB_DATABASE\`;" >> "$init_sql"
-    fi
-    
-    # Create user if specified
-    if [ -n "$MARIADB_USER" ] && [ -n "$MARIADB_PASSWORD" ]; then
-        echo "CREATE USER IF NOT EXISTS '$MARIADB_USER'@'%' IDENTIFIED BY '$MARIADB_PASSWORD';" >> "$init_sql"
-        if [ -n "$MARIADB_DATABASE" ]; then
-            echo "GRANT ALL PRIVILEGES ON \`$MARIADB_DATABASE\`.* TO '$MARIADB_USER'@'%';" >> "$init_sql"
-        fi
-    fi
-    
-    echo "FLUSH PRIVILEGES;" >> "$init_sql"
-    
-    # Run the initialization SQL
-    mariadbd --user=mysql --datadir="$MARIADB_DATA_DIR" --skip-networking --socket=/tmp/mysql.sock &
-    local pid=$!
-    
-    # Wait for MariaDB to start
-    sleep 5
-    
-    # Execute initialization SQL
-    mariadb --socket=/tmp/mysql.sock -u root < "$init_sql"
-    
-    # Stop the temporary instance
-    kill $pid
-    wait $pid 2>/dev/null || true
-    
-    # Clean up
-    rm -f "$init_sql" /tmp/mysql.sock
-    
-    log "Initial database setup completed"
-}
+export MARIADB_REPLICATION_ENABLE="${MARIADB_REPLICATION_ENABLE:-false}"
+export MARIADB_REPLICATION_USER="${MARIADB_REPLICATION_USER:-repl}"
+export MARIADB_REPLICATION_PASSWORD="${MARIADB_REPLICATION_PASSWORD:-}"
 
-# Function to start MariaDB
-start_mariadb() {
-    log "Starting MariaDB server"
-    
-    # Set ownership
-    chown -R mysql:mysql "$MARIADB_DATA_DIR"
-    
-    # Start MariaDB
-    exec mariadbd --user=mysql --datadir="$MARIADB_DATA_DIR" --console
-}
+export MARIADB_GALERA_ENABLE="${MARIADB_GALERA_ENABLE:-false}"
+export MARIADB_GALERA_CLUSTER_NAME="${MARIADB_GALERA_CLUSTER_NAME:-mariadb_cluster}"
+export MARIADB_GALERA_SEEDS="${MARIADB_GALERA_SEEDS:-}"
+export MARIADB_GALERA_SST_METHOD="${MARIADB_GALERA_SST_METHOD:-xtrabackup}"
+export MARIADB_GALERA_PROVIDER="${MARIADB_GALERA_PROVIDER:-}"
+export MARIADB_NODE_ADDRESS="${MARIADB_NODE_ADDRESS:-localhost}"
+export MARIADB_GALERA_THREADS="${MARIADB_GALERA_THREADS:-4}"
 
-# Main execution
+export MARIADB_BACKUP_ENABLE="${MARIADB_BACKUP_ENABLE:-false}"
+export MARIADB_BACKUP_METHOD="${MARIADB_BACKUP_METHOD:-xtrabackup}"
+export MARIADB_BACKUP_RETENTION_DAYS="${MARIADB_BACKUP_RETENTION_DAYS:-7}"
+export MARIADB_BACKUP_SCHEDULE="${MARIADB_BACKUP_SCHEDULE:-0 2 * * *}"
+
+export MARIADB_SSL_ENABLE="${MARIADB_SSL_ENABLE:-false}"
+export MARIADB_SSL_CERT_DIR="${MARIADB_SSL_CERT_DIR:-/var/lib/mysql/ssl}"
+
+export MARIADB_EXTERNAL_ACCESS_ENABLE="${MARIADB_EXTERNAL_ACCESS_ENABLE:-false}"
+
 main() {
-    log "MariaDB container entrypoint starting"
-    
-    if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
-        # Initialize database if needed
-        initialize_database
-        
-        # Setup initial configuration
-        setup_database
-    else
-        log "Database already initialized, skipping setup"
+    log_script_start "entrypoint.sh v$SCRIPT_VERSION"
+
+    log_info "MariaDB Container Entrypoint v$SCRIPT_VERSION"
+    log_environment
+
+    if ! validate_environment; then
+        log_error "Environment validation failed"
+        exit 1
     fi
-    
-    # Start MariaDB
-    start_mariadb
+
+    if ! validate_dependencies; then
+        log_error "Dependency validation failed"
+        exit 1
+    fi
+
+    setup_signal_handlers
+
+    run_initialization
+
+    start_runtime
+
+    log_script_end "entrypoint.sh"
 }
 
-# Run main function
+setup_signal_handlers() {
+    log_debug "Setting up signal handlers"
+
+    trap 'handle_shutdown SIGTERM' SIGTERM
+    trap 'handle_shutdown SIGINT' SIGINT
+    trap 'handle_shutdown SIGQUIT' SIGQUIT
+    trap 'handle_shutdown SIGHUP' SIGHUP
+
+    log_debug "Signal handlers configured"
+}
+
+handle_shutdown() {
+    local signal="$1"
+    log_info "Received shutdown signal: $signal"
+
+    if [ -f "/opt/container/entrypoint.d/scripts/runtime/shutdown.sh" ]; then
+        /opt/container/entrypoint.d/scripts/runtime/shutdown.sh || true
+    fi
+
+    log_info "Shutdown complete"
+    exit 0
+}
+
+run_initialization() {
+    log_info "Running initialization scripts"
+
+    local init_scripts=(
+        "/opt/container/entrypoint.d/scripts/init/00-misc-scripts.sh"
+        "/opt/container/entrypoint.d/scripts/init/01-directories.sh"
+        "/opt/container/entrypoint.d/scripts/init/02-database.sh"
+        "/opt/container/entrypoint.d/scripts/init/03-config.sh"
+        "/opt/container/entrypoint.d/scripts/init/04-backup.sh"
+        "/opt/container/entrypoint.d/scripts/init/05-sshd.sh"
+    )
+
+    for script in "${init_scripts[@]}"; do
+        if [ -f "$script" ] && [ -x "$script" ]; then
+            log_info "Running initialization script: $(basename "$script")"
+            if ! "$script"; then
+                log_error "Initialization script failed: $(basename "$script")"
+                exit 1
+            fi
+        else
+            log_warn "Initialization script not found or not executable: $script"
+        fi
+    done
+
+    log_info "All initialization scripts completed successfully"
+}
+
+start_runtime() {
+    log_info "Starting runtime management"
+
+    local startup_script="/opt/container/entrypoint.d/scripts/runtime/startup.sh"
+
+    if [ -f "$startup_script" ] && [ -x "$startup_script" ]; then
+        log_info "Starting MariaDB via startup script"
+        exec "$startup_script"
+    else
+        log_error "Startup script not found or not executable: $startup_script"
+        exit 1
+    fi
+}
+
 main "$@"
