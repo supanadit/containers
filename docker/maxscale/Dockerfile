@@ -16,16 +16,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     procps \
     sudo \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://downloads.mariadb.com/MaxScale/MariaDB-MaxScale-24.02.1-kkulls-latest.debian.bookworm.amd64.deb -o /tmp/maxscale.deb && \
-    dpkg --install --force-depends /tmp/maxscale.deb || apt-get install -f -y && \
-    rm -f /tmp/maxscale.deb
+RUN curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | bash -s -- --maxscale && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends maxscale && \
+    rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/mariadb.list
 
 COPY entrypoint.d/ /opt/container/entrypoint.d/
 COPY entrypoint.d/entrypoint.sh /entrypoint.sh
 
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    find /opt/container/entrypoint.d -type f -name "*.sh" -exec chmod +x {} \;
 
 EXPOSE 3306 8989
 
