@@ -40,7 +40,9 @@ ENV PATH="/usr/local/mariadb/bin:$PATH"
 
 # Runtime layer - copy volatile files later
 FROM setup AS runtime
-# Create postgres user for security (already created in setup stage)
+
+# Create required runtime directories
+RUN mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
