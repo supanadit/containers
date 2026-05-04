@@ -72,6 +72,13 @@ EOF
         fi
     fi
     
+    # Create MaxScale service user if configured
+    if [ -n "${MAXSCALE_SERVICE_USER:-}" ] && [ -n "${MAXSCALE_SERVICE_PASSWORD:-}" ]; then
+        log "Creating MaxScale service user: $MAXSCALE_SERVICE_USER"
+        echo "CREATE USER IF NOT EXISTS '$MAXSCALE_SERVICE_USER'@'%' IDENTIFIED BY '$MAXSCALE_SERVICE_PASSWORD';" >> "$init_sql"
+        echo "GRANT SELECT, RELOAD, PROCESS, SUPER, REPLICATION CLIENT, REPLICATION SLAVE, SHOW DATABASES ON *.* TO '$MAXSCALE_SERVICE_USER'@'%';" >> "$init_sql"
+    fi
+    
     echo "FLUSH PRIVILEGES;" >> "$init_sql"
     
     # Run the initialization SQL

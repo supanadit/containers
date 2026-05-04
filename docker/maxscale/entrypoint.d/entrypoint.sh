@@ -36,7 +36,7 @@ main() {
 
     log_info "Starting MaxScale"
     export PATH="/usr/bin:$PATH"
-    exec gosu maxscale maxscale -f /etc/maxscale.cnf.d/generated.cnf
+    exec gosu maxscale maxscale -d -l stdout -f /etc/maxscale.cnf.d/generated.cnf
 }
 
 setup_directories() {
@@ -60,6 +60,11 @@ generate_config() {
     cat > /etc/maxscale.cnf.d/generated.cnf << MAXSCALE_CONFIG
 [maxscale]
 threads=${MAXSCALE_THREADS}
+log_info=true
+log_notice=true
+log_warning=true
+syslog=false
+logdir=/var/log/maxscale
 admin_auth=true
 admin_enabled=true
 
