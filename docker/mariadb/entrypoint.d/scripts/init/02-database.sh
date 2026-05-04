@@ -52,6 +52,12 @@ EOF
         fi
     fi
 
+    if [ -n "${MAXSCALE_SERVICE_USER:-}" ] && [ -n "${MAXSCALE_SERVICE_PASSWORD:-}" ]; then
+        log_info "Creating MaxScale service user: ${MAXSCALE_SERVICE_USER}"
+        echo "CREATE USER IF NOT EXISTS '${MAXSCALE_SERVICE_USER}'@'%' IDENTIFIED BY '${MAXSCALE_SERVICE_PASSWORD}';" >> "$init_sql"
+        echo "GRANT SELECT, RELOAD, PROCESS, SUPER, REPLICATION CLIENT, REPLICATION SLAVE, SHOW DATABASES ON *.* TO '${MAXSCALE_SERVICE_USER}'@'%';" >> "$init_sql"
+    fi
+
     echo "FLUSH PRIVILEGES;" >> "$init_sql"
 
     mariadbd --user=mysql --datadir="$MARIADB_DATA_DIR" --skip-networking --socket="$socket" &
