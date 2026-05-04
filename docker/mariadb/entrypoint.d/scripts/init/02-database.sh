@@ -9,37 +9,26 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 log_script_start "02-database.sh"
 
 export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
-
-# Check if database needs initialization
-if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
-    log_info "Initializing MariaDB data directory at $MARIADB_DATA_DIR"
-
-    mkdir -p "$MARIADB_DATA_DIR"
-    chown -R mysql:mysql "$MARIADB_DATA_DIR"
-
-    mariadb-install-db --user=mysql --datadir="$MARIADB_DATA_DIR" --rpm
-
-    log_info "Database initialized successfully"
-else
-    log_info "Database already initialized, skipping initialization"
-fi
-
-# Run initial SQL setup if needed
-setup_initial_database
-
-# Setup replication user if enabled
-setup_replication_user
-
-# Run security tasks
-secure_installation
-
-log_script_end "02-database.sh"
+export MARIADB_RUN_DIR="${MARIADB_RUN_DIR:-/run/mariadb}"
 
 setup_initial_database() {
     log_info "Setting up initial database configuration"
 
+    if [ ! -d "$MARIADB_DATA_DIR/mysql" ]; then
+        log_info "Initializing MariaDB data directory at $MARIADB_DATA_DIR"
+
+        mkdir -p "$MARIADB_DATA_DIR"
+        chown -R mysql:mysql "$MARIADB_DATA_DIR"
+
+        mariadb-install-db --user=mysql --datadir="$MARIADB_DATA_DIR" --rpm
+
+        log_info "Database initialized successfully"
+    else
+        log_info "Database already initialized, skipping initialization"
+    fi
+
     local init_sql="/tmp/init.sql"
-    local socket="/tmp/mysql.sock"
+    local socket="${MARIADB_RUN_DIR}/mysqld.sock"
 
     cat > "$init_sql" << EOF
 -- Set root password if provided
@@ -79,3 +68,17 @@ EOF
 
     log_info "Initial database setup completed"
 }
+
+setup_replication_user() {
+    log_info "Replication user setup skipped (not implemented)"
+}
+
+secure_installation() {
+    log_info "Secure installation skipped (handled by initialization)"
+}
+
+setup_initial_database
+setup_replication_user
+secure_installation
+
+log_script_end "02-database.sh"

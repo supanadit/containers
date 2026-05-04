@@ -44,6 +44,7 @@ FROM setup AS runtime
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
+RUN find /opt/container/entrypoint.d -name "*.sh" -exec chmod +x {} \;
 
 # Copy main entrypoint script
 COPY entrypoint.d/entrypoint.sh /entrypoint.sh

@@ -28,7 +28,7 @@ apt-get update -y && apt-get install -y --no-install-recommends \
     gnutls-dev \
     libgnutls28-dev \
     libpam0g-dev \
-    libaio-dev \
+    libaio1 \
     libnuma-dev \
     libsystemd-dev \
     libkrb5-dev \
@@ -43,7 +43,8 @@ apt-get update -y && apt-get install -y --no-install-recommends \
     lsb-release \
     mariadb-backup \
     galera-4 \
-    socat
+    socat \
+    libaio1
 
 git config --global http.sslverify false
 git config --global http.postBuffer 524288000

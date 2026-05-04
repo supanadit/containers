@@ -62,6 +62,8 @@ validate_environment() {
 validate_dependencies() {
     log_info "Validating dependencies"
 
+    export PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
+
     local missing=()
     local required_commands=("mariadbd" "mariadb" "mariadb-install-db")
 
