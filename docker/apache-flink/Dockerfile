@@ -56,8 +56,8 @@ RUN chmod +x /entrypoint.sh
 RUN groupadd -r flink && useradd -r -g flink flink
 
 # Create necessary directories
-RUN mkdir -p /opt/flink/logs && \
-    chown -R flink:flink /opt/flink
+RUN mkdir -p /opt/containers/logs && \
+    chown -R flink:flink /opt/flink /opt/containers
 
 # Switch to flink user
 USER flink

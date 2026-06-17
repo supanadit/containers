@@ -61,7 +61,7 @@ upload_to_sftp() {
 
 restore_from_backup() {
     local backup_file="$1"
-    local data_dir="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+    local data_dir="${MARIADB_DATA_DIR:-/opt/containers/data}"
 
     log_info "Restoring from backup: $backup_file"
 

@@ -7,8 +7,8 @@ set -euo pipefail
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 
-DEFAULT_KAFKA_DATA_DIR="/opt/kafka/data"
-DEFAULT_KAFKA_CONFIG_DIR="/opt/kafka/config"
+DEFAULT_KAFKA_DATA_DIR="/opt/containers/data"
+DEFAULT_KAFKA_CONFIG_DIR="/opt/containers/config"
 DEFAULT_TIMEOUT=30
 
 validate_environment() {

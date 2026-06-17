@@ -45,8 +45,8 @@ setup_ssl() {
 
     log_info "Setting up SSL/TLS"
 
-    local ssl_dir="${MARIADB_SSL_CERT_DIR:-/var/lib/mysql/ssl}"
-    local cert_dir="/var/lib/mysql/ssl"
+    local ssl_dir="${MARIADB_SSL_CERT_DIR:-/opt/containers/config/ssl}"
+    local cert_dir="/opt/containers/config/ssl"
 
     mkdir -p "$cert_dir"
     chown mysql:mysql "$cert_dir"

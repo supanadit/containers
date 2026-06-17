@@ -8,8 +8,8 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 
 log_script_start "02-database.sh"
 
-export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
-export MARIADB_RUN_DIR="${MARIADB_RUN_DIR:-/run/mariadb}"
+export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/opt/containers/data}"
+export MARIADB_RUN_DIR="${MARIADB_RUN_DIR:-/opt/containers/run}"
 
 setup_initial_database() {
     log_info "Setting up initial database configuration"

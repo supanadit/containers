@@ -8,8 +8,8 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 
 log_script_start "03-config.sh"
 
-export MARIADB_CONFIG_DIR="${MARIADB_CONFIG_DIR:-/etc/mysql/mariadb.conf.d}"
-export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+export MARIADB_CONFIG_DIR="${MARIADB_CONFIG_DIR:-/opt/containers/config}"
+export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/opt/containers/data}"
 
 # Create configuration directory
 mkdir -p "$MARIADB_CONFIG_DIR"
@@ -64,9 +64,9 @@ expire_logs_days=${MARIADB_EXPIRE_LOGS_DAYS:-7}
 
 # SSL settings
 ssl=${MARIADB_SSL_ENABLE:-false}
-ssl_cert=${MARIADB_SSL_CERT_DIR:-/var/lib/mysql/ssl}/server.crt
-ssl_key=${MARIADB_SSL_CERT_DIR:-/var/lib/mysql/ssl}/server.key
-ssl_ca=${MARIADB_SSL_CERT_DIR:-/var/lib/mysql/ssl}/ca.crt
+ssl_cert=${MARIADB_SSL_CERT_DIR:-/opt/containers/config/ssl}/server.crt
+ssl_key=${MARIADB_SSL_CERT_DIR:-/opt/containers/config/ssl}/server.key
+ssl_ca=${MARIADB_SSL_CERT_DIR:-/opt/containers/config/ssl}/ca.crt
 
 # Performance settings
 innodb_io_capacity=2000

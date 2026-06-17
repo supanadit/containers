@@ -98,7 +98,7 @@ check_galera_status() {
 check_disk_space() {
     log_debug "Checking disk space"
 
-    local data_dir="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+    local data_dir="${MARIADB_DATA_DIR:-/opt/containers/data}"
     local mount_point
     mount_point=$(df -P "$data_dir" | tail -1 | awk '{print $6}')
 

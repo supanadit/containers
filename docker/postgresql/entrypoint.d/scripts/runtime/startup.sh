@@ -13,7 +13,7 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
 # Restore coordination files
-RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/opt/containers/run}}"
 RESTORE_SENTINEL="${RESTORE_STATE_DIR}/pgbackrest-restore.pending"
 RESTORE_COMPLETE_MARK="${RESTORE_STATE_DIR}/pgbackrest-restore.complete"
 
@@ -68,7 +68,7 @@ is_restore_pending() {
 
 # Run pgBackRest restore before starting PostgreSQL
 perform_pgbackrest_restore() {
-  local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+  local data_dir="${PGDATA:-/opt/containers/data}"
   local postgres_user="${POSTGRES_USER:-postgres}"
   local postgres_group="${POSTGRES_GROUP:-postgres}"
   local stanza="${PGBACKREST_STANZA:-default}"
@@ -379,7 +379,7 @@ select_startup_mode() {
 
 # Start PostgreSQL directly
 start_postgresql_direct() {
-  local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+  local data_dir="${PGDATA:-/opt/containers/data}"
   local config_file="$data_dir/postgresql.conf"
 
   log_info "Starting PostgreSQL directly"
@@ -515,7 +515,7 @@ start_sleep_mode() {
   log_environment
 
   # Create a PID file to indicate we're running
-  local pid_file="${PGRUN:-/usr/local/pgsql/run}/sleep.pid"
+  local pid_file="${PGRUN:-/opt/containers/run}/sleep.pid"
   echo $$ >"$pid_file"
 
   log_info "Container is in maintenance mode"
@@ -556,7 +556,7 @@ initialize_pgbackrest_stanza() {
   log_info "Initializing pgBackRest stanza"
 
   local stanza="${PGBACKREST_STANZA:-default}"
-  local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
+  local backup_dir="${PGBACKUP:-/opt/containers/backup}"
   local archive_info_file="$backup_dir/archive/$stanza/archive.info"
   local backup_info_file="$backup_dir/backup/$stanza/backup.info"
   local repo_type="${PGBACKREST_REPO_TYPE:-posix}"

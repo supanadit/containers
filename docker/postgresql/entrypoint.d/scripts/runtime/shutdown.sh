@@ -177,7 +177,7 @@ force_shutdown_if_needed() {
 
 # Clean up PID files
 cleanup_pid_files() {
-    local run_dir="${PGRUN:-/usr/local/pgsql/run}"
+    local run_dir="${PGRUN:-/opt/containers/run}"
 
     log_debug "Cleaning up PID files in: $run_dir"
 
@@ -198,7 +198,7 @@ cleanup_pid_files() {
 
 # Clean up socket files
 cleanup_socket_files() {
-    local run_dir="${PGRUN:-/usr/local/pgsql/run}"
+    local run_dir="${PGRUN:-/opt/containers/run}"
 
     log_debug "Cleaning up socket files in: $run_dir"
 

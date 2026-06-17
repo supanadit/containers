@@ -11,9 +11,9 @@ SCRIPT_VERSION="1.0.0"
 # Default configuration
 export PGPOOL_PORT="${PGPOOL_PORT:-5432}"
 export PGPOOL_PCP_PORT="${PGPOOL_PCP_PORT:-9898}"
-export PGPOOL_CONFIG_DIR="${PGPOOL_CONFIG_DIR:-/usr/local/pgpool/etc}"
-export PGPOOL_LOG_DIR="${PGPOOL_LOG_DIR:-/var/log/pgpool}"
-export PGPOOL_RUN_DIR="${PGPOOL_RUN_DIR:-/var/run/pgpool}"
+export PGPOOL_CONFIG_DIR="${PGPOOL_CONFIG_DIR:-/opt/containers/config}"
+export PGPOOL_LOG_DIR="${PGPOOL_LOG_DIR:-/opt/containers/logs}"
+export PGPOOL_RUN_DIR="${PGPOOL_RUN_DIR:-/opt/containers/run}"
 export PGPOOL_USER="${PGPOOL_USER:-postgres}"
 
 # SSL/TLS Configuration

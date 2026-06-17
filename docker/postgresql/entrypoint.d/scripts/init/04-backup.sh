@@ -39,7 +39,7 @@
 # TO ENABLE STANDBY BACKUP:
 # -------------------------
 # Set these environment variables on the replica:
-#   PGBACKREST_PRIMARY_PATH=/usr/local/pgsql/data  # Primary's data dir
+#   PGBACKREST_PRIMARY_PATH=/opt/containers/data  # Primary's data dir
 #   PGBACKREST_PRIMARY_HOST=primary-hostname        # Primary hostname
 #   PGBACKREST_PRIMARY_SSH_PORT=22                  # SSH port (default: 22)
 #   PGBACKREST_PRIMARY_SSH_USER=postgres            # SSH user (default: postgres)
@@ -90,7 +90,7 @@ run_pgbackrest() {
 
 # Determine whether a pgBackRest restore is pending
 is_restore_pending() {
-    local run_dir="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+    local run_dir="${PGRUN:-${DEFAULT_PGRUN:-/opt/containers/run}}"
     local sentinel="$run_dir/pgbackrest-restore.pending"
     [ -f "$sentinel" ]
 }
@@ -136,8 +136,8 @@ main() {
 configure_pgbackrest() {
     log_info "Configuring pgBackRest"
 
-    local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local backup_dir="${PGBACKUP:-/opt/containers/backup}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local config_file="/etc/pgbackrest.conf"
     # Get postgres user/group (with defaults)
     local POSTGRES_USER="${POSTGRES_USER:-postgres}"
@@ -471,7 +471,7 @@ EOF
 pg1-path=${data_dir}
 pg1-port=${POSTGRESQL_PORT:-5432}
 pg1-user=${POSTGRES_USER:-postgres}
-pg1-socket-path=${PGRUN:-/usr/local/pgsql/run}
+pg1-socket-path=${PGRUN:-/opt/containers/run}
 EOF
 
     # Add PostgreSQL database for connection
@@ -661,7 +661,7 @@ WRAPPER_EOF
 
 # Disable WAL archiving when pgBackRest is not allowed on this node
 disable_pgbackrest_archiving() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local config_file="$data_dir/postgresql.conf"
 
     if [ ! -f "$config_file" ]; then
@@ -685,7 +685,7 @@ disable_pgbackrest_archiving() {
 
 # Enable WAL archiving in postgresql.conf
 enable_archiving() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local config_file="$data_dir/postgresql.conf"
     local restore_pending=false
     if is_restore_pending; then
@@ -812,7 +812,7 @@ apply_postgres_setting() {
         return 0
     fi
 
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local config_file="$data_dir/postgresql.conf"
 
     log_debug "Applying PostgreSQL setting: $setting = $value"
@@ -878,7 +878,7 @@ test_backup_connectivity() {
     # Test local paths only for posix/filesystem repo
     local repo1_type="${PGBACKREST_REPO_TYPE:-posix}"
     if [ "$repo1_type" = "posix" ] || [ "$repo1_type" = "filesystem" ]; then
-        local backup_dir="${PGBACKUP:-/usr/local/pgsql/backup}"
+        local backup_dir="${PGBACKUP:-/opt/containers/backup}"
         if [ ! -w "$backup_dir" ]; then
             log_error "Backup directory is not writable: $backup_dir"
             return 1

@@ -187,7 +187,7 @@ check_pgbouncer_status() {
 check_disk_space() {
     log_debug "Checking disk space"
 
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local min_free_percent=10
     local min_free_mb=100
 

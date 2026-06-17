@@ -9,7 +9,7 @@ source /opt/container/entrypoint.d/scripts/utils/backup.sh
 log_script_start "04-backup.sh"
 
 setup_backup_config() {
-    export MARIADB_BACKUP_DIR="${MARIADB_BACKUP_DIR:-/var/lib/mariadb/backup}"
+    export MARIADB_BACKUP_DIR="${MARIADB_BACKUP_DIR:-/opt/containers/backup}"
     export MARIADB_BACKUP_S3_BUCKET="${MARIADB_BACKUP_S3_BUCKET:-}"
     export MARIADB_BACKUP_SFTP_HOST="${MARIADB_BACKUP_SFTP_HOST:-}"
 
@@ -48,8 +48,8 @@ set -euo pipefail
 
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 
-BACKUP_DIR="${MARIADB_BACKUP_DIR:-/var/lib/mariadb/backup}"
-MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+BACKUP_DIR="${MARIADB_BACKUP_DIR:-/opt/containers/backup}"
+MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/opt/containers/data}"
 RETENTION_DAYS="${MARIADB_BACKUP_RETENTION_DAYS:-7}"
 METHOD="${MARIADB_BACKUP_METHOD:-mariabackup}"
 

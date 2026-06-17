@@ -84,7 +84,7 @@ validate_dependencies() {
 
 # Validate data directory
 validate_data_directory() {
-    local data_dir="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+    local data_dir="${MARIADB_DATA_DIR:-/opt/containers/data}"
 
     if [ ! -d "$data_dir" ]; then
         log_warn "Data directory $data_dir does not exist, will be created"
@@ -103,7 +103,7 @@ validate_data_directory() {
 # Validate SSL configuration
 validate_ssl() {
     if [ "${MARIADB_SSL_ENABLE:-false}" = "true" ]; then
-        local cert_dir="${MARIADB_SSL_CERT_DIR:-/var/lib/mysql/ssl}"
+        local cert_dir="${MARIADB_SSL_CERT_DIR:-/opt/containers/config/ssl}"
         local required_files=("server.crt" "server.key" "ca.crt")
 
         for file in "${required_files[@]}"; do

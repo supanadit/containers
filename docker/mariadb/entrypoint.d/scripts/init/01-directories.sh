@@ -9,11 +9,11 @@ source /opt/container/entrypoint.d/scripts/utils/validation.sh
 log_script_start "01-directories.sh"
 
 setup_directories() {
-    export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
-    export MARIADB_CONFIG_DIR="${MARIADB_CONFIG_DIR:-/etc/mysql/mariadb.conf.d}"
-    export MARIADB_LOG_DIR="${MARIADB_LOG_DIR:-/var/log/mariadb}"
-    export MARIADB_RUN_DIR="${MARIADB_RUN_DIR:-/run/mariadb}"
-    export MARIADB_BACKUP_DIR="${MARIADB_BACKUP_DIR:-/var/lib/mariadb/backup}"
+    export MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/opt/containers/data}"
+    export MARIADB_CONFIG_DIR="${MARIADB_CONFIG_DIR:-/opt/containers/config}"
+    export MARIADB_LOG_DIR="${MARIADB_LOG_DIR:-/opt/containers/logs}"
+    export MARIADB_RUN_DIR="${MARIADB_RUN_DIR:-/opt/containers/run}"
+    export MARIADB_BACKUP_DIR="${MARIADB_BACKUP_DIR:-/opt/containers/backup}"
 
     local directories=(
         "$MARIADB_DATA_DIR"
@@ -33,7 +33,7 @@ setup_directories() {
     done
 
     if [ "${MARIADB_SSL_ENABLE:-false}" = "true" ]; then
-        local ssl_dir="/var/lib/mysql/ssl"
+        local ssl_dir="/opt/containers/config/ssl"
         mkdir -p "$ssl_dir"
         chown mysql:mysql "$ssl_dir"
         chmod 0700 "$ssl_dir"
