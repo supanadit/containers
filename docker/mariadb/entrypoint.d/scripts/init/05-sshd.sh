@@ -22,9 +22,9 @@ setup_sshd() {
         chmod 0644 /etc/ssh/ssh_host_*.pub
     fi
 
-    mkdir -p /var/lib/mysql/.ssh
-    chown mysql:mysql /var/lib/mysql/.ssh
-    chmod 0700 /var/lib/mysql/.ssh
+    mkdir -p /opt/containers/data/.ssh
+    chown mysql:mysql /opt/containers/data/.ssh
+    chmod 0700 /opt/containers/data/.ssh
 
     log_info "SSH configuration completed"
     log_script_end "05-sshd.sh"

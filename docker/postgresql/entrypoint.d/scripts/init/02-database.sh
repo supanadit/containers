@@ -15,7 +15,7 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 TIMEOUT_CHANGE_PASSWORD=${TIMEOUT_CHANGE_PASSWORD:-5}
 
 # Restore coordination files
-RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/usr/local/pgsql/run}}"
+RESTORE_STATE_DIR="${PGRUN:-${DEFAULT_PGRUN:-/opt/containers/run}}"
 RESTORE_SENTINEL="${RESTORE_STATE_DIR}/pgbackrest-restore.pending"
 RESTORE_COMPLETE_MARK="${RESTORE_STATE_DIR}/pgbackrest-restore.complete"
 
@@ -121,7 +121,7 @@ cleanup_stale_restore_markers() {
 
 # Prepare data directory for pgBackRest restore
 prepare_restore_environment() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local postgres_user="${POSTGRES_USER:-postgres}"
     local postgres_group="${POSTGRES_GROUP:-postgres}"
 
@@ -161,7 +161,7 @@ mark_restore_pending() {
 
 # Check if PostgreSQL cluster already exists
 check_cluster_exists() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
 
     log_debug "Checking if PostgreSQL cluster exists in: $data_dir"
 
@@ -181,7 +181,7 @@ check_cluster_exists() {
 
 # Clone primary for native HA replica
 clone_primary() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
 
     log_info "Cloning primary database for replica setup..."
 
@@ -222,7 +222,7 @@ clone_primary() {
 }
 
 configure_replica_appname() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local auto_conf="${data_dir}/postgresql.auto.conf"
 
     if [ ! -f "$auto_conf" ]; then
@@ -243,7 +243,7 @@ configure_replica_appname() {
 
 # Initialize PostgreSQL cluster
 initialize_cluster() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
 
     log_info "Initializing PostgreSQL cluster in: $data_dir"
 
@@ -294,7 +294,7 @@ initialize_cluster() {
 
 # Verify cluster integrity after initialization
 verify_cluster_integrity() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
 
     log_debug "Verifying cluster integrity"
 
@@ -371,7 +371,7 @@ EOF
 
 # Set postgres user password
 set_postgres_password() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local password="$POSTGRES_PASSWORD"
     local sanitized_password
     sanitized_password=$(sanitize_password "$password")
@@ -423,7 +423,7 @@ EOF
 
 # Create replication user
 create_replication_user() {
-    local data_dir="${PGDATA:-/usr/local/pgsql/data}"
+    local data_dir="${PGDATA:-/opt/containers/data}"
     local replication_user="${REPLICATION_USER:-replicator}"
     local replication_password="${REPLICATION_PASSWORD:-replicator_password}"
 

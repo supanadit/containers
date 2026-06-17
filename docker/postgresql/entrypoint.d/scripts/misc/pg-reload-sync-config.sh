@@ -33,7 +33,7 @@
 
 set -euo pipefail
 
-PGDATA="${PGDATA:-/usr/local/pgsql/data}"
+PGDATA="${PGDATA:-/opt/containers/data}"
 POSTGRES_BIN="${POSTGRES_BIN:-/usr/local/pgsql/bin}"
 
 log_info() {

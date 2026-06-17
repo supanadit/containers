@@ -14,11 +14,11 @@ source /opt/container/entrypoint.d/scripts/utils/security.sh
 SCRIPT_VERSION="1.0.0"
 
 # Default directories
-export DEFAULT_PGDATA="${DEFAULT_PGDATA:-/usr/local/pgsql/data}"
-export DEFAULT_PGCONFIG="${DEFAULT_PGCONFIG:-/usr/local/pgsql/config}"
-export DEFAULT_PGLOG="${DEFAULT_PGLOG:-/usr/local/pgsql/log}"
-export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/tmp}"
-export DEFAULT_PGBACKUP="${DEFAULT_PGBACKUP:-/usr/local/pgsql/backup}"
+export DEFAULT_PGDATA="${DEFAULT_PGDATA:-/opt/containers/data}"
+export DEFAULT_PGCONFIG="${DEFAULT_PGCONFIG:-/opt/containers/config}"
+export DEFAULT_PGLOG="${DEFAULT_PGLOG:-/opt/containers/logs}"
+export DEFAULT_PGRUN="${DEFAULT_PGRUN:-/opt/containers/run}"
+export DEFAULT_PGBACKUP="${DEFAULT_PGBACKUP:-/opt/containers/backup}"
 
 # Set actual variables used by scripts
 export PGDATA="$DEFAULT_PGDATA"

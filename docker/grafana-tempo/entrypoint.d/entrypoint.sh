@@ -4,9 +4,9 @@ set -e
 # Get container IP address
 CONTAINER_IP=$(hostname -i)
 
-export GRAFANA_TEMPO_CONFIG=${GRAFANA_TEMPO_CONFIG:-/etc/tempo.yaml}
+export GRAFANA_TEMPO_CONFIG=${GRAFANA_TEMPO_CONFIG:-/opt/containers/config/tempo.yaml}
 
-export GRAFANA_TEMPO_DATA_DIR=${GRAFANA_TEMPO_DATA_DIR:-/var/lib/tempo}
+export GRAFANA_TEMPO_DATA_DIR=${GRAFANA_TEMPO_DATA_DIR:-/opt/containers/data}
 export GRAFANA_TEMPO_LISTEN_PORT_HTTP=${GRAFANA_TEMPO_LISTEN_PORT_HTTP:-3200}
 export GRAFANA_TEMPO_STORAGE_BACKEND=${GRAFANA_TEMPO_STORAGE_BACKEND:-local}
 

@@ -74,7 +74,7 @@ validate_security_context() {
         fi
     done
 
-    local config_file="/opt/kafka/config/server.properties"
+    local config_file="/opt/containers/config/server.properties"
     if [ -f "$config_file" ]; then
         local perms
         perms=$(stat -c "%a" "$config_file" 2>/dev/null || echo "unknown")

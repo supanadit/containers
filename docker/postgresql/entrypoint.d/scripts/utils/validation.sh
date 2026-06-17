@@ -10,8 +10,8 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 
 # Default values
-DEFAULT_PGDATA="/usr/local/pgsql/data"
-DEFAULT_PGCONFIG="/usr/local/pgsql/config"
+DEFAULT_PGDATA="/opt/containers/data"
+DEFAULT_PGCONFIG="/opt/containers/config"
 DEFAULT_TIMEOUT=30
 
 # Validate environment variables

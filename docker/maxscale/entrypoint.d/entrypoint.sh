@@ -9,9 +9,9 @@ source /opt/container/entrypoint.d/scripts/utils/logging.sh
 SCRIPT_VERSION="1.0.0"
 
 # Default directories
-export MAXSCALE_CONFIG_DIR="${MAXSCALE_CONFIG_DIR:-/var/lib/maxscale}"
-export MAXSCALE_DATA_DIR="${MAXSCALE_DATA_DIR:-/var/lib/maxscale/data}"
-export MAXSCALE_LOG_DIR="${MAXSCALE_LOG_DIR:-/var/log/maxscale}"
+export MAXSCALE_CONFIG_DIR="${MAXSCALE_CONFIG_DIR:-/opt/containers/config}"
+export MAXSCALE_DATA_DIR="${MAXSCALE_DATA_DIR:-/opt/containers/data}"
+export MAXSCALE_LOG_DIR="${MAXSCALE_LOG_DIR:-/opt/containers/logs}"
 
 # MaxScale configuration
 export MAXSCALE_SERVICE_USER="${MAXSCALE_SERVICE_USER:-maxscale}"
