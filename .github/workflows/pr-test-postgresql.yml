@@ -28,11 +28,13 @@ jobs:
         if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Build PostgreSQL image
+      - name: Build PostgreSQL image (with gha cache)
         if: steps.skip-check.outputs.skip != 'true'
         run: |
           echo "Building PostgreSQL 18.1 for PR validation..."
           docker buildx build --load \
+            --cache-from=type=gha \
+            --cache-to=type=gha,mode=max \
             --build-arg POSTGRESQL_VERSION=18.1 \
             --build-arg PGAUDIT_VERSION=18.0 \
             -t postgresql:test \
