@@ -5,3 +5,5 @@ wordpress/apache/themes/*
 !wordpress/apache/themes/.gitkeep
 
 data
+
+.pi
