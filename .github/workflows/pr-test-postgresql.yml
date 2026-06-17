@@ -1,0 +1,62 @@
+name: PR Test - PostgreSQL
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/postgresql/**'
+      - 'entrypoint.d/scripts/utils/**'
+    paths-ignore:
+      - 'docker/postgresql/README.md'
+      - 'docker/postgresql/**/*.md'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if docs-only PR
+        id: skip-check
+        run: |
+          if [[ "${{ github.event.pull_request.title }}" =~ ^docs(\(.+\))?: ]]; then
+            echo "PR title starts with 'docs:', skipping tests"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "run-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build PostgreSQL image
+        if: steps.skip-check.outputs.skip != 'true'
+        run: |
+          echo "Building PostgreSQL 18.1 for PR validation..."
+          docker buildx build --load \
+            --build-arg POSTGRESQL_VERSION=18.1 \
+            --build-arg PGAUDIT_VERSION=18.0 \
+            -t postgresql:test \
+            docker/postgresql/
+
+      - name: Test — Smoke (minimal config)
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/postgresql/tests/scripts/run-smoke.sh
+
+      - name: Test — Extensions
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/postgresql/tests/scripts/run-extensions.sh
+
+      - name: Test — PgBouncer
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/postgresql/tests/scripts/run-pgbouncer.sh
+
+      - name: Test — pgBackRest
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/postgresql/tests/scripts/run-pgbackrest.sh
+
+      - name: Test — PgBouncer + pgBackRest combined
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/postgresql/tests/scripts/run-pgbouncer+pgbackrest.sh
