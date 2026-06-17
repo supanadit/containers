@@ -6,9 +6,6 @@ on:
     paths:
       - 'docker/postgresql/**'
       - 'entrypoint.d/scripts/utils/**'
-    paths-ignore:
-      - 'docker/postgresql/README.md'
-      - 'docker/postgresql/**/*.md'
 
 jobs:
   test:
