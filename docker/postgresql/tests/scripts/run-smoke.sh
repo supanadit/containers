@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/run-smoke.sh — Minimal PostgreSQL smoke test
+# tests/scripts/run-smoke.sh — Minimal PostgreSQL smoke test
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$DIR/compose.smoke.yaml"
+COMPOSE_FILE="$DIR/../compose/smoke.yaml"
 SERVICE="postgresql"
 
 trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT

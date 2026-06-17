@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/run-extensions.sh — Verify default extensions load correctly
+# tests/scripts/run-extensions.sh — Verify default extensions load correctly
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$DIR/compose.extensions.yaml"
+COMPOSE_FILE="$DIR/../compose/extensions.yaml"
 SERVICE="postgresql"
 
 trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT

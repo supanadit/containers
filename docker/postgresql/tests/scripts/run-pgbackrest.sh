@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/run-pgbackrest.sh — Verify pgBackRest backup system
+# tests/scripts/run-pgbackrest.sh — Verify pgBackRest backup system
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$DIR/compose.pgbackrest.yaml"
+COMPOSE_FILE="$DIR/../compose/pgbackrest.yaml"
 SERVICE="postgresql"
 
 trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT

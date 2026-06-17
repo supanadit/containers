@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/run-pgbouncer+pgbackrest.sh — Verify both features working together
+# tests/scripts/run-pgbouncer+pgbackrest.sh — Verify both features working together
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$DIR/compose.pgbouncer+pgbackrest.yaml"
+COMPOSE_FILE="$DIR/../compose/pgbouncer+pgbackrest.yaml"
 SERVICE="postgresql"
 
 trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT

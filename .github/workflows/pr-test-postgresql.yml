@@ -43,20 +43,20 @@ jobs:
 
       - name: Test — Smoke (minimal config)
         if: steps.skip-check.outputs.skip != 'true'
-        run: docker/postgresql/test/run-smoke.sh
+        run: docker/postgresql/tests/scripts/run-smoke.sh
 
       - name: Test — Extensions
         if: steps.skip-check.outputs.skip != 'true'
-        run: docker/postgresql/test/run-extensions.sh
+        run: docker/postgresql/tests/scripts/run-extensions.sh
 
       - name: Test — PgBouncer
         if: steps.skip-check.outputs.skip != 'true'
-        run: docker/postgresql/test/run-pgbouncer.sh
+        run: docker/postgresql/tests/scripts/run-pgbouncer.sh
 
       - name: Test — pgBackRest
         if: steps.skip-check.outputs.skip != 'true'
-        run: docker/postgresql/test/run-pgbackrest.sh
+        run: docker/postgresql/tests/scripts/run-pgbackrest.sh
 
       - name: Test — PgBouncer + pgBackRest combined
         if: steps.skip-check.outputs.skip != 'true'
-        run: docker/postgresql/test/run-pgbouncer+pgbackrest.sh
+        run: docker/postgresql/tests/scripts/run-pgbouncer+pgbackrest.sh

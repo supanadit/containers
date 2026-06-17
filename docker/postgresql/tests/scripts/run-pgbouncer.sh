@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/run-pgbouncer.sh — Verify PgBouncer connection pooling
+# tests/scripts/run-pgbouncer.sh — Verify PgBouncer connection pooling
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$DIR/compose.pgbouncer.yaml"
+COMPOSE_FILE="$DIR/../compose/pgbouncer.yaml"
 SERVICE="postgresql"
 
 trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
@@ -24,7 +24,6 @@ echo "  PASS"
 
 echo ""
 echo "Test 3: SHOW POOLS via PgBouncer admin interface"
-# PgBouncer listens on 6432; authenticate with same credentials
 result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>/dev/null)
 echo "$result" | grep -q "postgres" || { echo "  FAIL: SHOW POOLS did not return pools"; echo "  output: $result"; exit 1; }
 echo "  PASS"
