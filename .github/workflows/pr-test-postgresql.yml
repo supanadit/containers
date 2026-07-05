@@ -36,6 +36,9 @@ jobs:
             --cache-from=type=gha \
             --cache-to=type=gha,mode=max \
             --build-arg POSTGRESQL_VERSION=18.1 \
+            --build-arg CITUS_VERSION=14.0.0 \
+            --build-arg PATRONI_VERSION=v4.1.0 \
+            --build-arg PYTHON_VERSION=v3.13.9 \
             --build-arg PGAUDIT_VERSION=18.0 \
             -t postgresql:test \
             docker/postgresql/
