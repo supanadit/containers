@@ -26,9 +26,15 @@ validate_environment() {
         log_info "PGDATA not set, using default: $PGDATA"
     fi
 
-    if [ ! -d "$PGDATA" ] && [ ! -w "$(dirname "$PGDATA")" ]; then
-        log_error "PGDATA directory is not writable: $PGDATA"
-        return 1
+    if [ ! -d "$PGDATA" ]; then
+        local parent_dir
+        parent_dir="$(dirname "$PGDATA")"
+        if [ -d "$parent_dir" ] && [ ! -w "$parent_dir" ]; then
+            log_error "PGDATA parent directory is not writable: $parent_dir"
+            return 1
+        fi
+        # If parent doesn't exist either, that's OK — 01-directories.sh will create it
+        log_info "PGDATA does not exist yet, will be created during initialization"
     fi
 
     # Validate PGCONFIG
