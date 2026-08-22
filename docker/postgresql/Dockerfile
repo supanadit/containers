@@ -53,25 +53,32 @@ FROM setup AS runtime
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
 
-# Copy configuration files
-COPY config/ /etc/pgbouncer/
-
 # Set proper ownership
 RUN chown -R postgres:postgres /opt/container/ && \
     chmod -R 755 /opt/container/
 
-# Copy main entrypoint script
-COPY entrypoint.d/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Install the EZX entrypoint engine (release binary, checksum-verified).
+# curl stays in the image: it is the binary child used by the Patroni
+# role-change poller and operator curl to the health server.
+ARG EZX_VERSION=0.1.1
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o /tmp/ezx-${EZX_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o /tmp/ezx.sha256 \
+    && (cd /tmp && sha256sum -c ezx.sha256) \
+    && mv /tmp/ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
+    && chmod +x /usr/local/bin/ezx \
+    && rm -f /tmp/ezx.sha256 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM
 
-# Health check configuration
+# Health check: pg_isready (PostgreSQL is accepting connections)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
+    CMD pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres || exit 1
 
 # Expose PostgreSQL and PgBouncer ports
 EXPOSE 5432 6432
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/ezx", "bootstrap", "/opt/container/entrypoint.d/bootstrap/main.js"]

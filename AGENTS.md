@@ -39,6 +39,10 @@ EXPOSE 5432 6432 ...
 ENTRYPOINT ["/entrypoint.sh"]
 ```
 
+> **PostgreSQL exception:** its Dockerfile downloads the ezx release binary,
+> ENTRYPOINT is `["ezx", "bootstrap", ".../bootstrap/main.js"]`, and HEALTHCHECK
+> is `pg_isready`. See the Entrypoint Structure section below.
+
 - `base` stage: FROM, ARGs, LABELs, ENV for paths
 - `setup` stage: COPY setup scripts → RUN with BuildKit cache mounts → cleanup
 - `runtime` stage: COPY entrypoint scripts (volatile) → chown → final touches
@@ -77,6 +81,32 @@ Each numbered script in `setup/scripts/` handles exactly one component:
 5. If it needs a runtime process: add startup in `startup.sh` (background with `&`, PID tracking)
 
 ## Entrypoint Structure
+
+> **PostgreSQL is EZX-migrated.** `docker/postgresql` no longer uses the bash
+> `entrypoint.d/scripts/` tree below. Its entrypoint is a single
+> `ezx bootstrap /opt/container/entrypoint.d/bootstrap/main.js` — the Dockerfile
+> downloads the pinned `ezx` release binary (checksum-verified) and HEALTHCHECK
+> is `pg_isready`. Everything runs inside that one bootstrap:
+>
+> - **One chain, one root**: the postgres/patroni node with all sidecars as
+>   `needParentReady` children (stanza-init, pgbouncer-userlist, replication
+>   user, pgbouncer, sshd, scheduled pgBackRest backups, Patroni role-check).
+>   ezx supervises them all concurrently; children drain when the parent exits
+>   or on SIGTERM.
+> - **Modules** (`entrypoint.d/bootstrap/`): `main.js` (orchestrator),
+>   `env.js` (defaults), `validation.js`, `directories.js`, `database.js`,
+>   `config.js` (declarative config generation), `backup.js` (scheduler),
+>   `cluster.js` (role detection), `sshd.js`, `patroni.js` (role-change
+>   reconfig), `routes.js` (operator api routes).
+> - **Operator routes** on the health server (`EZX_HEALTH_ADDR`):
+>   `POST /sync-reload`, `GET /health/comprehensive`, `POST /patroni/role-check`
+>   (hit by a scheduled `curl` child). No shell launchers, no `ezx run`, no
+>   second bootstrap — `main.js` is the only entrypoint script.
+> - **No `.sh` in the PostgreSQL entrypoint.** `setup/` scripts are build-time
+>   and unchanged.
+>
+> Other containers (mariadb, kafka, grafana-*, ...) still use the bash model
+> below.
 
 Every container uses the same modular lifecycle under `entrypoint.d/`:
 
