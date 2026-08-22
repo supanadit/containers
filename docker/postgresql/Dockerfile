@@ -32,17 +32,55 @@ ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 # Setup layer - copy stable files first for better caching
 FROM base AS setup
 
-# Copy setup scripts and configuration (stable files that change infrequently)
-COPY setup.sh /opt/setup.sh
-COPY setup/ /opt/setup/
+# Copy the forge manifest and install the forge builder binary.
+COPY forge.toml /opt/forge.toml
 
-# Run the complete setup in a single layer with BuildKit cache mounts
+# Build args become forge vars via -var flags.
+ARG POSTGRESQL_VERSION=13.5
+ARG PGAUDIT_VERSION=1.5.3
+ARG PGBACKREST_VERSION=2.58.0
+ARG CITUS_VERSION=11.3.1
+ARG PG_STAT_MONITOR_VERSION=2.3.1
+ARG DECODERBUFS_VERSION=v3.4.1.Final
+ARG PYTHON_VERSION=v3.13.9
+ARG PATRONI_VERSION=v4.1.0
+ARG HYPO_PG_VERSION=1.4.2
+ARG DEXTER_VERSION=v0.6.3
+ARG PGMETRICS_VERSION=1.18.0
+ARG PGREPACK_VERSION=1.5.3
+ARG PG_CRON_VERSION=1.6.7
+
+# Install the forge builder (release binary, checksum-verified) and run the
+# TOML manifest in a single layer with BuildKit cache mounts.
+ARG FORGE_VERSION=0.3.2
+ARG TARGETARCH
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
-    chmod +x /opt/setup.sh && \
-    /opt/setup.sh && \
-    rm /opt/setup.sh && \
-    rm -rf /opt/setup/
+    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && cd /tmp \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH} -o forge-${FORGE_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH}.sha256 -o forge.sha256 \
+    && sha256sum -c forge.sha256 \
+    && mv forge-${FORGE_VERSION}-linux-${TARGETARCH} /usr/local/bin/forge \
+    && chmod +x /usr/local/bin/forge \
+    && rm -f forge.sha256 \
+    && forge build --verbose \
+        --var POSTGRESQL_VERSION=${POSTGRESQL_VERSION} \
+        --var PGAUDIT_VERSION=${PGAUDIT_VERSION} \
+        --var PGBACKREST_VERSION=${PGBACKREST_VERSION} \
+        --var CITUS_VERSION=${CITUS_VERSION} \
+        --var PG_STAT_MONITOR_VERSION=${PG_STAT_MONITOR_VERSION} \
+        --var DECODERBUFS_VERSION=${DECODERBUFS_VERSION} \
+        --var PYTHON_VERSION=${PYTHON_VERSION} \
+        --var PATRONI_VERSION=${PATRONI_VERSION} \
+        --var HYPO_PG_VERSION=${HYPO_PG_VERSION} \
+        --var DEXTER_VERSION=${DEXTER_VERSION} \
+        --var PGMETRICS_VERSION=${PGMETRICS_VERSION} \
+        --var PGREPACK_VERSION=${PGREPACK_VERSION} \
+        --var PG_CRON_VERSION=${PG_CRON_VERSION} \
+        /opt/forge.toml \
+    && rm -f /opt/forge.toml /usr/local/bin/forge \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
 
