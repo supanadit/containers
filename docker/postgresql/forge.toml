@@ -1,6 +1,7 @@
 [project]
 name = "postgresql"
 description = "PostgreSQL with extensions (Patroni, pgBackRest, Citus) — replaces setup.sh"
+no_cache = true
 
 # Values come from Dockerfile ARG (passed via -var) or environment. Defaults
 # match the previous setup.sh / Dockerfile defaults.
