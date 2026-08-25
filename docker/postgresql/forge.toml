@@ -1,10 +1,10 @@
 [project]
 name = "postgresql"
-description = "PostgreSQL with extensions (Patroni, pgBackRest, Citus) — replaces setup.sh"
+description = "PostgreSQL with extensions (Patroni, pgBackRest, Citus)"
 no_cache = true
 
 # Values come from Dockerfile ARG (passed via -var) or environment. Defaults
-# match the previous setup.sh / Dockerfile defaults.
+# match the previous Dockerfile defaults.
 [vars]
 POSTGRESQL_VERSION = "13.5"
 PGAUDIT_VERSION = "1.5.3"
@@ -22,382 +22,237 @@ PGMETRICS_VERSION = "1.18.0"
 PGREPACK_VERSION = "1.5.3"
 PG_CRON_VERSION = "1.6.7"
 
-# ---------------------------------------------------------------------------
+# ============ 1. SYSTEM LAYER ============
+
 # 01-install-dependencies.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-system-deps"
-run = "apt"
-action = "install"
-packages = [
-  "curl", "wget", "git", "autoconf", "automake", "python3-distutils",
-  "build-essential", "libreadline-dev", "zlib1g-dev", "meson", "gcc",
-  "libpq-dev", "libssl-dev", "libxml2-dev", "pkg-config", "liblz4-dev",
-  "libzstd-dev", "libbz2-dev", "libz-dev", "libyaml-dev", "libssh2-1-dev",
-  "libcurl4-openssl-dev", "libffi-dev", "procps", "gosu", "uuid-dev",
-  "libossp-uuid-dev", "libevent-dev", "libc-ares-dev", "gettext-base",
-  "ruby", "ruby-dev", "ruby-bundler", "openssh-client", "openssh-server",
-]
-packages_conditional = [
-  { condition = "${POSTGRESQL_VERSION%%.*} -ge 17", packages = ["bison", "flex"] },
+[[components]]
+name = "system-deps"
+ops = [
+  { install = { apt = {
+    build = ["build-essential", "gcc", "autoconf", "automake", "meson", "git", "wget", "pkg-config", "zlib1g-dev", "libssl-dev", "liblz4-dev", "libzstd-dev", "libbz2-dev", "libz-dev", "python3-distutils", "gettext-base"],
+    runtime = ["curl", "zlib1g", "libssl3", "liblz4-1", "libzstd1", "libbz2-1.0", "procps", "gosu", "openssh-client", "openssh-server"]
+  } } },
+  { install = { apt = { runtime = ["locales"] } } },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
 ]
 
-# ---------------------------------------------------------------------------
-# Create the postgres system user early so any step that chowns to
-# postgres:postgres (pgbackrest, pgbouncer, postgres data dir) can run in
-# parallel with the long builds instead of waiting for prepare-postgres-data.
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "create-postgres-user"
-depends_on = ["install-system-deps"]
-run = "shell"
-commands = [
-  "useradd -m postgres 2>/dev/null || true",
+# ============ 2. PYTHON ============
+
+# 03-install-python.sh — altinstall, then symlink python3 + bootstrap pip as a
+# post hook (runs in the cpython source dir after install).
+[[components]]
+name = "cpython"
+needs = ["system-deps"]
+ops = [
+  { install = { apt = { build = ["libffi-dev"], runtime = ["libffi8"] } } },
+  { install = { source = {
+    type = "git", source = "https://github.com/python/cpython.git", ref = "${PYTHON_VERSION}", strategy = "configure", flags = ["--enable-optimizations"], jobs = 4, install_target = "altinstall",
+    after = [
+      { raw = "PYTHON_MAJOR_MINOR=$(echo ${PYTHON_VERSION} | sed 's/^v//' | cut -d'.' -f1,2) && ln -sf /usr/local/bin/python${PYTHON_MAJOR_MINOR} /usr/local/bin/python3 && curl -sS https://bootstrap.pypa.io/get-pip.py | python3 && pip3 install --no-cache-dir --upgrade pip setuptools wheel" },
+    ]
+  } } },
 ]
 
-# ---------------------------------------------------------------------------
-# 03-install-python.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-cpython"
-depends_on = ["install-system-deps"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/python/cpython.git", ref = "${PYTHON_VERSION}", depth = 1 }
-build = { strategy = "configure", flags = ["--enable-optimizations"], jobs = 4, install_target = "altinstall" }
-install = true
+# ============ 3. POSTGRESQL CORE ============
 
-[[steps]]
-name = "link-python3"
-depends_on = ["install-cpython"]
-run = "shell"
-commands = [
-  "PYTHON_MAJOR_MINOR=$(echo ${PYTHON_VERSION} | sed 's/^v//' | cut -d'.' -f1,2) && ln -sf /usr/local/bin/python${PYTHON_MAJOR_MINOR} /usr/local/bin/python3 && curl -sS https://bootstrap.pypa.io/get-pip.py | python3 && pip3 install --no-cache-dir --upgrade pip setuptools wheel",
-]
-
-# ---------------------------------------------------------------------------
 # 02-install-postgresql.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-postgresql"
-depends_on = ["install-system-deps"]
-run = "source"
-fetch = { type = "archive", url = "https://ftp.postgresql.org/pub/source/v${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.tar.gz" }
-build = { strategy = "configure", prefix = "/usr/local/pgsql", flags = ["--with-openssl", "--with-libxml", "--with-uuid=ossp"] }
-install = true
-env = { PATH = "/usr/local/pgsql/bin:${PATH}" }
-
-[[steps]]
-name = "install-postgresql-contrib"
-depends_on = ["install-postgresql"]
-run = "source"
-from = "install-postgresql"
-dir = "contrib"
-build = { strategy = "make" }
-install = true
-
-[[steps]]
-name = "install-pgaudit"
-depends_on = ["install-postgresql"]
-run = "source"
-fetch = { type = "archive", url = "https://github.com/pgaudit/pgaudit/archive/${PGAUDIT_VERSION}.tar.gz" }
-build = { strategy = "make", make_flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"] }
-install = true
-env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" }
-verify = [{ file = "/usr/local/pgsql/share/extension/pgaudit.control" }]
-
-[[steps]]
-name = "verify-postgresql"
-depends_on = ["install-pgaudit"]
-run = "verify"
-checks = [
-  { file = "/usr/local/pgsql/share/extension/uuid-ossp.control" },
+[[components]]
+name = "postgresql"
+needs = ["system-deps"]
+ops = [
+  { install = { apt = {
+    build = ["libreadline-dev", "libxml2-dev", "uuid-dev", "libossp-uuid-dev", "libpq-dev", "bison", "flex"],
+    runtime = ["libreadline8", "libxml2", "libossp-uuid16"],
+    conditional = [{ category = "build", when = { var = "POSTGRESQL_VERSION", gte = "17" }, packages = ["bison", "flex"] }]
+  } } },
+  { user = { name = "postgres", create_home = true } },
+  { install = { source = {
+    type = "archive", source = "https://ftp.postgresql.org/pub/source/v${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/pgsql", flags = ["--with-openssl", "--with-libxml", "--with-uuid=ossp"], env = { PATH = "/usr/local/pgsql/bin:${PATH}" },
+    after = [
+      { raw = "make -C contrib && make -C contrib install" },
+      { mkdir = [{ path = "/usr/local/pgsql/data", mode = "700", owner = "postgres" }] },
+      { chown = [{ path = "/usr/local/pgsql", owner = "postgres", recursive = true }] },
+    ],
+    verify = [{ file = "/usr/local/pgsql/share/extension/uuid-ossp.control" }]
+  } } },
 ]
 
-[[steps]]
-name = "prepare-postgres-data"
-depends_on = ["verify-postgresql"]
-run = "shell"
-commands = [
-  "mkdir -p /usr/local/pgsql/data",
-  "useradd -m postgres 2>/dev/null || true",
-  "chown -R postgres:postgres /usr/local/pgsql",
-  "chmod 700 /usr/local/pgsql/data",
+[[components]]
+name = "pgaudit"
+needs = ["postgresql"]
+ops = [
+  { install = { source = { type = "archive", source = "https://github.com/pgaudit/pgaudit/archive/${PGAUDIT_VERSION}.tar.gz", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { verify = [{ file = "/usr/local/pgsql/share/extension/pgaudit.control" }] },
 ]
 
-# ---------------------------------------------------------------------------
-# 04-install-pgbackrest.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pgbackrest"
-depends_on = ["install-system-deps"]
-run = "source"
-fetch = { type = "archive", url = "https://github.com/pgbackrest/pgbackrest/archive/release/${PGBACKREST_VERSION}.tar.gz" }
-build = { strategy = "meson", prefix = "/usr/local", flags = [] }
-install = false
+# ============ 4. PGBACKREST ============
 
-[[steps]]
-name = "install-pgbackrest-binary"
-depends_on = ["install-pgbackrest", "create-postgres-user"]
-run = "shell"
-commands = [
-  "cp ${step:install-pgbackrest.source}/build/src/pgbackrest /usr/bin",
-  "chmod 755 /usr/bin/pgbackrest",
-  "touch /etc/pgbackrest.conf",
-  "chmod 640 /etc/pgbackrest.conf",
-  "chown postgres:postgres /etc/pgbackrest.conf",
-  "mkdir -p -m 770 /var/log/pgbackrest",
-  "chown postgres:postgres /var/log/pgbackrest",
+# 04-install-pgbackrest.sh. Binary is copied out of the build tree by the
+# post hook, which runs in the pgbackrest source dir.
+[[components]]
+name = "pgbackrest"
+needs = ["system-deps", "postgresql"]
+ops = [
+  { install = { apt = { build = ["libssh2-1-dev", "libcurl4-openssl-dev", "libyaml-dev"], runtime = ["libssh2-1", "libcurl4", "libyaml-0-2"] } } },
+  { install = { source = {
+    type = "archive", source = "https://github.com/pgbackrest/pgbackrest/archive/release/${PGBACKREST_VERSION}.tar.gz", strategy = "meson", prefix = "/usr/local",
+    after = [
+      { copy = [{ from = "build/src/pgbackrest", to = "/usr/bin/pgbackrest", mode = "0755" }] },
+      { touch = ["/etc/pgbackrest.conf"] },
+      { chmod = [{ path = "/etc/pgbackrest.conf", mode = "640" }] },
+      { chown = [{ path = "/etc/pgbackrest.conf", owner = "postgres" }] },
+      { mkdir = [{ path = "/var/log/pgbackrest", mode = "770", owner = "postgres" }] },
+      { chown = [{ path = "/var/log/pgbackrest", owner = "postgres" }] },
+    ]
+  } } },
 ]
 
-# ---------------------------------------------------------------------------
+# ============ 5. EXTENSIONS ============
+
 # 05-install-citus.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-citus"
-depends_on = ["install-postgresql"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/citusdata/citus.git", ref = "v${CITUS_VERSION}", depth = 1 }
-build = { strategy = "configure", make_flags = ["-j8"] }
-install = true
-env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" }
-verify = [
-  { file = "/usr/local/pgsql/share/extension/citus.control" },
-  { file = "/usr/local/pgsql/lib/citus.so" },
+[[components]]
+name = "citus"
+needs = ["postgresql"]
+ops = [
+  { install = { source = { type = "git", source = "https://github.com/citusdata/citus.git", ref = "v${CITUS_VERSION}", strategy = "configure", jobs = 8, env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { verify = [{ file = "/usr/local/pgsql/share/extension/citus.control" }, { file = "/usr/local/pgsql/lib/citus.so" }] },
 ]
 
-# ---------------------------------------------------------------------------
 # 06-install-pgstatmonitor.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pgstatmonitor"
-depends_on = ["install-postgresql"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/percona/pg_stat_monitor.git", ref = "${PG_STAT_MONITOR_VERSION}", depth = 1 }
-build = { strategy = "make", make_flags = ["USE_PGXS=1"] }
-install = true
-
-# ---------------------------------------------------------------------------
-# 07-install-decoderbufs.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-decoderbufs-deps"
-depends_on = ["install-system-deps"]
-run = "apt"
-action = "install"
-packages = ["protobuf-c-compiler", "libprotobuf-c-dev"]
-
-[[steps]]
-name = "fetch-decoderbufs"
-depends_on = ["install-decoderbufs-deps", "install-postgresql"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/debezium/postgres-decoderbufs.git", ref = "${DECODERBUFS_VERSION}", depth = 1 }
-
-[[steps]]
-name = "gen-decoderbufs-proto"
-depends_on = ["fetch-decoderbufs"]
-run = "shell"
-commands = [
-  "mkdir -p src/proto",
-  "protoc-c --c_out=src/proto proto/pg_logicaldec.proto",
-]
-dir = "${step:fetch-decoderbufs.source}"
-
-[[steps]]
-name = "install-decoderbufs"
-depends_on = ["gen-decoderbufs-proto"]
-run = "source"
-from = "fetch-decoderbufs"
-build = { strategy = "make" }
-install = true
-
-# ---------------------------------------------------------------------------
-# 08-install-patroni.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "fetch-patroni"
-depends_on = ["install-cpython"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/patroni/patroni.git", ref = "${PATRONI_VERSION}", depth = 1 }
-
-[[steps]]
-name = "install-patroni"
-depends_on = ["fetch-patroni", "install-postgresql"]
-run = "shell"
-env = {
-  LD_LIBRARY_PATH = "/usr/local/pgsql/lib:${LD_LIBRARY_PATH:-}",
-  PKG_CONFIG_PATH = "/usr/local/pgsql/lib/pkgconfig:${PKG_CONFIG_PATH:-}",
-  PATH = "/usr/local/pgsql/bin:${PATH}",
-  LDFLAGS = "-L/usr/local/pgsql/lib",
-  CPPFLAGS = "-I/usr/local/pgsql/include",
-}
-commands = [
-  "pip install 'psycopg[c]'",
-  "pip install cdiff",
-  "pip install -r requirements.txt",
-  "pip install .[etcd]",
-  "echo '/usr/local/pgsql/lib' > /etc/ld.so.conf.d/postgresql.conf",
-  "ldconfig",
-]
-dir = "${step:fetch-patroni.source}"
-
-# ---------------------------------------------------------------------------
-# 09-install-pgbadger.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pgbadger"
-depends_on = ["install-system-deps"]
-run = "apt"
-action = "install"
-packages = ["perl", "libtext-csv-xs-perl", "libjson-xs-perl", "libwww-perl", "libdigest-md5-file-perl"]
-
-[[steps]]
-name = "install-pgbadger-binary"
-depends_on = ["install-pgbadger"]
-run = "shell"
-commands = [
-  "mkdir -p /tmp/build",
-  "wget -q -O - https://github.com/darold/pgbadger/archive/master.tar.gz | tar zx -C /tmp/build",
-  "cp /tmp/build/pgbadger-master/pgbadger /usr/bin/pgbadger",
-  "chmod 755 /usr/bin/pgbadger",
+[[components]]
+name = "pgstatmonitor"
+needs = ["postgresql"]
+ops = [
+  { install = { source = { type = "git", source = "https://github.com/percona/pg_stat_monitor.git", ref = "${PG_STAT_MONITOR_VERSION}", strategy = "make", flags = ["USE_PGXS=1"] } } },
 ]
 
-# ---------------------------------------------------------------------------
-# 10-install-pgbouncer.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pgbouncer"
-depends_on = ["install-system-deps"]
-run = "source"
-fetch = { type = "archive", url = "https://github.com/pgbouncer/pgbouncer/releases/download/${PGBOUNCER_TAG}/pgbouncer-${PGBOUNCER_VERSION}.tar.gz" }
-build = { strategy = "configure", prefix = "/usr/local/pgbouncer", flags = ["--with-libevent=/usr/lib", "--with-cares=/usr/lib"] }
-install = true
-
-[[steps]]
-name = "prepare-pgbouncer"
-depends_on = ["install-pgbouncer", "create-postgres-user"]
-run = "shell"
-commands = [
-  "mkdir -p /var/log/pgbouncer /var/run/pgbouncer /etc/pgbouncer",
-  "chown -R postgres:postgres /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer",
+# 07-install-decoderbufs.sh. The protoc generation is a pre hook that runs in
+# the decoderbufs source dir before make builds.
+[[components]]
+name = "decoderbufs"
+needs = ["system-deps", "postgresql"]
+ops = [
+  { install = { apt = { build = ["protobuf-c-compiler", "libprotobuf-c-dev"] } } },
+  { install = { source = {
+    type = "git", source = "https://github.com/debezium/postgres-decoderbufs.git", ref = "${DECODERBUFS_VERSION}", strategy = "make",
+    before = [
+      { generate = { tool = "protoc-c", input = "proto/pg_logicaldec.proto", out = "src/proto" } },
+    ]
+  } } },
 ]
 
-# ---------------------------------------------------------------------------
 # 11-install-hypopg.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-hypopg"
-depends_on = ["install-postgresql"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/HypoPG/hypopg.git", ref = "${HYPO_PG_VERSION}", depth = 1 }
-build = { strategy = "make" }
-install = true
-
-# ---------------------------------------------------------------------------
-# 12-install-dexter.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-dexter"
-depends_on = ["install-system-deps"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/ankane/dexter.git", ref = "${DEXTER_VERSION}", depth = 1 }
-
-[[steps]]
-name = "build-dexter-gem"
-depends_on = ["install-dexter"]
-run = "shell"
-dir = "${step:install-dexter.source}"
-commands = [
-  "bundle install",
-  "gem build pgdexter.gemspec",
-  "gem install pgdexter-*.gem",
+[[components]]
+name = "hypopg"
+needs = ["postgresql"]
+ops = [
+  { install = { source = { type = "git", source = "https://github.com/HypoPG/hypopg.git", ref = "${HYPO_PG_VERSION}", strategy = "make" } } },
 ]
 
-# ---------------------------------------------------------------------------
-# 13-install-pgmetrics.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pgmetrics"
-depends_on = ["install-system-deps"]
-run = "binary"
-fetch = { type = "archive", url = "https://github.com/rapidloop/pgmetrics/releases/download/v${PGMETRICS_VERSION}/pgmetrics_${PGMETRICS_VERSION}_linux_amd64.tar.gz" }
-install = { copy = [{ from = "pgmetrics_${PGMETRICS_VERSION}_linux_amd64/pgmetrics", to = "/usr/local/bin/pgmetrics", mode = "0755" }] }
-
-# ---------------------------------------------------------------------------
 # 14-install-pg-repack.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pg-repack"
-depends_on = ["install-postgresql"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/reorg/pg_repack.git", ref = "ver_${PGREPACK_VERSION}", depth = 1 }
-build = { strategy = "make", make_flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"] }
-install = true
-env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" }
-verify = [
-  { file = "/usr/local/pgsql/share/extension/pg_repack.control" },
+[[components]]
+name = "pg-repack"
+needs = ["postgresql"]
+ops = [
+  { install = { source = { type = "git", source = "https://github.com/reorg/pg_repack.git", ref = "ver_${PGREPACK_VERSION}", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { verify = [{ file = "/usr/local/pgsql/share/extension/pg_repack.control" }] },
 ]
 
-# ---------------------------------------------------------------------------
 # 15-install-pg-cron.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "install-pg-cron"
-depends_on = ["install-postgresql"]
-run = "source"
-fetch = { type = "git", url = "https://github.com/citusdata/pg_cron.git", ref = "v${PG_CRON_VERSION}", depth = 1 }
-build = { strategy = "make", make_flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"] }
-install = true
-env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" }
-verify = [
-  { file = "/usr/local/pgsql/share/extension/pg_cron.control" },
-  { file = "/usr/local/pgsql/lib/pg_cron.so" },
+[[components]]
+name = "pg-cron"
+needs = ["postgresql"]
+ops = [
+  { install = { source = { type = "git", source = "https://github.com/citusdata/pg_cron.git", ref = "v${PG_CRON_VERSION}", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { verify = [{ file = "/usr/local/pgsql/share/extension/pg_cron.control" }, { file = "/usr/local/pgsql/lib/pg_cron.so" }] },
 ]
 
-# ---------------------------------------------------------------------------
-# 99-cleanup.sh
-# ---------------------------------------------------------------------------
-[[steps]]
-name = "cleanup-build-tools"
-depends_on = [
-  "install-postgresql", "install-pgaudit", "install-citus", "install-pgstatmonitor",
-  "install-decoderbufs", "install-patroni", "install-pgbouncer", "install-hypopg",
-  "install-dexter", "install-pg-repack", "install-pg-cron", "install-pgbackrest",
-  "install-cpython", "install-pgbadger",
-]
-run = "apt"
-action = "remove"
-packages = [
-  "build-essential", "gcc", "autoconf", "automake", "meson", "git", "wget",
-  "pkg-config", "libreadline-dev", "zlib1g-dev", "libssl-dev", "libxml2-dev",
-  "liblz4-dev", "libzstd-dev", "libbz2-dev", "libz-dev", "libyaml-dev",
-  "libssh2-1-dev", "libcurl4-openssl-dev", "libffi-dev", "libpq-dev",
-  "python3-distutils", "protobuf-c-compiler", "libprotobuf-c-dev", "uuid-dev",
-  "libossp-uuid-dev", "libevent-dev", "libc-ares-dev", "gettext-base",
-  "ruby-dev",
-]
-packages_conditional = [
-  { condition = "${POSTGRESQL_VERSION%%.*} -ge 17", packages = ["bison", "flex"] },
+# ============ 6. HA / TOOLING ============
+
+# 08-install-patroni.sh: pip installs + ldconfig run as a post hook in the
+# patroni source dir after the build.
+[[components]]
+name = "patroni"
+needs = ["cpython", "postgresql"]
+ops = [
+  { install = { apt = { build = ["libyaml-dev"], runtime = ["libyaml-0-2"] } } },
+  { install = { source = {
+    type = "git", source = "https://github.com/patroni/patroni.git", ref = "${PATRONI_VERSION}", strategy = "none", env = { LD_LIBRARY_PATH = "/usr/local/pgsql/lib:${LD_LIBRARY_PATH:-}", PKG_CONFIG_PATH = "/usr/local/pgsql/lib/pkgconfig:${PKG_CONFIG_PATH:-}", PATH = "/usr/local/pgsql/bin:${PATH}", LDFLAGS = "-L/usr/local/pgsql/lib", CPPFLAGS = "-I/usr/local/pgsql/include" },
+    after = [
+      { raw = "pip install 'psycopg[c]'" },
+      { raw = "pip install cdiff" },
+      { raw = "pip install -r requirements.txt" },
+      { raw = "pip install .[etcd]" },
+      { raw = "echo '/usr/local/pgsql/lib' > /etc/ld.so.conf.d/postgresql.conf" },
+      { raw = "ldconfig" },
+    ]
+  } } },
 ]
 
-[[steps]]
-name = "install-runtime-libs"
-depends_on = ["cleanup-build-tools"]
-run = "apt"
-action = "install"
-packages = [
-  "curl", "libssl3", "libxml2", "liblz4-1", "libzstd1", "libbz2-1.0", "zlib1g",
-  "libyaml-0-2", "libssh2-1", "libcurl4", "libffi8", "libreadline8",
-  "libossp-uuid16", "libevent-2.1-7", "libc-ares2", "ruby", "ruby-bundler",
+# 10-install-pgbouncer.sh
+[[components]]
+name = "pgbouncer"
+needs = ["system-deps", "postgresql"]
+ops = [
+  { install = { apt = { build = ["libevent-dev", "libc-ares-dev"], runtime = ["libevent-2.1-7", "libc-ares2"] } } },
+  { install = { source = {
+    type = "archive", source = "https://github.com/pgbouncer/pgbouncer/releases/download/${PGBOUNCER_TAG}/pgbouncer-${PGBOUNCER_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/pgbouncer", flags = ["--with-libevent=/usr/lib", "--with-cares=/usr/lib"],
+    after = [
+      { mkdir = [{ path = "/var/log/pgbouncer" }, { path = "/var/run/pgbouncer" }, { path = "/etc/pgbouncer" }] },
+      { chown = [{ path = "/etc/pgbouncer", owner = "postgres", recursive = true }, { path = "/var/log/pgbouncer", owner = "postgres", recursive = true }, { path = "/var/run/pgbouncer", owner = "postgres", recursive = true }] },
+    ]
+  } } },
 ]
 
-[[steps]]
-name = "cleanup-temp"
-depends_on = ["install-runtime-libs"]
-run = "shell"
-commands = [
-  "rm -rf /temp",
-  "apt-get clean",
-  "rm -rf /var/lib/apt/lists/* /var/cache/apt/archives",
-  "apt-get autoremove --purge -y",
-  "apt-get autoclean -y",
+# 09-install-pgbadger.sh
+[[components]]
+name = "pgbadger"
+needs = ["system-deps"]
+ops = [
+  { install = { apt = { runtime = ["perl", "libtext-csv-xs-perl", "libjson-xs-perl", "libwww-perl", "libdigest-md5-file-perl"] } } },
+  { raw = "mkdir -p /tmp/build" },
+  { raw = "wget -q -O - https://github.com/darold/pgbadger/archive/master.tar.gz | tar zx -C /tmp/build" },
+  { copy = [{ from = "/tmp/build/pgbadger-master/pgbadger", to = "/usr/bin/pgbadger", mode = "0755" }] },
+]
+
+# 12-install-dexter.sh: gem build runs as a post hook in the dexter source dir.
+[[components]]
+name = "dexter"
+needs = ["system-deps"]
+ops = [
+  { install = { apt = { build = ["ruby-dev"], runtime = ["ruby", "ruby-bundler"] } } },
+  { install = { source = {
+    type = "git", source = "https://github.com/ankane/dexter.git", ref = "${DEXTER_VERSION}", strategy = "none",
+    after = [
+      { raw = "bundle install" },
+      { raw = "gem build pgdexter.gemspec" },
+      { raw = "gem install pgdexter-*.gem" },
+    ]
+  } } },
+]
+
+# 13-install-pgmetrics.sh
+[[components]]
+name = "pgmetrics"
+needs = ["system-deps"]
+ops = [
+  { install = { binary = { source = "https://github.com/rapidloop/pgmetrics/releases/download/v${PGMETRICS_VERSION}/pgmetrics_${PGMETRICS_VERSION}_linux_amd64.tar.gz", copy = [{ from = "pgmetrics_${PGMETRICS_VERSION}_linux_amd64/pgmetrics", to = "/usr/local/bin/pgmetrics", mode = "0755" }] } } },
+]
+
+
+# ============ 7. IMAGE CLEANUP ============
+
+# Strip binaries, remove static libs, and clear Python/Ruby cruft to shrink
+# the final image. Runs after all installs.
+[[components]]
+name = "cleanup"
+needs = ["postgresql", "pgaudit", "pgbackrest", "citus", "pgstatmonitor", "decoderbufs", "hypopg", "pg-repack", "pg-cron", "patroni", "pgbouncer", "pgbadger", "dexter", "pgmetrics", "cpython"]
+ops = [
+  { raw = "strip --strip-unneeded /usr/local/pgsql/bin/* /usr/local/pgsql/lib/*.so /usr/local/pgbouncer/bin/* /usr/local/bin/* 2>/dev/null || true" },
+  { raw = "find /usr/local -name '*.a' -delete" },
+  { raw = "find /usr/local -name '*.la' -delete" },
+  { raw = "find /usr/local -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/local -type d -name 'test' -path '*python*' -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "rm -rf /usr/local/lib/python*/test /usr/local/lib/python*/unittest 2>/dev/null || true" },
+  { raw = "rm -rf /usr/local/lib/ruby/gems/*/cache /usr/local/lib/ruby/gems/*/doc 2>/dev/null || true" },
 ]
