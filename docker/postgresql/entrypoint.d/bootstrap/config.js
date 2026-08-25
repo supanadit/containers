@@ -537,17 +537,21 @@ const patroniYaml = yaml.build({
 		: {},
 });
 
-// Declarative FileProvision rules consumed by the database node.
-const postgresFiles = [
-	// postgresql.conf: always overwrite the initdb-generated default with the
-	// container template (mirrors bash 03-config.sh), then env overrides
-	// (smart-quoted). initdb creates a default postgresql.conf first, so
-	// createOnly would skip this and postgres would run without
-	// unix_socket_directories = PGRUN (listening on /tmp instead).
-	{
-		path: POSTGRES_CONF,
-		operations: [{ type: "replace", value: postgresqlConfTemplate }],
-	},
+// Declarative FileProvision rules consumed by the database node. In Patroni
+// mode, Patroni manages postgresql.conf/pg_hba.conf itself (and bootstraps the
+// cluster), so we must NOT write them into PGDATA — doing so pollutes the data
+// dir before Patroni bootstraps ("data dir not empty, system ID invalid").
+function postgresFiles() {
+	const base = [
+		// postgresql.conf: always overwrite the initdb-generated default with the
+		// container template (mirrors bash 03-config.sh), then env overrides
+		// (smart-quoted). initdb creates a default postgresql.conf first, so
+		// createOnly would skip this and postgres would run without
+		// unix_socket_directories = PGRUN (listening on /tmp instead).
+		{
+			path: POSTGRES_CONF,
+			operations: [{ type: "replace", value: postgresqlConfTemplate }],
+		},
 	{
 		path: POSTGRES_CONF,
 		operations: [
@@ -763,10 +767,13 @@ const postgresFiles = [
 		when: { name: "PGBACKREST_ENABLE", value: "true" },
 		operations: [{ type: "replace", value: pgbackrestConfig() }],
 	},
-	// patroni.yml, conditional on PATRONI_ENABLE.
+	// patroni.yml, conditional on PATRONI_ENABLE. Owned by postgres (Patroni
+	// runs as postgres and must read it); 0600 because it contains passwords.
 	{
 		path: PATRONI_CONF,
 		when: { name: "PATRONI_ENABLE", value: "true" },
+		permission: 0o600,
+		owner: "postgres:postgres",
 		operations: [{ type: "replace", value: patroniYaml }],
 	},
 	// sshd_config, chmod 644 (mirrors bash 05-sshd.sh).
@@ -794,7 +801,16 @@ const postgresFiles = [
 			},
 		],
 	},
-];
+	];
+
+	// In Patroni mode, Patroni manages postgresql.conf/pg_hba.conf itself and
+	// bootstraps the cluster — writing them into PGDATA pollutes the data dir
+	// before Patroni starts. Skip all PGDATA config writes.
+	if (PATRONI_ENABLE) {
+		return base.filter((f) => f.path !== POSTGRES_CONF && f.path !== PG_HBA);
+	}
+	return base;
+}
 
 module.exports = {
 	postgresFiles,

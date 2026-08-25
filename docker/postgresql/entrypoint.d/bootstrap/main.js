@@ -105,11 +105,22 @@ function setupSshd() {
 		fs.chown(run, "root:root");
 	}
 
-	// Replica keypair for SSH-based pgBackRest standby.
+	// Replica keypair for SSH-based pgBackRest standby. The .ssh dir may be a
+	// read-only mount (e.g. the SFTP compose provides its own keys), so skip
+	// chmod/chown/keygen when it's not writable rather than failing startup.
 	const dir = "/home/postgres/.ssh";
-	fs.ensureDir(dir, { mode: 0o700 });
-	fs.chmod(dir, 0o700);
-	fs.chown(dir, "postgres:" + PG_GROUP);
+	if (fs.exists(dir)) {
+		try {
+			fs.chmod(dir, 0o700);
+			fs.chown(dir, "postgres:" + PG_GROUP);
+		} catch {
+			log.warn("~/.ssh is read-only; skipping chmod/chown (keys provided externally)");
+		}
+	} else {
+		fs.ensureDir(dir, { mode: 0o700 });
+		fs.chmod(dir, 0o700);
+		fs.chown(dir, "postgres:" + PG_GROUP);
+	}
 
 	const keyFile = dir + "/id_rsa";
 	if (!fs.exists(keyFile)) {
@@ -117,33 +128,45 @@ function setupSshd() {
 			log.warn("ssh-keygen not found, skipping SSH key generation");
 			return;
 		}
-		runAsPostgres(
-			["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", keyFile, "-N", "", "-C", "postgres@replica-auth"],
-			"ssh-key",
-		);
-		fs.chmod(keyFile, 0o600);
-		fs.chown(keyFile, "postgres:" + PG_GROUP);
+		try {
+			runAsPostgres(
+				["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", keyFile, "-N", "", "-C", "postgres@replica-auth"],
+				"ssh-key",
+			);
+			fs.chmod(keyFile, 0o600);
+			fs.chown(keyFile, "postgres:" + PG_GROUP);
+		} catch {
+			log.warn("~/.ssh is read-only; skipping replica key generation (keys provided externally)");
+		}
 	}
 
 	const pubKey = keyFile + ".pub";
-	if (fs.exists(pubKey)) fs.chmod(pubKey, 0o644);
+	if (fs.exists(pubKey)) {
+		try { fs.chmod(pubKey, 0o644); } catch { /* read-only */ }
+	}
 
 	// Append the public key to authorized_keys (accumulates, like bash).
 	const authFile = dir + "/authorized_keys";
 	if (!fs.exists(authFile)) {
-		fs.write(authFile, "", { mode: 0o600 });
-		fs.chown(authFile, "postgres:" + PG_GROUP);
-		fs.chmod(authFile, 0o600);
+		try {
+			fs.write(authFile, "", { mode: 0o600 });
+			fs.chown(authFile, "postgres:" + PG_GROUP);
+			fs.chmod(authFile, 0o600);
+		} catch {
+			log.warn("~/.ssh is read-only; skipping authorized_keys creation");
+		}
 	}
 	if (fs.exists(pubKey)) {
 		const pub = editor.open(pubKey).read().trim();
 		const auth = editor.open(authFile).read();
 		if (!auth.includes(pub)) {
-			fs.write(authFile, auth + pub + "\n", { mode: 0o600 });
+			try { fs.write(authFile, auth + pub + "\n", { mode: 0o600 }); } catch { /* read-only */ }
 		}
 	}
-	fs.chown(authFile, "postgres:" + PG_GROUP);
-	fs.chmod(authFile, 0o600);
+	try {
+		fs.chown(authFile, "postgres:" + PG_GROUP);
+		fs.chmod(authFile, 0o600);
+	} catch { /* read-only */ }
 }
 
 function main() {

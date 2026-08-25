@@ -93,13 +93,27 @@ function markRestorePending() {
 function configureReplicaAppname() {
 	const autoConf = PGDATA + "/postgresql.auto.conf";
 	if (!fs.exists(autoConf)) return;
-	const appname = env.get("REPLICATION_APPNAME", require("os").hostname());
-	editor
-		.open(autoConf)
-		.upsert(
-			"^\\s*primary_conninfo",
-			"primary_conninfo = 'application_name=" + appname + "'",
-		);
+	// goja_nodejs has no require("os"); use the HOSTNAME env var (set by the
+	// container runtime) like the original bash did.
+	const appname = env.get("REPLICATION_APPNAME", env.get("HOSTNAME", ""));
+	const e = editor.open(autoConf);
+	const lines = e.readLines();
+	let found = false;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (/^\s*primary_conninfo\s*=/.test(line)) {
+			found = true;
+			// Already has application_name — leave it.
+			if (/application_name=/.test(line)) return;
+			// Append application_name inside the trailing quote, preserving
+			// host/port/user/password (matches the original bash sed).
+			lines[i] = line.replace(/'\s*$/, " application_name=" + appname + "'");
+		}
+	}
+	if (!found) {
+		lines.push("primary_conninfo = 'application_name=" + appname + "'");
+	}
+	e.writeLines(lines);
 }
 
 function clonePrimary() {
@@ -126,7 +140,7 @@ function clonePrimary() {
 			process: {
 				binaryPath: argv[0],
 				arguments: argv.slice(1),
-				env: ["PGPASSWORD=" + REPL_PASSWORD],
+				environment: ["PGPASSWORD=" + REPL_PASSWORD],
 				user: PG_USER,
 				group: PG_GROUP,
 			},

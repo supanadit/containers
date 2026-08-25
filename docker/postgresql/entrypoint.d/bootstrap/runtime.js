@@ -78,9 +78,13 @@ function userlistInit() {
 }
 
 // stanza-init — create/upgrade the pgBackRest stanza once postgres is ready
-// (bash startup.sh:initialize_pgbackrest_stanza + cluster.sh modes).
+// (bash startup.sh:initialize_pgbackrest_stanza + cluster.sh modes). Only runs
+// on the primary (or Patroni) — a replica has no primary cluster to back up, so
+// stanza-create would fail with "unable to find primary cluster".
 function stanzaInit() {
 	if (!PGBACKREST_ENABLE) return null;
+	// Native-HA replica: skip stanza init (no primary cluster here).
+	if (HA_MODE === "native" && REPL_ROLE === "replica") return null;
 	const cmd =
 		"if ! pgbackrest --config=/etc/pgbackrest.conf --stanza=" +
 		shell.quote(STANZA) +
@@ -89,8 +93,13 @@ function stanzaInit() {
 		" stanza-upgrade; fi && pgbackrest --config=/etc/pgbackrest.conf --stanza=" +
 		shell.quote(STANZA) +
 		" check";
+	// In Patroni mode the role is dynamic: a node may start as a replica where
+	// stanza-create legitimately fails ("unable to find primary cluster"). Make
+	// it optional so it doesn't kill the container; the primary's stanza-init
+	// succeeds and the role-check callback handles promotion.
 	return oneShot("pgbackrest-stanza-init", cmd, {
 		process: { filterEnvPattern: ["^PGBACKREST_"] },
+		optional: PATRONI_ENABLE,
 	});
 }
 
@@ -306,6 +315,12 @@ function startDatabase() {
 				arguments: ["-D", PGDATA],
 				user: PG_USER,
 				group: PG_GROUP,
+				// Strip PGBACKREST_* from postgres's env so the archive_command
+				// child (pgbackrest archive-push) doesn't inherit them as config
+				// overrides (pgbackrest maps PGBACKREST_REPO_S3_* to unindexed
+				// options and errors). Matches the original bash where postgres
+				// never had these vars.
+				filterEnvPattern: ["^PGBACKREST_"],
 			};
 
 	const children = [
@@ -322,7 +337,7 @@ function startDatabase() {
 	const node = {
 		name: PATRONI_ENABLE ? "patroni" : "postgres",
 		process: mainProcess,
-		files: postgresFiles,
+		files: postgresFiles(),
 		forwardSignals: ["SIGTERM", "SIGINT", "SIGHUP", "SIGUSR1", "SIGUSR2"],
 		shutdown: { timeout: -1, forceKill: false },
 		children,
