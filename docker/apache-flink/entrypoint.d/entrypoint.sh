@@ -19,16 +19,16 @@ CONFIG_REST_ADDRESS="${CONFIG_REST_ADDRESS:-0.0.0.0}"
 CONFIG_REST_PORT="${CONFIG_REST_PORT:-8081}"
 
 CONFIG_STATE_BACKEND="${CONFIG_STATE_BACKEND:-filesystem}"
-CONFIG_STATE_CHECKPOINTS_DIR="${CONFIG_STATE_CHECKPOINTS_DIR:-file:///opt/flink/checkpoints}"
-CONFIG_STATE_SAVEPOINTS_DIR="${CONFIG_STATE_SAVEPOINTS_DIR:-file:///opt/flink/savepoints}"
+CONFIG_STATE_CHECKPOINTS_DIR="${CONFIG_STATE_CHECKPOINTS_DIR:-file:///opt/containers/data}"
+CONFIG_STATE_SAVEPOINTS_DIR="${CONFIG_STATE_SAVEPOINTS_DIR:-file:///opt/containers/data}"
 
-CONFIG_LOG_FILE="${CONFIG_LOG_FILE:-/opt/flink/logs/flink.log}"
+CONFIG_LOG_FILE="${CONFIG_LOG_FILE:-/opt/containers/logs/flink.log}"
 
 # Create necessary directories
-mkdir -p /opt/flink/logs
+mkdir -p /opt/containers/logs
 
 # Set Flink configuration
-export FLINK_CONF_DIR=/opt/flink/conf
+export FLINK_CONF_DIR=/opt/containers/config
 
 # Generate flink-conf.yaml from CONFIG_ variables
 FLINK_CONF_FILE="${FLINK_CONF_DIR}/flink-conf.yaml"

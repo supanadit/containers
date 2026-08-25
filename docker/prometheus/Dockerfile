@@ -19,4 +19,4 @@ RUN chmod +x /opt/prometheus/entrypoint.sh
 
 ENTRYPOINT ["/opt/prometheus/entrypoint.sh"]
 
-VOLUME ["/prometheus"]
+VOLUME ["/opt/containers/data"]

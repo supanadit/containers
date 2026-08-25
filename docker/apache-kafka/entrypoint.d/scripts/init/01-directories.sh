@@ -9,10 +9,10 @@ source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 main() {
     log_script_start "01-directories.sh"
 
-    export KAFKA_DATA_DIR="${KAFKA_DATA_DIR:-/opt/kafka/data}"
-    export KAFKA_LOG_DIR="${KAFKA_LOG_DIR:-/opt/kafka/logs}"
-    export KAFKA_CONFIG_DIR="${KAFKA_CONFIG_DIR:-/opt/kafka/config}"
-    export KAFKA_RUN_DIR="${KAFKA_RUN_DIR:-/tmp/kafka-run}"
+    export KAFKA_DATA_DIR="${KAFKA_DATA_DIR:-/opt/containers/data}"
+    export KAFKA_LOG_DIR="${KAFKA_LOG_DIR:-/opt/containers/logs}"
+    export KAFKA_CONFIG_DIR="${KAFKA_CONFIG_DIR:-/opt/containers/config}"
+    export KAFKA_RUN_DIR="${KAFKA_RUN_DIR:-/opt/containers/run}"
 
     local dirs=(
         "$KAFKA_DATA_DIR"

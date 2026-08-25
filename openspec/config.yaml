@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Docker container infrastructure with multi-stage builds (Debian Bookworm).
+  Each container is independently in docker/<name>/.
+
+  Gold standard reference: docker/postgresql/ — every new container or
+  feature should follow the same patterns documented in AGENTS.md.
+
+  Key rules:
+  - Everything configurable by environment variable
+  - Multi-stage Dockerfile: base → setup → runtime
+  - Build-time extensions added as numbered setup/scripts/NN-install-*.sh
+  - Entrypoint lifecycle: source utils → validate → numbered init scripts → exec startup
+  - set -euo pipefail + main "$@" in every script
+  - Volume paths under /opt/containers/<category> for persistent data only
+  - DO NOT use docker build --no-cache
+  - Cross-cutting changes require updating: entrypoint, configs, compose examples, docs
+
+rules:
+  proposal:
+    - Keep proposals focused on what changes and why, not implementation details
+    - Always identify which files need changes (entrypoint, config templates, Dockerfile, compose, docs)
+    - Include a "Non-goals" section to scope the change
+  design:
+    - Document decisions with rationale (why this approach)
+    - For path changes: include before/after table
+    - Consider backward compatibility and migration
+    - Refer to the gold standard container (postgresql) for patterns
+  tasks:
+    - Group tasks by complexity for safe rollout
+    - Include cross-cutting tasks: compose files, docs, verification
+    - Each task should reference specific files
+  specs:
+    - Scenarios must name the specific container and env var
+    - Use SHALL for requirements
+    - "without X explicitly set" for default-only behavior
+    - One scenario per container per requirement

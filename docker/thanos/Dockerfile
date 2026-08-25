@@ -30,4 +30,4 @@ RUN chmod +x /opt/thanos/entrypoint.sh
 
 ENTRYPOINT ["/opt/thanos/entrypoint.sh"]
 
-VOLUME ["/thanos"]
+VOLUME ["/opt/containers/data"]

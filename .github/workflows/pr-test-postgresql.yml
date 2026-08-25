@@ -6,9 +6,6 @@ on:
     paths:
       - 'docker/postgresql/**'
       - 'entrypoint.d/scripts/utils/**'
-    paths-ignore:
-      - 'docker/postgresql/README.md'
-      - 'docker/postgresql/**/*.md'
 
 jobs:
   test:
@@ -31,12 +28,17 @@ jobs:
         if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Build PostgreSQL image
+      - name: Build PostgreSQL image (with gha cache)
         if: steps.skip-check.outputs.skip != 'true'
         run: |
           echo "Building PostgreSQL 18.1 for PR validation..."
           docker buildx build --load \
+            --cache-from=type=gha \
+            --cache-to=type=gha,mode=max \
             --build-arg POSTGRESQL_VERSION=18.1 \
+            --build-arg CITUS_VERSION=14.0.0 \
+            --build-arg PATRONI_VERSION=v4.1.0 \
+            --build-arg PYTHON_VERSION=v3.13.9 \
             --build-arg PGAUDIT_VERSION=18.0 \
             -t postgresql:test \
             docker/postgresql/

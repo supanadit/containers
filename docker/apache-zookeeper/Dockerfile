@@ -59,8 +59,8 @@ RUN chmod +x /entrypoint.sh
 RUN groupadd -r zookeeper && useradd -r -g zookeeper zookeeper
 
 # Create necessary directories
-RUN mkdir -p /opt/zookeeper/logs /opt/zookeeper/data && \
-    chown -R zookeeper:zookeeper /opt/zookeeper
+RUN mkdir -p /opt/containers/logs /opt/containers/data && \
+    chown -R zookeeper:zookeeper /opt/zookeeper /opt/containers
 
 # Switch to zookeeper user
 USER zookeeper

@@ -6,7 +6,7 @@ set -euo pipefail
 source /opt/container/entrypoint.d/scripts/utils/logging.sh
 source /opt/container/entrypoint.d/scripts/utils/helpers.sh
 
-CONFIG_FILE="/opt/kafka/config/server.properties"
+CONFIG_FILE="/opt/containers/config/server.properties"
 
 main() {
     log_script_start "02-config.sh"
@@ -49,7 +49,7 @@ socket.request.max.bytes=${KAFKA_SOCKET_REQUEST_MAX_BYTES:-104857600}
 # Log configuration
 num.partitions=${KAFKA_NUM_PARTITIONS:-1}
 num.recovery.threads.per.data.dir=${KAFKA_NUM_RECOVERY_THREADS_PER_DATA_DIR:-1}
-log.dirs=${KAFKA_LOG_DIRS:-/opt/kafka/data}
+log.dirs=${KAFKA_LOG_DIRS:-/opt/containers/data}
 offsets.topic.replication.factor=${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
 transaction.state.log.replication.factor=${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR:-1}
 transaction.state.log.min.isr=${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR:-1}

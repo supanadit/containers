@@ -53,8 +53,8 @@ RUN chmod +x /entrypoint.sh
 RUN groupadd -r airflow && useradd -r -g airflow airflow
 
 # Create necessary directories
-RUN mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins && \
-    chown -R airflow:airflow /opt/airflow
+RUN mkdir -p /opt/containers/logs /opt/containers/data /opt/airflow/plugins && \
+    chown -R airflow:airflow /opt/airflow /opt/containers
 
 # Switch to airflow user
 USER airflow
