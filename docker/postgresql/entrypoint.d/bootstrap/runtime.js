@@ -95,15 +95,20 @@ function stanzaInit() {
 }
 
 // repl-user — create the replication user for native-HA primary (bash
-// startup.sh:create_replication_user).
+// startup.sh:create_replication_user). Connects via the local unix socket as
+// the postgres superuser (POSTGRES_PASSWORD), matching the original bash which
+// used peer/trust auth on the socket — NOT the replicator's password.
 function replUser() {
 	if (HA_MODE !== "native" || REPL_ROLE !== "primary" || !REPL_USER) return null;
 	if (!REPL_PASSWORD) throw new Error("REPLICATION_PASSWORD required for native-HA primary");
 	const pgUser = env.get("POSTGRES_USER", "postgres");
+	const pgPass = env.get("POSTGRES_PASSWORD", "");
 	const cmd =
 		"PGPASSWORD=" +
-		shell.quote(REPL_PASSWORD) +
-		" psql -h 127.0.0.1 -p " +
+		shell.quote(pgPass) +
+		" psql -h " +
+		shell.quote(PGRUN) +
+		" -p " +
 		PG_PORT +
 		" -U " +
 		shell.quote(pgUser) +
