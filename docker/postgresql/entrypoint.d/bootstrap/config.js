@@ -138,9 +138,9 @@ function pgbackrestConfig() {
 	global.set("spool-path", PGBACKUP + "/spool");
 	global.setFromEnv("PGBACKREST_REPO_RETENTION_FULL_TYPE", "repo1-retention-full-type");
 	global.setFromEnv("PGBACKREST_PROCESS_MAX", "process-max");
-	global.setFlag("archive-async", env.isTruthy("PGBACKREST_ARCHIVE_ASYNC"));
+	global.setFlag("archive-async", env.bool("PGBACKREST_ARCHIVE_ASYNC"));
 	global.setFromEnv("PGBACKREST_REPO_COMPRESSION", "repo1-compression");
-	global.setFlag("sparse-table", env.isTruthy("PGBACKREST_SPARSE_TABLE"));
+	global.setFlag("sparse-table", env.bool("PGBACKREST_SPARSE_TABLE"));
 	global.setFromEnv("PGBACKREST_COMPRESS_LEVEL", "compress-level");
 	global.setFromEnv("PGBACKREST_COMPRESS_LEVEL_NETWORK", "compress-level-network");
 	global.setFromEnv("PGBACKREST_BUFFER_SIZE", "buffer-size");
@@ -149,19 +149,19 @@ function pgbackrestConfig() {
 	global.setFromEnv("PGBACKREST_PROTOCOL_TIMEOUT", "protocol-timeout");
 	global.setFromEnv("PGBACKREST_REPO_CIPHER_TYPE", "repo1-cipher-type");
 	global.setFromEnv("PGBACKREST_REPO_CIPHER_PASS", "repo1-cipher-pass");
-	global.setFlag("repo1-hardlink", env.isTruthy("PGBACKREST_REPO_HARDLINK"));
-	global.setFlag("repo1-symlink", env.isTruthy("PGBACKREST_REPO_SYMLINK"));
+	global.setFlag("repo1-hardlink", env.bool("PGBACKREST_REPO_HARDLINK"));
+	global.setFlag("repo1-symlink", env.bool("PGBACKREST_REPO_SYMLINK"));
 	global.setFromEnv("PGBACKREST_REPO_RETENTION_ARCHIVE", "repo1-retention-archive");
 	global.setFromEnv("PGBACKREST_REPO_RETENTION_ARCHIVE_TYPE", "repo1-retention-archive-type");
 	global.setFromEnv("PGBACKREST_REPO_RETENTION_HISTORY", "repo1-retention-history");
 	global.setFromEnv("PGBACKREST_ARCHIVE_GET_QUEUE_MAX", "archive-get-queue-max");
 	global.setFromEnv("PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX", "archive-push-queue-max");
 	global.setFromEnv("PGBACKREST_ARCHIVE_TIMEOUT", "archive-timeout");
-	global.setFlag("neutral-umask", env.isTruthy("PGBACKREST_NEUTRAL_UMASK"));
+	global.setFlag("neutral-umask", env.bool("PGBACKREST_NEUTRAL_UMASK"));
 	global.setFromEnv("PGBACKREST_TCP_KEEP_ALIVE_COUNT", "tcp-keep-alive-count");
 	global.setFromEnv("PGBACKREST_TCP_KEEP_ALIVE_IDLE", "tcp-keep-alive-idle");
 	global.setFromEnv("PGBACKREST_TCP_KEEP_ALIVE_INTERVAL", "tcp-keep-alive-interval");
-	global.setFlag("sck-keep-alive", env.isTruthy("PGBACKREST_SCK_KEEP_ALIVE"));
+	global.setFlag("sck-keep-alive", env.bool("PGBACKREST_SCK_KEEP_ALIVE"));
 	global.setFromEnv("PGBACKREST_MANIFEST_SAVE_THRESHOLD", "manifest-save-threshold");
 
 	// repo section (no INI header, matches original bare comment+key output)
@@ -201,7 +201,7 @@ function pgbackrestConfig() {
 		s3("KEY_TYPE", "repo1-s3-key-type");
 		const verifyTls = env.get("PGBACKREST_REPO_S3_VERIFY_TLS");
 		if (verifyTls) b.set("repo1-s3-verify-tls", ["true", "TRUE", "1", "y", "Y"].includes(verifyTls) ? "y" : "n");
-		if (env.isTruthy("PGBACKREST_REPO_S3_REQUESTER_PAYS")) b.set("repo1-s3-requester-pays", "y");
+		if (env.bool("PGBACKREST_REPO_S3_REQUESTER_PAYS")) b.set("repo1-s3-requester-pays", "y");
 		b.set("repo1-path", repoPath || "/pgbackrest");
 	} else if (repoType === "gcs") {
 		const gcs = (envName, key) => {
@@ -436,7 +436,7 @@ if (
 }
 
 // CITUS enable detection (03-config.sh:640-649): gate on CITUS_ENABLE.
-const citusEnabled = env.isTruthy("CITUS_ENABLE");
+const citusEnabled = env.bool("CITUS_ENABLE");
 
 // PG_HBA_ADD_* merged into the Patroni pg_hba list with dedup.
 const patroniPgHba = [
@@ -452,7 +452,7 @@ for (const kv of Object.entries(env.all()).sort(([a], [b]) => a.localeCompare(b)
 }
 
 const pgbackrestArchive =
-	PGBACKREST_ENABLE && env.isTruthy("PGBACKREST_ARCHIVE_ENABLE", "true");
+	PGBACKREST_ENABLE && env.bool("PGBACKREST_ARCHIVE_ENABLE", true);
 const archiveCommand = pgbackrestArchive
 	? `env -u PGBACKREST_ENABLE -u PGBACKREST_AUTO_ENABLE pgbackrest --config=/etc/pgbackrest.conf --stanza=${STANZA} archive-push %p` +
 	  (env.get("PGBACKREST_ARCHIVE_COMMAND_EXTRA") || "")
@@ -471,35 +471,35 @@ const patroniYaml = yaml.build({
 	watchdog: {
 		mode: env.get("PATRONI_WATCHDOG_MODE", "off"),
 		device: env.get("PATRONI_WATCHDOG_DEVICE", "/dev/watchdog"),
-		safety_margin: parseInt(env.get("PATRONI_WATCHDOG_SAFETY_MARGIN", "5"), 10),
+		safety_margin: env.int("PATRONI_WATCHDOG_SAFETY_MARGIN", 5),
 	},
 	bootstrap: {
 		dcs: {
-			ttl: parseInt(env.get("PATRONI_TTL", "30"), 10),
-			loop_wait: parseInt(env.get("PATRONI_LOOP_WAIT", "10"), 10),
-			retry_timeout: parseInt(env.get("PATRONI_RETRY_TIMEOUT", "10"), 10),
-			maximum_lag_on_failover: parseInt(env.get("PATRONI_MAX_LAG", "1048576"), 10),
+			ttl: env.int("PATRONI_TTL", 30),
+			loop_wait: env.int("PATRONI_LOOP_WAIT", 10),
+			retry_timeout: env.int("PATRONI_RETRY_TIMEOUT", 10),
+			maximum_lag_on_failover: env.int("PATRONI_MAX_LAG", 1048576),
 			...syncMode ? { synchronous_mode: syncMode } : {},
 			...syncStrict ? { synchronous_mode_strict: syncStrict } : {},
 			...syncType ? { synchronous_mode_type: syncType } : {},
 			...syncTimeout ? { synchronous_mode_timeout: syncTimeout } : {},
 			postgresql: {
-				use_pg_rewind: env.isTruthy("PATRONI_USE_PG_REWIND", "true"),
-				use_slots: env.isTruthy("PATRONI_USE_SLOTS", "true"),
+				use_pg_rewind: env.bool("PATRONI_USE_PG_REWIND", true),
+				use_slots: env.bool("PATRONI_USE_SLOTS", true),
 				parameters: {
 					wal_level: "replica",
 					hot_standby: "on",
 					logging_collector: "on",
-					max_wal_senders: parseInt(env.get("PATRONI_MAX_WAL_SENDERS", "10"), 10),
-					max_replication_slots: parseInt(env.get("PATRONI_MAX_REPLICATION_SLOTS", "10"), 10),
-					wal_keep_segments: parseInt(env.get("PATRONI_WAL_KEEP_SEGMENTS", "8"), 10),
+					max_wal_senders: env.int("PATRONI_MAX_WAL_SENDERS", 10),
+					max_replication_slots: env.int("PATRONI_MAX_REPLICATION_SLOTS", 10),
+					wal_keep_segments: env.int("PATRONI_WAL_KEEP_SEGMENTS", 8),
 					archive_mode: pgbackrestArchive ? "on" : "off",
 					archive_timeout: env.get("ARCHIVE_TIMEOUT", "1800s"),
 					archive_command: archiveCommand,
 					...citusEnabled ? { shared_preload_libraries: "citus" } : {},
 				},
 				pg_hba: patroniPgHba,
-				...citusEnabled ? { citus: { group: parseInt(env.get("CITUS_GROUP", "0"), 10), database: env.get("CITUS_DATABASE", "postgres") } } : {},
+				...citusEnabled ? { citus: { group: env.int("CITUS_GROUP", 0), database: env.get("CITUS_DATABASE", "postgres") } } : {},
 			},
 		},
 	},
@@ -529,9 +529,9 @@ const patroniYaml = yaml.build({
 	...citusEnabled
 		? {
 				citus: {
-					group: parseInt(env.get("CITUS_GROUP", "0"), 10),
+					group: env.int("CITUS_GROUP", 0),
 					database: env.get("CITUS_DATABASE", "postgres"),
-					port: parseInt(PG_PORT, 10),
+					port: env.int("POSTGRESQL_PORT", 5432),
 				},
 			}
 		: {},

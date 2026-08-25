@@ -2,7 +2,7 @@
 // container environment, HA configuration, and required dependencies before
 // any side effects. YAML validation of patroni.yml is skipped: ezx's
 // yaml.build guarantees structural validity at generation time.
-const { env, log, scheduler } = require("ezx");
+const { env, log, scheduler, fs } = require("ezx");
 
 // validateCronExpression — delegate to ezx's cron engine so validation always
 // matches what the scheduler actually runs.
@@ -36,7 +36,7 @@ function validateEnvironment() {
 
 	// TIMEOUT
 	const timeout = env.get("TIMEOUT", "30");
-	if (!/^[0-9]+$/.test(timeout) || parseInt(timeout, 10) <= 0) {
+	if (!/^[0-9]+$/.test(timeout) || env.int("TIMEOUT", 30) <= 0) {
 		fail(`Invalid TIMEOUT: ${timeout} (must be a positive integer)`);
 	}
 
@@ -49,7 +49,7 @@ function validateEnvironment() {
 	// REPLICATION_SYNCHRONOUS_COUNT
 	if (syncMode === "true" && env.get("REPLICATION_SYNCHRONOUS_COUNT")) {
 		const count = env.get("REPLICATION_SYNCHRONOUS_COUNT");
-		if (!/^[0-9]+$/.test(count) || parseInt(count, 10) < 1) {
+		if (!/^[0-9]+$/.test(count) || env.int("REPLICATION_SYNCHRONOUS_COUNT", 0) < 1) {
 			fail(`Invalid REPLICATION_SYNCHRONOUS_COUNT: ${count} (must be a positive integer)`);
 		}
 	}
@@ -61,29 +61,29 @@ function validateEnvironment() {
 	}
 
 	// PGBACKREST_ENABLE lenient check
-	if (env.get("PGBACKREST_ENABLE") && !env.isTruthy("PGBACKREST_ENABLE")) {
+	if (env.get("PGBACKREST_ENABLE") && !env.bool("PGBACKREST_ENABLE")) {
 		warn(`PGBACKREST_ENABLE='${env.get("PGBACKREST_ENABLE")}' is not recognized as true; treating as false`);
 	}
 
 	// Cross-variable warnings
-	if (!env.isTruthy("PGBACKREST_ENABLE")) {
-		if (env.isTruthy("PGBACKREST_AUTO_ENABLE")) {
+	if (!env.bool("PGBACKREST_ENABLE")) {
+		if (env.bool("PGBACKREST_AUTO_ENABLE")) {
 			warn("PGBACKREST_AUTO_ENABLE=true is ignored because PGBACKREST_ENABLE=false");
 		}
-		if (env.isTruthy("PGBACKREST_RESTORE")) {
+		if (env.bool("PGBACKREST_RESTORE")) {
 			warn("PGBACKREST_RESTORE=true requires PGBACKREST_ENABLE=true; restore will be disabled");
 		}
-		if (env.isTruthy("PGBACKREST_ARCHIVE_ENABLE", "true")) {
+		if (env.bool("PGBACKREST_ARCHIVE_ENABLE", true)) {
 			warn("PGBACKREST_ARCHIVE_ENABLE=true has no effect when PGBACKREST_ENABLE=false; archiving will be disabled");
 		}
 	}
 
-	if (env.isTruthy("PGBACKREST_ENABLE")) {
+	if (env.bool("PGBACKREST_ENABLE")) {
 		// Auto-backup feature lenient checks
-		if (env.get("PGBACKREST_AUTO_ENABLE") && !env.isTruthy("PGBACKREST_AUTO_ENABLE")) {
+		if (env.get("PGBACKREST_AUTO_ENABLE") && !env.bool("PGBACKREST_AUTO_ENABLE")) {
 			warn(`PGBACKREST_AUTO_ENABLE='${env.get("PGBACKREST_AUTO_ENABLE")}' not recognized; using default (false)`);
 		}
-		if (env.get("PGBACKREST_AUTO_PRIMARY_ONLY") && !env.isTruthy("PGBACKREST_AUTO_PRIMARY_ONLY", "true")) {
+		if (env.get("PGBACKREST_AUTO_PRIMARY_ONLY") && !env.bool("PGBACKREST_AUTO_PRIMARY_ONLY", true)) {
 			warn(`PGBACKREST_AUTO_PRIMARY_ONLY='${env.get("PGBACKREST_AUTO_PRIMARY_ONLY")}' not recognized; using default (true)`);
 		}
 
@@ -97,13 +97,13 @@ function validateEnvironment() {
 
 		// First incremental delay
 		const firstIncr = env.get("PGBACKREST_AUTO_FIRST_INCR_DELAY");
-		if (firstIncr && (!/^[0-9]+$/.test(firstIncr) || parseInt(firstIncr, 10) <= 0)) {
+		if (firstIncr && (!/^[0-9]+$/.test(firstIncr) || env.int("PGBACKREST_AUTO_FIRST_INCR_DELAY", 0) <= 0)) {
 			fail(`Invalid PGBACKREST_AUTO_FIRST_INCR_DELAY: ${firstIncr} (must be positive integer seconds)`);
 		}
 
 		// Stanza primary wait
 		const stanzaWait = env.get("PGBACKREST_STANZA_PRIMARY_WAIT");
-		if (stanzaWait && (!/^[0-9]+$/.test(stanzaWait) || parseInt(stanzaWait, 10) < 0)) {
+		if (stanzaWait && (!/^[0-9]+$/.test(stanzaWait) || env.int("PGBACKREST_STANZA_PRIMARY_WAIT", 0) < 0)) {
 			fail(`Invalid PGBACKREST_STANZA_PRIMARY_WAIT: ${stanzaWait} (must be non-negative integer seconds)`);
 		}
 
@@ -160,7 +160,7 @@ function validateEnvironment() {
 		fail(`Invalid POSTGRESQL_SHARED_BUFFERS: ${sharedBuffers}`);
 	}
 	const maxConn = env.get("POSTGRESQL_MAX_CONNECTIONS");
-	if (maxConn && (!/^[0-9]+$/.test(maxConn) || parseInt(maxConn, 10) <= 0)) {
+	if (maxConn && (!/^[0-9]+$/.test(maxConn) || env.int("POSTGRESQL_MAX_CONNECTIONS", 0) <= 0)) {
 		fail(`Invalid POSTGRESQL_MAX_CONNECTIONS: ${maxConn}`);
 	}
 
@@ -176,7 +176,7 @@ function validateHaConfiguration() {
 	};
 
 	if (env.get("HA_MODE", "") === "native") {
-		if (env.isTruthy("PATRONI_ENABLE")) {
+		if (env.bool("PATRONI_ENABLE")) {
 			fail("HA_MODE=native cannot be used with PATRONI_ENABLE=true");
 		}
 		const role = env.get("REPLICATION_ROLE", "");
@@ -199,11 +199,10 @@ function validateDependencies() {
 	};
 
 	const required = ["pg_ctl", "initdb", "psql"];
-	if (env.isTruthy("PATRONI_ENABLE")) required.push("patroni");
-	if (env.isTruthy("PGBACKREST_ENABLE")) required.push("pgbackrest");
-	if (env.isTruthy("PGBOUNCER_ENABLE")) required.push("pgbouncer");
+	if (env.bool("PATRONI_ENABLE")) required.push("patroni");
+	if (env.bool("PGBACKREST_ENABLE")) required.push("pgbackrest");
+	if (env.bool("PGBOUNCER_ENABLE")) required.push("pgbouncer");
 
-	// ezx exposes no command-existence check; use `command -v` via probe.exec.
 	for (const cmd of required) {
 		if (!env.has(cmd.toUpperCase().replace(/[^A-Z0-9]/g, "_") + "_PATH") && !commandExists(cmd)) {
 			fail(`Required command not found: ${cmd}`);
@@ -212,10 +211,9 @@ function validateDependencies() {
 	return !failed;
 }
 
-// commandExists — true when the binary resolves via `command -v`.
+// commandExists — true when the binary resolves via fs.which.
 function commandExists(cmd) {
-	const { probe } = require("ezx");
-	return probe.exec("/bin/sh", "-c", "command -v " + cmd + " >/dev/null 2>&1");
+	return !!fs.which(cmd);
 }
 
 module.exports = {

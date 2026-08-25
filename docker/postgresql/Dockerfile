@@ -109,7 +109,7 @@ RUN mkdir -p /opt/containers/data /opt/containers/config /opt/containers/logs /o
 # Install the EZX entrypoint engine (release binary, checksum-verified).
 # curl stays in the image: it is the binary child used by the Patroni
 # role-change poller and operator curl to the health server.
-ARG EZX_VERSION=0.1.1
+ARG EZX_VERSION=0.2.2
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o /tmp/ezx-${EZX_VERSION}-linux-${TARGETARCH} \
     && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o /tmp/ezx.sha256 \
@@ -122,11 +122,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM
 
-# Health check: pg_isready (PostgreSQL is accepting connections)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres || exit 1
-
-# Expose PostgreSQL and PgBouncer ports
-EXPOSE 5432 6432
+# Expose PostgreSQL, PgBouncer, and the ezx health API ports
+EXPOSE 5432 6432 8080
 
 ENTRYPOINT ["/usr/local/bin/ezx", "bootstrap", "/opt/container/entrypoint.d/bootstrap/main.js"]

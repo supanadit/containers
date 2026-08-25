@@ -1,7 +1,7 @@
 // database.js — init/02-database + runtime restore: initdb, superuser password,
 // replication user, HA clone, cluster verification, and pgBackRest restore.
 // Mirrors bash init/02-database.sh and startup.sh:perform_pgbackrest_restore.
-const { env, fs, editor, process, log } = require("ezx");
+const { env, fs, editor, process, shell, log } = require("ezx");
 const {
 	PGDATA,
 	PGRUN,
@@ -22,29 +22,19 @@ const {
 	RESTORE_COMPLETE_MARK,
 } = require("./env");
 
-const TIMEOUT_CHANGE_PASSWORD = parseInt(env.get("TIMEOUT_CHANGE_PASSWORD", "5"), 10);
+const TIMEOUT_CHANGE_PASSWORD = env.int("TIMEOUT_CHANGE_PASSWORD", 5);
 
-// Run a one-shot command via /bin/sh as the postgres user.
-function runPg(cmd, name) {
-	const p = process.spawn({
+// Run a one-shot command as the postgres user with an args array (no shell).
+function runPg(argv, name) {
+	return process.run({
 		name: name || "pg",
 		process: {
-			binaryPath: "/bin/sh",
-			arguments: ["-c", cmd],
+			binaryPath: argv[0],
+			arguments: argv.slice(1),
 			user: PG_USER,
 			group: PG_GROUP,
 		},
 	});
-	p.start([]);
-	return p.wait();
-}
-
-function quoteArg(a) {
-	return "'" + String(a).replace(/'/g, "'\\''") + "'";
-}
-
-function sanitizePassword(pw) {
-	return String(pw || "").replace(/'/g, "''");
 }
 
 function clusterExists() {
@@ -54,11 +44,11 @@ function clusterExists() {
 }
 
 function isRestoreRequested() {
-	return env.isTruthy("PGBACKREST_RESTORE");
+	return env.bool("PGBACKREST_RESTORE");
 }
 
 function cleanupStaleRestoreMarkers() {
-	fs.mkdirAll(PGRUN, 0o755);
+	fs.ensureDir(PGRUN, { mode: 0o755 });
 	if (fs.exists(RESTORE_SENTINEL)) fs.remove(RESTORE_SENTINEL);
 }
 
@@ -72,26 +62,32 @@ function prepareRestoreEnvironment() {
 			fs.chownRecursive(backupPath, owner);
 		} catch {
 			log.warn("Standard move failed; attempting copy-and-clean fallback");
-			fs.mkdirAll(backupPath, 0o700);
+			fs.ensureDir(backupPath, { mode: 0o700 });
 			// copy fallback via shell (fs exposes no recursive copy)
-			if (runPg("cp -a " + quoteArg(PGDATA) + "/. " + quoteArg(backupPath) + "/", "copy-backup") !== 0) {
+			if (
+				process.run({
+					process: {
+						binaryPath: "/bin/sh",
+						arguments: ["-c", "cp -a " + shell.quote(PGDATA) + "/. " + shell.quote(backupPath) + "/"],
+						user: PG_USER,
+						group: PG_GROUP,
+					},
+				}) !== 0
+			) {
 				throw new Error("Failed to safeguard existing data directory contents");
 			}
 			fs.chownRecursive(backupPath, owner);
 			fs.removeAll(PGDATA);
 		}
 	}
-	fs.mkdirAll(PGDATA, 0o700);
+	fs.ensureDir(PGDATA, { mode: 0o700 });
 	fs.chown(PGDATA, owner);
 	fs.chmod(PGDATA, 0o700);
 }
 
 function markRestorePending() {
-	fs.mkdirAll(PGRUN, 0o755);
-	editor
-		.open(RESTORE_SENTINEL)
-		.replace("requested_at=" + new Date().toISOString() + "\n");
-	fs.chmod(RESTORE_SENTINEL, 0o600);
+	fs.ensureDir(PGRUN, { mode: 0o755 });
+	fs.write(RESTORE_SENTINEL, "requested_at=" + new Date().toISOString() + "\n", { mode: 0o600 });
 }
 
 function configureReplicaAppname() {
@@ -111,19 +107,31 @@ function clonePrimary() {
 	if (fs.readDir(PGDATA).length > 0)
 		throw new Error("Data directory is not empty. Cannot clone primary.");
 
-	const cmd =
-		"PGPASSWORD=" +
-		quoteArg(REPL_PASSWORD) +
-		" pg_basebackup -h " +
-		quoteArg(PRIMARY_HOST) +
-		" -p " +
-		PRIMARY_PORT +
-		" -U " +
-		quoteArg(REPL_USER || "replicator") +
-		" -D " +
-		quoteArg(PGDATA) +
-		" -Fp -Xs -R";
-	if (runPg(cmd, "pg_basebackup") !== 0) {
+	const argv = [
+		"pg_basebackup",
+		"-h",
+		PRIMARY_HOST,
+		"-p",
+		PRIMARY_PORT,
+		"-U",
+		REPL_USER || "replicator",
+		"-D",
+		PGDATA,
+		"-Fp",
+		"-Xs",
+		"-R",
+	];
+	if (
+		process.run({
+			process: {
+				binaryPath: argv[0],
+				arguments: argv.slice(1),
+				env: ["PGPASSWORD=" + REPL_PASSWORD],
+				user: PG_USER,
+				group: PG_GROUP,
+			},
+		}) !== 0
+	) {
 		fs.removeAll(PGDATA);
 		throw new Error("pg_basebackup failed");
 	}
@@ -134,27 +142,36 @@ function clonePrimary() {
 // run the SQL as postgres, stop, then secure-clean the config.
 function runOnTempServer(sql, name) {
 	const cfg = fs.tempFile("/tmp", "pg_tmp");
-	editor
-		.open(cfg)
-		.replace(
-			"listen_addresses = 'localhost'\nport = 5433\nunix_socket_directories = '" +
-				PGDATA +
-				"'\npassword_encryption = scram-sha-256\n",
-		);
-	fs.chmod(cfg, 0o644);
+	fs.write(
+		cfg,
+		"listen_addresses = 'localhost'\nport = 5433\nunix_socket_directories = '" +
+			PGDATA +
+			"'\npassword_encryption = scram-sha-256\n",
+		{ mode: 0o644 },
+	);
 	try {
-		if (runPg("pg_ctl -D " + quoteArg(PGDATA) + ' -o "--config-file=' + cfg + '" -s start', name + "-start") !== 0) {
+		if (
+			process.run({
+				process: {
+					binaryPath: "pg_ctl",
+					arguments: ["-D", PGDATA, "-o", "--config-file=" + cfg, "-s", "start"],
+					user: PG_USER,
+					group: PG_GROUP,
+				},
+			}) !== 0
+		) {
 			throw new Error("Failed to start postgres for " + name);
 		}
-		runPg("sleep 2", name + "-wait");
-		const res = runPg(
-			"timeout " +
-				TIMEOUT_CHANGE_PASSWORD +
-				" psql -h localhost -p 5433 -U postgres -d postgres -c " +
-				quoteArg(sql),
-			name + "-sql",
-		);
-		runPg("pg_ctl -D " + quoteArg(PGDATA) + " -s stop", name + "-stop");
+		process.run({ process: { binaryPath: "sleep", arguments: ["2"], user: PG_USER, group: PG_GROUP } });
+		const res = process.run({
+			process: {
+				binaryPath: "timeout",
+				arguments: [String(TIMEOUT_CHANGE_PASSWORD), "psql", "-h", "localhost", "-p", "5433", "-U", "postgres", "-d", "postgres", "-c", sql],
+				user: PG_USER,
+				group: PG_GROUP,
+			},
+		});
+		process.run({ process: { binaryPath: "pg_ctl", arguments: ["-D", PGDATA, "-s", "stop"], user: PG_USER, group: PG_GROUP } });
 		if (res !== 0) throw new Error("Failed to run " + name + " SQL");
 	} finally {
 		// Note: no secure shred in ezx 0.0.1; fs.remove leaves freed blocks.
@@ -164,10 +181,7 @@ function runOnTempServer(sql, name) {
 
 function setPassword() {
 	if (!PG_PASS) return;
-	runOnTempServer(
-		"ALTER USER postgres PASSWORD '" + sanitizePassword(PG_PASS) + "';",
-		"pw",
-	);
+	runOnTempServer("ALTER USER postgres PASSWORD '" + String(PG_PASS).replace(/'/g, "''") + "';", "pw");
 }
 
 function createReplicationUser() {
@@ -176,7 +190,7 @@ function createReplicationUser() {
 		"CREATE USER " +
 			(REPL_USER || "replicator") +
 			" REPLICATION LOGIN PASSWORD '" +
-			sanitizePassword(REPL_PASSWORD || "replicator_password") +
+			String(REPL_PASSWORD || "replicator_password").replace(/'/g, "''") +
 			"';",
 		"repl-user",
 	);
@@ -190,19 +204,27 @@ function verifyClusterIntegrity() {
 		if (!fs.exists(PGDATA + "/" + d)) throw new Error("Required cluster directory missing: " + d);
 	}
 	const cfg = fs.tempFile("/tmp", "pg_test");
-	editor
-		.open(cfg)
-		.replace(
-			"listen_addresses = ''\nport = 5433\nunix_socket_directories = '" + PGDATA + "'\n",
-		);
-	fs.chmod(cfg, 0o644);
+	fs.write(
+		cfg,
+		"listen_addresses = ''\nport = 5433\nunix_socket_directories = '" + PGDATA + "'\n",
+		{ mode: 0o644 },
+	);
 	try {
-		if (runPg("pg_ctl -D " + quoteArg(PGDATA) + ' -o "--config-file=' + cfg + '" -s start', "test-start") !== 0) {
+		if (
+			process.run({
+				process: {
+					binaryPath: "pg_ctl",
+					arguments: ["-D", PGDATA, "-o", "--config-file=" + cfg, "-s", "start"],
+					user: PG_USER,
+					group: PG_GROUP,
+				},
+			}) !== 0
+		) {
 			throw new Error("Failed to start cluster for testing");
 		}
-		runPg("sleep 2", "test-wait");
-		const status = runPg("pg_ctl -D " + quoteArg(PGDATA) + " status", "test-status");
-		runPg("pg_ctl -D " + quoteArg(PGDATA) + " -s stop", "test-stop");
+		process.run({ process: { binaryPath: "sleep", arguments: ["2"], user: PG_USER, group: PG_GROUP } });
+		const status = process.run({ process: { binaryPath: "pg_ctl", arguments: ["-D", PGDATA, "status"], user: PG_USER, group: PG_GROUP } });
+		process.run({ process: { binaryPath: "pg_ctl", arguments: ["-D", PGDATA, "-s", "stop"], user: PG_USER, group: PG_GROUP } });
 		if (status !== 0) throw new Error("Cluster failed to start properly");
 	} finally {
 		fs.remove(cfg);
@@ -232,18 +254,19 @@ function initdb() {
 		return;
 	}
 
-	const args = [
+	const argv = [
+		"initdb",
 		"--auth=trust",
 		"--username=postgres",
 		"--encoding=UTF-8",
 		"--locale=C",
 	];
 	const initdbArgs = env.get("POSTGRES_INITDB_ARGS");
-	if (initdbArgs) args.push(...initdbArgs.split(/\s+/));
+	if (initdbArgs) argv.push(...initdbArgs.split(/\s+/));
 	const waldir = env.get("POSTGRES_INITDB_WALDIR");
-	if (waldir) args.push("--waldir=" + waldir);
-	args.push("--pgdata=" + PGDATA);
-	if (runPg("initdb " + args.map(quoteArg).join(" "), "initdb") !== 0)
+	if (waldir) argv.push("--waldir=" + waldir);
+	argv.push("--pgdata=" + PGDATA);
+	if (process.run({ process: { binaryPath: argv[0], arguments: argv.slice(1), user: PG_USER, group: PG_GROUP } }) !== 0)
 		throw new Error("initdb failed");
 	fs.chmod(PGDATA, 0o700);
 	if (fs.exists(PGDATA + "/PG_VERSION")) fs.chmod(PGDATA + "/PG_VERSION", 0o644);
@@ -254,7 +277,7 @@ function initdb() {
 }
 
 // Build pgBackRest restore args from env (full parity with
-// startup.sh:perform_pgbackrest_restore).
+// start/perform_pgbackrest_restore).
 function restoreArgs() {
 	const args = ["--config=/etc/pgbackrest.conf", "--stanza=" + STANZA, "restore"];
 	const opt = (v, f) => {
@@ -265,7 +288,7 @@ function restoreArgs() {
 		for (const item of v.split(",").filter(Boolean)) args.push("--" + f + "=" + item.trim());
 	};
 	const flag = (v, f) => {
-		if (env.isTruthy(v)) args.push("--" + f);
+		if (env.bool(v)) args.push("--" + f);
 	};
 	opt(env.get("PGBACKREST_RESTORE_TYPE"), "type");
 	opt(env.get("PGBACKREST_RESTORE_TARGET"), "target");
@@ -286,7 +309,7 @@ function restoreArgs() {
 	optList(env.get("PGBACKREST_RESTORE_DB_EXCLUDE"), "db-exclude");
 	optList(env.get("PGBACKREST_RESTORE_RECOVERY_OPTION"), "recovery-option");
 	opt(env.get("PGBACKREST_RESTORE_ARCHIVE_MODE"), "archive-mode");
-	if (env.isTruthy("PGBACKREST_RESTORE_DELTA", "true")) args.push("--delta");
+	if (env.bool("PGBACKREST_RESTORE_DELTA", true)) args.push("--delta");
 	flag("PGBACKREST_RESTORE_FORCE", "force");
 	const extra = env.get("PGBACKREST_RESTORE_EXTRA_OPTS");
 	if (extra) args.push(...extra.split(/\s+/).filter(Boolean));
@@ -298,30 +321,32 @@ function performRestore() {
 		throw new Error("PGBACKREST_RESTORE requires PGBACKREST_ENABLE");
 	if (!fs.exists("/etc/pgbackrest.conf"))
 		throw new Error("pgbackrest configuration /etc/pgbackrest.conf not found");
-	fs.mkdirAll(PGDATA, 0o700);
+	fs.ensureDir(PGDATA, { mode: 0o700 });
 	fs.chown(PGDATA, PG_USER + ":" + PG_GROUP);
 	fs.chmod(PGDATA, 0o700);
 
-	const cleanEnv = "env -u PGBACKREST_ENABLE -u PGBACKREST_REPO_TYPE -u PGBACKREST_STANZA";
-	const cmd =
-		cleanEnv +
-		" pgbackrest " +
-		restoreArgs()
-			.map((a) => quoteArg(a))
-			.join(" ");
-	if (runPg(cmd, "restore") !== 0) throw new Error("pgBackRest restore failed");
+	// Replace the shell's generate_clean_env_command (env -u PGBACKREST_*).
+	const argv = ["pgbackrest"].concat(restoreArgs());
+	if (
+		process.run({
+			process: {
+				binaryPath: argv[0],
+				arguments: argv.slice(1),
+				filterEnvPattern: ["^PGBACKREST_"],
+				user: PG_USER,
+				group: PG_GROUP,
+			},
+		}) !== 0
+	)
+		throw new Error("pgBackRest restore failed");
 
-	fs.mkdirAll(PGRUN, 0o755);
+	fs.ensureDir(PGRUN, { mode: 0o755 });
 	if (fs.exists(RESTORE_SENTINEL)) fs.remove(RESTORE_SENTINEL);
-	editor
-		.open(RESTORE_COMPLETE_MARK)
-		.replace("restored_at=" + new Date().toISOString() + "\n");
-	fs.chmod(RESTORE_COMPLETE_MARK, 0o600);
+	fs.write(RESTORE_COMPLETE_MARK, "restored_at=" + new Date().toISOString() + "\n", { mode: 0o600 });
 }
 
 module.exports = {
 	runPg,
-	quoteArg,
 	clusterExists,
 	clonePrimary,
 	setPassword,
