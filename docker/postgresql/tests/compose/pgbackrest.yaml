@@ -1,0 +1,13 @@
+# pgBackRest test — verify backup system with local posix repository
+services:
+  postgresql:
+    image: postgresql:test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass
+      PGBACKREST_ENABLE: "true"
+    volumes:
+      - pgbackrest_backup:/opt/containers/backup
+
+volumes:
+  pgbackrest_backup:

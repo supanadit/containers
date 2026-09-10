@@ -3,6 +3,12 @@
 FROM debian:bookworm-slim AS base
 
 ARG MARIADB_VERSION=11.8.3
+ARG MARIADB_GALERA_VERSION=26.4.16
+
+STOPSIGNAL SIGTERM
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
 
 # Build metadata
 ARG BUILD_DATE
@@ -34,10 +40,13 @@ ENV PATH="/usr/local/mariadb/bin:$PATH"
 
 # Runtime layer - copy volatile files later
 FROM setup AS runtime
-# Create postgres user for security (already created in setup stage)
+
+# Create required runtime directories
+RUN mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
+RUN find /opt/container/entrypoint.d -name "*.sh" -exec chmod +x {} \;
 
 # Copy main entrypoint script
 COPY entrypoint.d/entrypoint.sh /entrypoint.sh

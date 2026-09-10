@@ -8,7 +8,7 @@ set -euo pipefail
 export PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
 
 # Default data directory
-MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/var/lib/mysql}"
+MARIADB_DATA_DIR="${MARIADB_DATA_DIR:-/opt/containers/data}"
 
 # Environment variables for database setup
 MARIADB_ROOT_PASSWORD="${MARIADB_ROOT_PASSWORD:-}"
@@ -70,6 +70,13 @@ EOF
         if [ -n "$MARIADB_DATABASE" ]; then
             echo "GRANT ALL PRIVILEGES ON \`$MARIADB_DATABASE\`.* TO '$MARIADB_USER'@'%';" >> "$init_sql"
         fi
+    fi
+    
+    # Create MaxScale service user if configured
+    if [ -n "${MAXSCALE_SERVICE_USER:-}" ] && [ -n "${MAXSCALE_SERVICE_PASSWORD:-}" ]; then
+        log "Creating MaxScale service user: $MAXSCALE_SERVICE_USER"
+        echo "CREATE USER IF NOT EXISTS '$MAXSCALE_SERVICE_USER'@'%' IDENTIFIED BY '$MAXSCALE_SERVICE_PASSWORD';" >> "$init_sql"
+        echo "GRANT SELECT, RELOAD, PROCESS, SUPER, REPLICATION CLIENT, REPLICATION SLAVE, SLAVE MONITOR, SHOW DATABASES ON *.* TO '$MAXSCALE_SERVICE_USER'@'%';" >> "$init_sql"
     fi
     
     echo "FLUSH PRIVILEGES;" >> "$init_sql"

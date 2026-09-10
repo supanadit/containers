@@ -100,7 +100,7 @@ check_kafka_connectivity() {
 check_disk_space() {
     log_debug "Checking disk space"
 
-    local data_dir="${KAFKA_DATA_DIR:-/opt/kafka/data}"
+    local data_dir="${KAFKA_DATA_DIR:-/opt/containers/data}"
     local min_free_percent=10
     local min_free_mb=100
 

@@ -10,8 +10,8 @@ source /opt/container/entrypoint.d/scripts/utils/validation.sh
 source /opt/container/entrypoint.d/scripts/utils/security.sh
 source /opt/container/entrypoint.d/scripts/utils/cluster.sh
 
-CLUSTER_ID_FILE="/opt/kafka/cluster.id"
-CONFIG_FILE="/opt/kafka/config/server.properties"
+CLUSTER_ID_FILE="/opt/containers/data/cluster.id"
+CONFIG_FILE="/opt/containers/config/server.properties"
 
 setup_signal_handlers() {
     log_debug "Setting up signal handlers in startup script"
@@ -80,7 +80,7 @@ start_kafka() {
 manage_cluster_id() {
     log_info "Managing cluster ID"
 
-    local meta_properties="${KAFKA_DATA_DIR:-/opt/kafka/data}/meta.properties"
+    local meta_properties="${KAFKA_DATA_DIR:-/opt/containers/data}/meta.properties"
 
     if [ -n "${KAFKA_CLUSTER_ID:-}" ]; then
         log_info "Using provided KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID}"
@@ -134,11 +134,11 @@ format_storage() {
 run_kafka_server() {
     log_info "Starting Kafka server..."
 
-    export KAFKA_LOG4J_OPTS="${KAFKA_LOG4J_OPTS:--Dlog4j.configuration=file:/opt/kafka/config/log4j.properties}"
+    export KAFKA_LOG4J_OPTS="${KAFKA_LOG4J_OPTS:--Dlog4j.configuration=file:/opt/containers/config/log4j.properties}"
 
     # Handle SASL authentication
     if [[ "${KAFKA_LISTENERS:-PLAINTEXT://:9092,CONTROLLER://:9093}" == *"SASL"* ]]; then
-        local jaas_config_file="/opt/kafka/config/kafka_jaas.conf"
+        local jaas_config_file="/opt/containers/config/kafka_jaas.conf"
         local jaas_config="${KAFKA_SASL_JAAS_CONFIG:-}"
         
         # If KAFKA_SASL_JAAS_CONFIG not set, try listener-specific config
@@ -187,7 +187,7 @@ start_sleep_mode() {
     log_info "Entering sleep mode (maintenance)"
     log_environment
 
-    local pid_file="${KAFKA_RUN_DIR:-/tmp/kafka-run}/sleep.pid"
+    local pid_file="${KAFKA_RUN_DIR:-/opt/containers/run}/sleep.pid"
     mkdir -p "$(dirname "$pid_file")"
     echo $$ > "$pid_file"
 

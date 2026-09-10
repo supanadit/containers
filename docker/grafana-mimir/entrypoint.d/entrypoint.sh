@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-GRAFANA_MIMIR_CONFIG=${GRAFANA_MIMIR_CONFIG:-/etc/mimir.yaml}
+GRAFANA_MIMIR_CONFIG=${GRAFANA_MIMIR_CONFIG:-/opt/containers/config/mimir.yaml}
 MIMIR_BIN=${GRAFANA_MIMIR_BIN:-/usr/share/grafana/mimir}
 
 # Configuring Target ( target: all,alertmanager,overrides-exporter )
 export MIMIR_TARGET=${MIMIR_TARGET:-all}
 export MIMIR_STORAGE_PREFIX=${MIMIR_STORAGE_PREFIX:-blocks}
-export MIMIR_TSDB_DIR=${MIMIR_TSDB_DIR:-/var/lib/mimir/ingester}
+export MIMIR_TSDB_DIR=${MIMIR_TSDB_DIR:-/opt/containers/data}
 export MIMIR_MEMBER_LIST=${MIMIR_MEMBER_LIST:-} # Comma separated list of ingester addresses
 
 # Get total number of ingesters from MEMBER_LIST

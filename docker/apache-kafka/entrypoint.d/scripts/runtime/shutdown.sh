@@ -98,7 +98,7 @@ force_shutdown_if_needed() {
 cleanup_resources() {
     log_debug "Cleaning up PID files"
 
-    local run_dir="${KAFKA_RUN_DIR:-/tmp/kafka-run}"
+    local run_dir="${KAFKA_RUN_DIR:-/opt/containers/run}"
 
     local pid_file="$run_dir/kafka.pid"
     if [ -f "$pid_file" ]; then

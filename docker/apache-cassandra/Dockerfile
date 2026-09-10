@@ -52,8 +52,8 @@ RUN chmod +x /entrypoint.sh
 RUN groupadd -r cassandra && useradd -r -g cassandra cassandra
 
 # Create necessary directories
-RUN mkdir -p /opt/cassandra/data /opt/cassandra/logs /opt/cassandra/commitlog && \
-    chown -R cassandra:cassandra /opt/cassandra
+RUN mkdir -p /opt/containers/data /opt/containers/logs /opt/containers/data/commitlog && \
+    chown -R cassandra:cassandra /opt/cassandra /opt/containers
 
 # Switch to cassandra user
 USER cassandra

@@ -3,7 +3,6 @@ set -e
 
 echo "=== Cleaning up build artifacts and temporary files ==="
 
-# Remove remaining temporary download directories
 rm -rf /temp
 
 echo "=== Removing development packages ==="
@@ -33,9 +32,10 @@ apt-get remove --purge -y \
     libaio-dev \
     libnuma-dev \
     libsystemd-dev \
-    libkrb5-dev
+    libkrb5-dev \
+    2>/dev/null || true
 
-# Install runtime libraries that are needed but development packages were removed
+echo "=== Installing runtime libraries ==="
 apt-get install -y --no-install-recommends \
     curl \
     libssl3 \
@@ -59,16 +59,17 @@ apt-get install -y --no-install-recommends \
     libgssapi-krb5-2 \
     libkrb5-3 \
     procps \
-    gosu
+    gosu \
+    sudo \
+    rsync \
+    netcat-openbsd \
+    gnupg2 \
+    galera-4-26 \
+    mariadb-backup \
+    socat || true
 
-# Remove unnecessary packages first
-apt-get autoremove --purge -y
-
-# Clean up apt cache
+apt-get autoremove -y 2>/dev/null || true
 apt-get clean
-rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
-
-# Final autoclean
-apt-get autoclean -y
+rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 echo "=== Cleanup completed successfully ==="

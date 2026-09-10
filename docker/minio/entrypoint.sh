@@ -6,7 +6,7 @@ set -e
 CONTAINER_IP=$(hostname -i)
 
 # Default MinIO configuration
-export MINIO_DATA_DIR=${MINIO_DATA_DIR:-/var/lib/minio/data}
+export MINIO_DATA_DIR=${MINIO_DATA_DIR:-/opt/containers/data}
 export MINIO_ADDRESS=${MINIO_ADDRESS:-:9000}
 export MINIO_CONSOLE_ADDRESS=${MINIO_CONSOLE_ADDRESS:-:9001}
 export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
