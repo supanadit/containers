@@ -4,7 +4,9 @@
 // and run on HTTP goroutines while the chain supervises. The Patroni role check
 // runs as a scheduler.every JS callback (replacing the old scheduled curl child
 // + HTTP route) so a promote/demote regenerates pgbackrest.conf without any
-// external callback executable.
+// external callback executable. The role-check node expresses its dependency on
+// the postgres/patroni root via `dependsOnEdges: [{ name: "postgres", waitFor:
+// "ready" }]` (the flat-DAG convention; equivalent to the legacy `needParentReady: true`).
 const { env, fs, editor, api, process, probe, shell, scheduler, log } = require("ezx");
 const {
 	PGDATA,
@@ -218,18 +220,21 @@ function registerBackupRoutes() {
 	}));
 }
 
-// registerRoleCheck — build the in-process Patroni role-check scheduled node
+// registerRoleCheck - build the in-process Patroni role-check scheduled node
 // (the approved deviation: replaces the old curl child + HTTP route). Returns
 // a ProcessNode whose scheduler runs the JS callback on a cron tick; the
 // orchestrator invokes the callback instead of spawning a process. Must be
-// attached to the chain (runtime.js adds it to children). gated on
-// PATRONI_ENABLE && PGBACKREST_ENABLE && EZX_HEALTH_ADDR.
+// attached to the chain (runtime.js adds it as a flat-DAG sibling). gated on
+// PATRONI_ENABLE && PGBACKREST_ENABLE && EZX_HEALTH_ADDR. The dependency edge
+// targets "patroni" in Patroni mode and "postgres" otherwise - matching the
+// root node's name in runtime.js:buildDatabaseNode.
 function roleCheckNode() {
 	if (!PATRONI_ENABLE || !PGBACKREST_ENABLE) return null;
 	return {
 		name: "patroni-role-check",
+		dependsOnEdges: [{ name: PATRONI_ENABLE ? "patroni" : "postgres", waitFor: "ready" }],
 		optional: true,
-		process: { binaryPath: "/bin/true" }, // never spawned; Tick runs instead
+		// Process field removed - the scheduler callback handles all work
 		scheduler: scheduler.every(env.get("PATRONI_ROLE_CHECK_CRON", "*/1 * * * *"), () => checkRole(), {
 			timezone: env.get("PGBACKREST_AUTO_TIMEZONE", "UTC"),
 			initialDelay: 30e9,

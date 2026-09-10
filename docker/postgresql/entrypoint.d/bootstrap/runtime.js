@@ -1,14 +1,27 @@
 // runtime.js — runtime/startup: supervise the database + sidecar process tree
 // in a single chain. ezx stays PID 1 and supervises the postgres/patroni root
-// and every needParentReady child (stanza/userlist/repl-user init one-shots,
-// pgbouncer, sshd, scheduled backups) concurrently, forwarding signals, reaping
-// zombies, and draining on SIGTERM. The Patroni role-check runs as a
-// scheduler.every JS callback in api.js (no curl child). Scheduled pgBackRest
-// backup node-builders are absorbed here from the old backup.js.
-const { env, fs, chain, scheduler, shell } = require("ezx");
+// and every dependent (stanza/userlist/repl-user init one-shots, pgbouncer,
+// sshd, scheduled backups) concurrently, forwarding signals, reaping zombies,
+// and draining on SIGTERM. The Patroni role-check runs as a scheduler.every
+// JS callback in api.js (no curl child). Scheduled pgBackRest backup
+// node-builders are absorbed here from the old backup.js.
+//
+// ezx 0.3.0+: the dependency graph is expressed as a flat `nodes` list with
+// explicit `dependsOn` / `dependsOnEdges` instead of the recursive `roots` /
+// `children` tree. Init steps (stanza-init, replication-user, userlist-init)
+// are `oneshot: true` nodes that run to completion before their dependents
+// proceed; long-running sidecars (pgbouncer, sshd) and scheduled nodes
+// (backup-full/diff/incr, patroni-role-check) share the same graph.
+//
+// Per-service log rotation (`log.stdout: "file"` on each `process`) writes
+// every sidecar's stdout/stderr to its own file under /opt/containers/logs/
+// with size-based rotation, so a noisy pgbouncer cannot drown out postgres
+// (or vice versa) on the shared parent stdout.
+const { env, fs, chain, scheduler } = require("ezx");
 const {
 	PGDATA,
 	PGRUN,
+	PGLOG,
 	PG_USER,
 	PG_GROUP,
 	PG_PORT,
@@ -33,51 +46,84 @@ const {
 const { postgresFiles } = require("./config");
 const { roleCheckNode } = require("./api");
 
-// oneShot — a needParentReady child that runs a command to completion then
-// exits (stanza-create, userlist generation, replication-user creation).
-function oneShot(name, cmd, opts) {
-	const base = {
-		binaryPath: "/bin/sh",
-		arguments: ["-c", cmd],
-		user: PG_USER,
-		group: PG_GROUP,
+// logFor — build a per-service rotated log block. maxBytes is tuned per
+// service: 50 MiB for the heavy database + sidecars that absorb real traffic,
+// 10 MiB for the lighter init oneshots. Path is /opt/containers/logs/<name>.log
+// with .1 ... .maxBackups shifted files.
+function logFor(name, maxBytes, maxBackups) {
+	return {
+		stdout: "file",
+		stderr: "file",
+		filePath: PGLOG + "/" + name + ".log",
+		maxBytes: maxBytes,
+		maxBackups: maxBackups,
 	};
-	return Object.assign(
-		{ name, needParentReady: true, process: base },
-		opts || {},
-		{ process: Object.assign(base, (opts && opts.process) || {}) },
-	);
 }
 
-// userlist-init — query pg_shadow for the postgres password hash and write
-// pgbouncer userlist.txt (bash startup.sh:285-302). Kept as a shell pipeline
-// child node (needParentReady) because it needs psql stdout captured into a
-// file; every interpolated value is quoted with shell.quote.
+// pgLog — default log block for the postgres/patroni root and long-running
+// sidecars (50 MiB × 5 rotations).
+const pgLog = (name) => logFor(name, 50 * 1024 * 1024, 5);
+// shotLog — default log block for init oneshots (10 MiB × 3 rotations; a
+// oneshot is short-lived, so a smaller window is fine and keeps the dir tidy).
+const shotLog = (name) => logFor(name, 10 * 1024 * 1024, 3);
+
+// databaseName — root node name in buildDatabaseNode ("patroni" in Patroni
+// mode, "postgres" otherwise). Flat-DAG dependents target this name in their
+// dependsOnEdges.
+const databaseName = () => (PATRONI_ENABLE ? "patroni" : "postgres");
+
+// readyOn — express "wait for the database to be ready" on the flat DAG.
+// Replaces the legacy `needParentReady: true` parent-child sugar with an
+// explicit edge.
+const readyOn = () => ({ name: databaseName(), waitFor: "ready" });
+
+// userlistInit — query pg_shadow for the postgres password hash and write
+// pgbouncer userlist.txt (bash startup.sh:285-302). Uses process.capture to
+// fetch the hash, then writes the file directly in JS (no shell).
 function userlistInit() {
 	if (!PGBOUNCER_ENABLE) return null;
 	const pgUser = env.get("POSTGRES_USER", "postgres");
 	const pgPass = PG_PASS;
-	let cmd;
-	if (pgPass) {
-		cmd =
-			"PGPASSWORD=" +
-			shell.quote(pgPass) +
-			" psql -v ON_ERROR_STOP=1 -tA -h " +
-			shell.quote(PGRUN) +
-			" -d postgres -U " +
-			shell.quote(pgUser) +
-			" -c " +
-			shell.quote("SELECT passwd FROM pg_shadow WHERE usename = '" + String(pgUser).replace(/'/g, "''") + "';") +
-			" | sed 's/^/\"" + String(pgUser).replace(/"/g, '\\"') + "\" \"/; s/$/\"/'" +
-			" > " + PGBOUNCER_USERLIST;
-	} else {
-		cmd = 'echo "' + pgUser + '" "" > ' + PGBOUNCER_USERLIST;
-	}
-	cmd += " && chown " + PG_USER + ":" + PG_GROUP + " " + PGBOUNCER_USERLIST + " && chmod 600 " + PGBOUNCER_USERLIST;
-	return oneShot("pgbouncer-userlist", cmd);
+	const escapedUser = pgUser.replace(/"/g, '\\"');
+	// Build the userlist line inside onStart (after postgres is ready).
+	const build = () => {
+		if (!pgPass) {
+			return '"' + pgUser + '" ""';
+		}
+		const sql = "SELECT passwd FROM pg_shadow WHERE usename = '" + String(pgUser).replace(/'/g, "''") + "';";
+		const res = process.capture({
+			process: {
+				binaryPath: "psql",
+				arguments: ["-v", "ON_ERROR_STOP=1", "-tA", "-h", PGRUN, "-d", "postgres", "-U", pgUser, "-c", sql],
+				environment: ["PGPASSWORD=" + pgPass],
+				user: PG_USER,
+				group: PG_GROUP,
+				check: false,
+			},
+		});
+		if (res.code !== 0) {
+			log.error("[pgbouncer] failed to fetch password hash (code=" + res.code + ")");
+			return null;
+		}
+		return '"' + escapedUser + '" "' + res.stdout.trim() + '"';
+	};
+	const write = () => {
+		const line = build();
+		if (line === null) return;
+		fs.write(PGBOUNCER_USERLIST, line + "\n");
+		fs.chown(PGBOUNCER_USERLIST, PG_USER + ":" + PG_GROUP);
+		fs.chmod(PGBOUNCER_USERLIST, 0o600);
+	};
+	return {
+		name: "pgbouncer-userlist",
+		oneshot: true,
+		dependsOnEdges: [readyOn()],
+		onStart: write,
+		log: shotLog("pgbouncer-userlist"),
+	};
 }
 
-// stanza-init — create/upgrade the pgBackRest stanza once postgres is ready
+// stanzaInit — create/upgrade the pgBackRest stanza once postgres is ready
 // (bash startup.sh:initialize_pgbackrest_stanza + cluster.sh modes). Only runs
 // on the primary (or Patroni) — a replica has no primary cluster to back up, so
 // stanza-create would fail with "unable to find primary cluster".
@@ -85,25 +131,44 @@ function stanzaInit() {
 	if (!PGBACKREST_ENABLE) return null;
 	// Native-HA replica: skip stanza init (no primary cluster here).
 	if (HA_MODE === "native" && REPL_ROLE === "replica") return null;
-	const cmd =
-		"if ! pgbackrest --config=/etc/pgbackrest.conf --stanza=" +
-		shell.quote(STANZA) +
-		" stanza-create; then pgbackrest --config=/etc/pgbackrest.conf --stanza=" +
-		shell.quote(STANZA) +
-		" stanza-upgrade; fi && pgbackrest --config=/etc/pgbackrest.conf --stanza=" +
-		shell.quote(STANZA) +
-		" check";
+	const stanzaArgs = ["--config=/etc/pgbackrest.conf", "--stanza=" + STANZA];
+	// Run pgbackrest with standard options (user/group/env filtering).
+	const runPgbackrest = (subcommand) =>
+		process.run({
+			process: {
+				binaryPath: "pgbackrest",
+				arguments: stanzaArgs.concat([subcommand]),
+				user: PG_USER,
+				group: PG_GROUP,
+				filterEnvPattern: ["^PGBACKREST_"],
+			},
+		});
+	// Initialize stanza: try create, fall back to upgrade, then check.
+	const initStanza = () => {
+		let code = runPgbackrest("stanza-create");
+		if (code !== 0) {
+			log.info("[pgbackrest] stanza-create failed (code=" + code + "), trying stanza-upgrade");
+			code = runPgbackrest("stanza-upgrade");
+		}
+		if (code === 0) {
+			runPgbackrest("check");
+		}
+	};
 	// In Patroni mode the role is dynamic: a node may start as a replica where
-	// stanza-create legitimately fails ("unable to find primary cluster"). Make
+	// stanza-create legitimately fails ("unable to find primary cluster"). Mark
 	// it optional so it doesn't kill the container; the primary's stanza-init
 	// succeeds and the role-check callback handles promotion.
-	return oneShot("pgbackrest-stanza-init", cmd, {
-		process: { filterEnvPattern: ["^PGBACKREST_"] },
+	return {
+		name: "pgbackrest-stanza-init",
+		oneshot: true,
+		dependsOnEdges: [readyOn()],
 		optional: PATRONI_ENABLE,
-	});
+		onStart: initStanza,
+		log: shotLog("pgbackrest-stanza-init"),
+	};
 }
 
-// repl-user — create the replication user for native-HA primary (bash
+// replUser — create the replication user for native-HA primary (bash
 // startup.sh:create_replication_user). Connects via the local unix socket as
 // the postgres superuser (POSTGRES_PASSWORD), matching the original bash which
 // used peer/trust auth on the socket — NOT the replicator's password.
@@ -112,20 +177,35 @@ function replUser() {
 	if (!REPL_PASSWORD) throw new Error("REPLICATION_PASSWORD required for native-HA primary");
 	const pgUser = env.get("POSTGRES_USER", "postgres");
 	const pgPass = env.get("POSTGRES_PASSWORD", "");
-	const cmd =
-		"PGPASSWORD=" +
-		shell.quote(pgPass) +
-		" psql -h " +
-		shell.quote(PGRUN) +
-		" -p " +
-		PG_PORT +
-		" -U " +
-		shell.quote(pgUser) +
-		" -d postgres -c " +
-		shell.quote(
-			"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + String(REPL_USER).replace(/'/g, "''") + "') THEN CREATE ROLE " + REPL_USER + " REPLICATION LOGIN PASSWORD '" + String(REPL_PASSWORD).replace(/'/g, "''") + "'; END IF; END $$;",
-		);
-	return oneShot("replication-user", cmd);
+	// SQL: idempotent CREATE ROLE with replication. Password/role names are
+	// escaped for SQL literal context (single-quote doubling).
+	const escapedRole = String(REPL_USER).replace(/'/g, "''");
+	const escapedPass = String(REPL_PASSWORD).replace(/'/g, "''");
+	const sql =
+		"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + escapedRole + "') THEN " +
+		"CREATE ROLE " + REPL_USER + " REPLICATION LOGIN PASSWORD '" + escapedPass + "'; " +
+		"END IF; END $$;";
+	const create = () => {
+		const code = process.run({
+			process: {
+				binaryPath: "psql",
+				arguments: ["-h", PGRUN, "-p", PG_PORT, "-U", pgUser, "-d", "postgres", "-c", sql],
+				environment: ["PGPASSWORD=" + pgPass],
+				user: PG_USER,
+				group: PG_GROUP,
+			},
+		});
+		if (code !== 0) {
+			log.error("[replication] failed to create replication role (code=" + code + ")");
+		}
+	};
+	return {
+		name: "replication-user",
+		oneshot: true,
+		dependsOnEdges: [readyOn()],
+		onStart: create,
+		log: shotLog("replication-user"),
+	};
 }
 
 // pgbouncerNode — supervised long-running pgbouncer sidecar (restart always).
@@ -138,13 +218,14 @@ function pgbouncerNode() {
 	if (!PGBOUNCER_ENABLE) return null;
 	return {
 		name: "pgbouncer",
-		needParentReady: true,
+		dependsOnEdges: [readyOn()],
 		optional: true,
 		process: {
 			binaryPath: "pgbouncer",
 			arguments: [PGBOUNCER_INI],
 			user: PG_USER,
 			group: PG_GROUP,
+			log: pgLog("pgbouncer"),
 		},
 		restart: { mode: "always", backoff: 2e9 },
 		forwardSignals: ["SIGTERM", "SIGINT", "SIGHUP"],
@@ -161,9 +242,13 @@ function sshdNode() {
 	if (!fs.exists("/usr/sbin/sshd")) return null;
 	return {
 		name: "sshd",
-		needParentReady: true,
+		dependsOnEdges: [readyOn()],
 		optional: true,
-		process: { binaryPath: "/usr/sbin/sshd", arguments: ["-D"] },
+		process: {
+			binaryPath: "/usr/sbin/sshd",
+			arguments: ["-D"],
+			log: pgLog("sshd"),
+		},
 		restart: { mode: "always", backoff: 2e9 },
 		forwardSignals: ["SIGTERM", "SIGINT", "SIGHUP"],
 	};
@@ -171,13 +256,10 @@ function sshdNode() {
 
 function startSleep() {
 	chain.run({
-		roots: [
+		nodes: [
 			{
 				name: "sleep",
-				process: {
-					binaryPath: "/bin/sh",
-					arguments: ["-c", "while true; do sleep 3600; done"],
-				},
+				process: {},
 				restart: { mode: "always", backoff: 1000 * 1e6 },
 			},
 		],
@@ -230,14 +312,11 @@ function backupFlags(type) {
 function primaryGate() {
 	if (PATRONI_ENABLE) {
 		const base = env.get("PATRONI_REST_URL", "http://localhost:8008");
-		// A single http probe can only target one URL; /master with a fallback
-		// to /leader is expressed as an exec that curls either endpoint.
+		// /master OR /leader — composed via probe.any (no shell)
 		return {
-			type: "exec",
-			exec: [
-				"/bin/sh",
-				"-c",
-				"curl -fs " + base + "/master >/dev/null 2>&1 || curl -fs " + base + "/leader >/dev/null 2>&1",
+			any: [
+				{ type: "http", http: { url: base + "/master", expectStatus: 200 } },
+				{ type: "http", http: { url: base + "/leader", expectStatus: 200 } },
 			],
 		};
 	}
@@ -246,16 +325,19 @@ function primaryGate() {
 			? { type: "exec", exec: ["true"] }
 			: { type: "exec", exec: ["false"] };
 	}
+	// Native: pg_is_in_recovery() returns "f" for primary, "t" for replica.
+	// Use execExpect to gate on stdout (no shell pipe to grep).
 	return {
 		type: "exec",
 		exec: [
-			"/bin/sh",
-			"-c",
-			"PGPASSWORD=" + shell.quote(env.get("POSTGRES_PASSWORD") || "") + " psql -qtAX -U " +
-				PG_USER + " -h 127.0.0.1 -p " + PG_PORT + " -d " +
-				shell.quote(env.get("POSTGRES_DB", "postgres")) +
-				" -c 'select pg_is_in_recovery();' | grep -q f",
+			"psql", "-qtAX",
+			"-U", PG_USER,
+			"-h", "127.0.0.1", "-p", PG_PORT,
+			"-d", env.get("POSTGRES_DB", "postgres"),
+			"-c", "select pg_is_in_recovery();",
 		],
+		env: ["PGPASSWORD=" + (env.get("POSTGRES_PASSWORD") || "")],
+		execExpect: "f",
 	};
 }
 
@@ -264,7 +346,7 @@ function primaryGate() {
 function backupNode(type, defaultCron) {
 	return {
 		name: "backup-" + type,
-		needParentReady: true,
+		dependsOnEdges: [readyOn()],
 		optional: true,
 		process: {
 			binaryPath: "pgbackrest",
@@ -273,6 +355,7 @@ function backupNode(type, defaultCron) {
 			group: PG_GROUP,
 			// Replace the shell's generate_clean_env_command (env -u PGBACKREST_*).
 			filterEnvPattern: ["^PGBACKREST_"],
+			log: pgLog("backup-" + type),
 		},
 		scheduler: scheduler.build({
 			schedule: {
@@ -291,8 +374,8 @@ function backupNode(type, defaultCron) {
 	};
 }
 
-// Scheduled backup children attached to the postgres node (needParentReady so
-// backups start only after the DB is up, replacing PGBACKREST_PARENT_PID).
+// Scheduled backup nodes on the flat DAG (dependsOn edges so backups start
+// only after the DB is up, replacing PGBACKREST_PARENT_PID).
 function backupNodes() {
 	if (!PGBACKREST_ENABLE || !PGBACKREST_AUTO) return [];
 	return [
@@ -302,13 +385,16 @@ function backupNodes() {
 	];
 }
 
-function startDatabase() {
+// buildDatabaseNode — construct the postgres/patroni root node. readiness
+// gates downstream dependents; health wires /readyz from the same probe.
+function buildDatabaseNode() {
 	const mainProcess = PATRONI_ENABLE
 		? {
 				binaryPath: "patroni",
 				arguments: [PATRONI_CONF],
 				user: PG_USER,
 				group: PG_GROUP,
+				log: pgLog("patroni"),
 			}
 		: {
 				binaryPath: env.get("POSTGRES_BIN", "postgres"),
@@ -321,29 +407,18 @@ function startDatabase() {
 				// options and errors). Matches the original bash where postgres
 				// never had these vars.
 				filterEnvPattern: ["^PGBACKREST_"],
+				log: pgLog("postgres"),
 			};
 
-	const children = [
-		stanzaInit(),
-		replUser(),
-		userlistInit(),
-		pgbouncerNode(),
-		sshdNode(),
-		roleCheckNode(),
-	]
-		.concat(backupNodes())
-		.filter(Boolean);
-
 	const node = {
-		name: PATRONI_ENABLE ? "patroni" : "postgres",
+		name: databaseName(),
 		process: mainProcess,
 		files: postgresFiles(),
 		forwardSignals: ["SIGTERM", "SIGINT", "SIGHUP", "SIGUSR1", "SIGUSR2"],
 		shutdown: { timeout: -1, forceKill: false },
-		children,
 	};
 
-	// Readiness probe gating needParentReady children (postgres must accept
+	// Readiness probe gating downstream dependents (postgres must accept
 	// connections before stanza-init/userlist/pgbouncer/sshd start). Mirrors
 	// the bash wait_for_postgresql_ready loop. Set unconditionally — node.health
 	// (the /readyz HTTP surface) is only wired when EZX_HEALTH_ADDR is set.
@@ -361,7 +436,23 @@ function startDatabase() {
 	// api.js:registerOpsRoutes (called from main.js before chain.run).
 	node.health = { readyProbe: node.readiness };
 
-	chain.run({ roots: [node] });
+	return node;
+}
+
+function startDatabase() {
+	const database = buildDatabaseNode();
+	const roleCheck = roleCheckNode();
+
+	// Flat DAG: every node is a sibling. Dependents express "wait for postgres
+	// to be ready" via dependsOnEdges so the explicit wait mode is visible at
+	// each edge instead of being inherited from a parent in a nested tree.
+	const nodes = [database];
+	for (const n of [stanzaInit(), replUser(), userlistInit(), pgbouncerNode(), sshdNode(), roleCheck]) {
+		if (n) nodes.push(n);
+	}
+	for (const n of backupNodes()) nodes.push(n);
+
+	chain.run({ nodes: nodes });
 }
 
 module.exports = {
@@ -369,8 +460,12 @@ module.exports = {
 	startSshd: sshdNode,
 	startSleep,
 	startDatabase,
+	buildDatabaseNode,
 	backupFlags,
 	primaryGate,
 	backupNode,
 	backupNodes,
+	logFor,
+	pgLog,
+	shotLog,
 };

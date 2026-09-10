@@ -28,11 +28,11 @@ PG_CRON_VERSION = "1.6.7"
 [[components]]
 name = "system-deps"
 ops = [
-  { install = { apt = {
+  { packages = {
     build = ["build-essential", "gcc", "autoconf", "automake", "meson", "git", "wget", "pkg-config", "zlib1g-dev", "libssl-dev", "liblz4-dev", "libzstd-dev", "libbz2-dev", "libz-dev", "python3-distutils", "gettext-base"],
-    runtime = ["curl", "zlib1g", "libssl3", "liblz4-1", "libzstd1", "libbz2-1.0", "procps", "gosu", "openssh-client", "openssh-server"]
-  } } },
-  { install = { apt = { runtime = ["locales"] } } },
+    runtime = ["curl", "ca-certificates", "zlib1g", "libssl3", "liblz4-1", "libzstd1", "libbz2-1.0", "procps", "gosu", "openssh-client", "openssh-server"]
+  } },
+  { packages = ["locales"] },
   { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
 ]
 
@@ -44,13 +44,13 @@ ops = [
 name = "cpython"
 needs = ["system-deps"]
 ops = [
-  { install = { apt = { build = ["libffi-dev"], runtime = ["libffi8"] } } },
-  { install = { source = {
-    type = "git", source = "https://github.com/python/cpython.git", ref = "${PYTHON_VERSION}", strategy = "configure", flags = ["--enable-optimizations"], jobs = 4, install_target = "altinstall",
+  { packages = { build = ["libffi-dev"], runtime = ["libffi8"] } },
+  { source_install = {
+    type = "git", url = "https://github.com/python/cpython.git", ref = "${PYTHON_VERSION}", strategy = "configure", flags = ["--enable-optimizations"], jobs = 4, install_target = "altinstall",
     after = [
       { raw = "PYTHON_MAJOR_MINOR=$(echo ${PYTHON_VERSION} | sed 's/^v//' | cut -d'.' -f1,2) && ln -sf /usr/local/bin/python${PYTHON_MAJOR_MINOR} /usr/local/bin/python3 && curl -sS https://bootstrap.pypa.io/get-pip.py | python3 && pip3 install --no-cache-dir --upgrade pip setuptools wheel" },
     ]
-  } } },
+  } },
 ]
 
 # ============ 3. POSTGRESQL CORE ============
@@ -60,28 +60,28 @@ ops = [
 name = "postgresql"
 needs = ["system-deps"]
 ops = [
-  { install = { apt = {
+  { packages = {
     build = ["libreadline-dev", "libxml2-dev", "uuid-dev", "libossp-uuid-dev", "libpq-dev", "bison", "flex"],
     runtime = ["libreadline8", "libxml2", "libossp-uuid16"],
     conditional = [{ category = "build", when = { var = "POSTGRESQL_VERSION", gte = "17" }, packages = ["bison", "flex"] }]
-  } } },
+  } },
   { user = { name = "postgres", create_home = true } },
-  { install = { source = {
-    type = "archive", source = "https://ftp.postgresql.org/pub/source/v${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/pgsql", flags = ["--with-openssl", "--with-libxml", "--with-uuid=ossp"], env = { PATH = "/usr/local/pgsql/bin:${PATH}" },
+  { source_install = {
+    type = "archive", url = "https://ftp.postgresql.org/pub/source/v${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/pgsql", flags = ["--with-openssl", "--with-libxml", "--with-uuid=ossp"], env = { PATH = "/usr/local/pgsql/bin:${PATH}" },
     after = [
       { raw = "make -C contrib && make -C contrib install" },
       { mkdir = [{ path = "/usr/local/pgsql/data", mode = "700", owner = "postgres" }] },
       { chown = [{ path = "/usr/local/pgsql", owner = "postgres", recursive = true }] },
     ],
     verify = [{ file = "/usr/local/pgsql/share/extension/uuid-ossp.control" }]
-  } } },
+  } },
 ]
 
 [[components]]
 name = "pgaudit"
 needs = ["postgresql"]
 ops = [
-  { install = { source = { type = "archive", source = "https://github.com/pgaudit/pgaudit/archive/${PGAUDIT_VERSION}.tar.gz", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { source_install = { type = "archive", url = "https://github.com/pgaudit/pgaudit/archive/${PGAUDIT_VERSION}.tar.gz", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } },
   { verify = [{ file = "/usr/local/pgsql/share/extension/pgaudit.control" }] },
 ]
 
@@ -93,9 +93,9 @@ ops = [
 name = "pgbackrest"
 needs = ["system-deps", "postgresql"]
 ops = [
-  { install = { apt = { build = ["libssh2-1-dev", "libcurl4-openssl-dev", "libyaml-dev"], runtime = ["libssh2-1", "libcurl4", "libyaml-0-2"] } } },
-  { install = { source = {
-    type = "archive", source = "https://github.com/pgbackrest/pgbackrest/archive/release/${PGBACKREST_VERSION}.tar.gz", strategy = "meson", prefix = "/usr/local",
+  { packages = { build = ["libssh2-1-dev", "libcurl4-openssl-dev", "libyaml-dev"], runtime = ["libssh2-1", "libcurl4", "libyaml-0-2"] } },
+  { source_install = {
+    type = "archive", url = "https://github.com/pgbackrest/pgbackrest/archive/release/${PGBACKREST_VERSION}.tar.gz", strategy = "meson", prefix = "/usr/local",
     after = [
       { copy = [{ from = "build/src/pgbackrest", to = "/usr/bin/pgbackrest", mode = "0755" }] },
       { touch = ["/etc/pgbackrest.conf"] },
@@ -104,7 +104,7 @@ ops = [
       { mkdir = [{ path = "/var/log/pgbackrest", mode = "770", owner = "postgres" }] },
       { chown = [{ path = "/var/log/pgbackrest", owner = "postgres" }] },
     ]
-  } } },
+  } },
 ]
 
 # ============ 5. EXTENSIONS ============
@@ -114,7 +114,7 @@ ops = [
 name = "citus"
 needs = ["postgresql"]
 ops = [
-  { install = { source = { type = "git", source = "https://github.com/citusdata/citus.git", ref = "v${CITUS_VERSION}", strategy = "configure", jobs = 8, env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { source_install = { type = "git", url = "https://github.com/citusdata/citus.git", ref = "v${CITUS_VERSION}", strategy = "configure", jobs = 8, env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } },
   { verify = [{ file = "/usr/local/pgsql/share/extension/citus.control" }, { file = "/usr/local/pgsql/lib/citus.so" }] },
 ]
 
@@ -123,7 +123,7 @@ ops = [
 name = "pgstatmonitor"
 needs = ["postgresql"]
 ops = [
-  { install = { source = { type = "git", source = "https://github.com/percona/pg_stat_monitor.git", ref = "${PG_STAT_MONITOR_VERSION}", strategy = "make", flags = ["USE_PGXS=1"] } } },
+  { source_install = { type = "git", url = "https://github.com/percona/pg_stat_monitor.git", ref = "${PG_STAT_MONITOR_VERSION}", strategy = "make", flags = ["USE_PGXS=1"] } },
 ]
 
 # 07-install-decoderbufs.sh. The protoc generation is a pre hook that runs in
@@ -132,13 +132,13 @@ ops = [
 name = "decoderbufs"
 needs = ["system-deps", "postgresql"]
 ops = [
-  { install = { apt = { build = ["protobuf-c-compiler", "libprotobuf-c-dev"] } } },
-  { install = { source = {
-    type = "git", source = "https://github.com/debezium/postgres-decoderbufs.git", ref = "${DECODERBUFS_VERSION}", strategy = "make",
+  { packages = { build = ["protobuf-c-compiler", "libprotobuf-c-dev"] } },
+  { source_install = {
+    type = "git", url = "https://github.com/debezium/postgres-decoderbufs.git", ref = "${DECODERBUFS_VERSION}", strategy = "make",
     before = [
       { generate = { tool = "protoc-c", input = "proto/pg_logicaldec.proto", out = "src/proto" } },
     ]
-  } } },
+  } },
 ]
 
 # 11-install-hypopg.sh
@@ -146,7 +146,7 @@ ops = [
 name = "hypopg"
 needs = ["postgresql"]
 ops = [
-  { install = { source = { type = "git", source = "https://github.com/HypoPG/hypopg.git", ref = "${HYPO_PG_VERSION}", strategy = "make" } } },
+  { source_install = { type = "git", url = "https://github.com/HypoPG/hypopg.git", ref = "${HYPO_PG_VERSION}", strategy = "make" } },
 ]
 
 # 14-install-pg-repack.sh
@@ -154,7 +154,7 @@ ops = [
 name = "pg-repack"
 needs = ["postgresql"]
 ops = [
-  { install = { source = { type = "git", source = "https://github.com/reorg/pg_repack.git", ref = "ver_${PGREPACK_VERSION}", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { source_install = { type = "git", url = "https://github.com/reorg/pg_repack.git", ref = "ver_${PGREPACK_VERSION}", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } },
   { verify = [{ file = "/usr/local/pgsql/share/extension/pg_repack.control" }] },
 ]
 
@@ -163,7 +163,7 @@ ops = [
 name = "pg-cron"
 needs = ["postgresql"]
 ops = [
-  { install = { source = { type = "git", source = "https://github.com/citusdata/pg_cron.git", ref = "v${PG_CRON_VERSION}", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } } },
+  { source_install = { type = "git", url = "https://github.com/citusdata/pg_cron.git", ref = "v${PG_CRON_VERSION}", strategy = "make", flags = ["PG_CONFIG=/usr/local/pgsql/bin/pg_config", "USE_PGXS=1"], env = { PG_CONFIG = "/usr/local/pgsql/bin/pg_config" } } },
   { verify = [{ file = "/usr/local/pgsql/share/extension/pg_cron.control" }, { file = "/usr/local/pgsql/lib/pg_cron.so" }] },
 ]
 
@@ -175,9 +175,9 @@ ops = [
 name = "patroni"
 needs = ["cpython", "postgresql"]
 ops = [
-  { install = { apt = { build = ["libyaml-dev"], runtime = ["libyaml-0-2"] } } },
-  { install = { source = {
-    type = "git", source = "https://github.com/patroni/patroni.git", ref = "${PATRONI_VERSION}", strategy = "none", env = { LD_LIBRARY_PATH = "/usr/local/pgsql/lib:${LD_LIBRARY_PATH:-}", PKG_CONFIG_PATH = "/usr/local/pgsql/lib/pkgconfig:${PKG_CONFIG_PATH:-}", PATH = "/usr/local/pgsql/bin:${PATH}", LDFLAGS = "-L/usr/local/pgsql/lib", CPPFLAGS = "-I/usr/local/pgsql/include" },
+  { packages = { build = ["libyaml-dev"], runtime = ["libyaml-0-2"] } },
+  { source_install = {
+    type = "git", url = "https://github.com/patroni/patroni.git", ref = "${PATRONI_VERSION}", strategy = "none", env = { LD_LIBRARY_PATH = "/usr/local/pgsql/lib:${LD_LIBRARY_PATH:-}", PKG_CONFIG_PATH = "/usr/local/pgsql/lib/pkgconfig:${PKG_CONFIG_PATH:-}", PATH = "/usr/local/pgsql/bin:${PATH}", LDFLAGS = "-L/usr/local/pgsql/lib", CPPFLAGS = "-I/usr/local/pgsql/include" },
     after = [
       { raw = "pip install 'psycopg[c]'" },
       { raw = "pip install cdiff" },
@@ -186,7 +186,7 @@ ops = [
       { raw = "echo '/usr/local/pgsql/lib' > /etc/ld.so.conf.d/postgresql.conf" },
       { raw = "ldconfig" },
     ]
-  } } },
+  } },
 ]
 
 # 10-install-pgbouncer.sh
@@ -194,14 +194,14 @@ ops = [
 name = "pgbouncer"
 needs = ["system-deps", "postgresql"]
 ops = [
-  { install = { apt = { build = ["libevent-dev", "libc-ares-dev"], runtime = ["libevent-2.1-7", "libc-ares2"] } } },
-  { install = { source = {
-    type = "archive", source = "https://github.com/pgbouncer/pgbouncer/releases/download/${PGBOUNCER_TAG}/pgbouncer-${PGBOUNCER_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/pgbouncer", flags = ["--with-libevent=/usr/lib", "--with-cares=/usr/lib"],
+  { packages = { build = ["libevent-dev", "libc-ares-dev"], runtime = ["libevent-2.1-7", "libc-ares2"] } },
+  { source_install = {
+    type = "archive", url = "https://github.com/pgbouncer/pgbouncer/releases/download/${PGBOUNCER_TAG}/pgbouncer-${PGBOUNCER_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/pgbouncer", flags = ["--with-libevent=/usr/lib", "--with-cares=/usr/lib"],
     after = [
       { mkdir = [{ path = "/var/log/pgbouncer" }, { path = "/var/run/pgbouncer" }, { path = "/etc/pgbouncer" }] },
       { chown = [{ path = "/etc/pgbouncer", owner = "postgres", recursive = true }, { path = "/var/log/pgbouncer", owner = "postgres", recursive = true }, { path = "/var/run/pgbouncer", owner = "postgres", recursive = true }] },
     ]
-  } } },
+  } },
 ]
 
 # 09-install-pgbadger.sh
@@ -209,7 +209,7 @@ ops = [
 name = "pgbadger"
 needs = ["system-deps"]
 ops = [
-  { install = { apt = { runtime = ["perl", "libtext-csv-xs-perl", "libjson-xs-perl", "libwww-perl", "libdigest-md5-file-perl"] } } },
+  { packages = { runtime = ["perl", "libtext-csv-xs-perl", "libjson-xs-perl", "libwww-perl", "libdigest-md5-file-perl"] } },
   { raw = "mkdir -p /tmp/build" },
   { raw = "wget -q -O - https://github.com/darold/pgbadger/archive/master.tar.gz | tar zx -C /tmp/build" },
   { copy = [{ from = "/tmp/build/pgbadger-master/pgbadger", to = "/usr/bin/pgbadger", mode = "0755" }] },
@@ -220,15 +220,15 @@ ops = [
 name = "dexter"
 needs = ["system-deps"]
 ops = [
-  { install = { apt = { build = ["ruby-dev"], runtime = ["ruby", "ruby-bundler"] } } },
-  { install = { source = {
-    type = "git", source = "https://github.com/ankane/dexter.git", ref = "${DEXTER_VERSION}", strategy = "none",
+  { packages = { build = ["ruby-dev"], runtime = ["ruby", "ruby-bundler"] } },
+  { source_install = {
+    type = "git", url = "https://github.com/ankane/dexter.git", ref = "${DEXTER_VERSION}", strategy = "none",
     after = [
-      { raw = "bundle install" },
+      { raw = "bundle config set --local path 'vendor/bundle' && bundle install" },
       { raw = "gem build pgdexter.gemspec" },
       { raw = "gem install pgdexter-*.gem" },
     ]
-  } } },
+  } },
 ]
 
 # 13-install-pgmetrics.sh
@@ -236,18 +236,24 @@ ops = [
 name = "pgmetrics"
 needs = ["system-deps"]
 ops = [
-  { install = { binary = { source = "https://github.com/rapidloop/pgmetrics/releases/download/v${PGMETRICS_VERSION}/pgmetrics_${PGMETRICS_VERSION}_linux_amd64.tar.gz", copy = [{ from = "pgmetrics_${PGMETRICS_VERSION}_linux_amd64/pgmetrics", to = "/usr/local/bin/pgmetrics", mode = "0755" }] } } },
+  { binary_install = { url = "https://github.com/rapidloop/pgmetrics/releases/download/v${PGMETRICS_VERSION}/pgmetrics_${PGMETRICS_VERSION}_linux_amd64.tar.gz", copy = [{ from = "pgmetrics_${PGMETRICS_VERSION}_linux_amd64/pgmetrics", to = "/usr/local/bin/pgmetrics", mode = "0755" }] } },
 ]
-
 
 # ============ 7. IMAGE CLEANUP ============
 
 # Strip binaries, remove static libs, and clear Python/Ruby cruft to shrink
-# the final image. Runs after all installs.
+# the final image. The packages remove list strips Debian preinstalled cruft
+# (including apt itself — the runtime stage no longer installs anything via
+# apt; curl and ca-certificates are installed by system-deps and kept).
+# Forge filters the remove list to only installed packages, making it portable
+# across base images. Non-installed packages are skipped with a warning.
+# The cleanup lifecycle removes build packages first, then autoremove, then
+# clean, then the user remove list last (so apt/apt-get remain available).
 [[components]]
 name = "cleanup"
 needs = ["postgresql", "pgaudit", "pgbackrest", "citus", "pgstatmonitor", "decoderbufs", "hypopg", "pg-repack", "pg-cron", "patroni", "pgbouncer", "pgbadger", "dexter", "pgmetrics", "cpython"]
 ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "gnupg", "gnupg-l10n", "gnupg-utils", "diffutils", "apt", "apt-utils", "mailcap", "bsdmainutils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
   { raw = "strip --strip-unneeded /usr/local/pgsql/bin/* /usr/local/pgsql/lib/*.so /usr/local/pgbouncer/bin/* /usr/local/bin/* 2>/dev/null || true" },
   { raw = "find /usr/local -name '*.a' -delete" },
   { raw = "find /usr/local -name '*.la' -delete" },

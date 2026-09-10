@@ -1,7 +1,7 @@
 // database.js — init/02-database + runtime restore: initdb, superuser password,
 // replication user, HA clone, cluster verification, and pgBackRest restore.
 // Mirrors bash init/02-database.sh and startup.sh:perform_pgbackrest_restore.
-const { env, fs, editor, process, shell, log } = require("ezx");
+const { env, fs, editor, process, log } = require("ezx");
 const {
 	PGDATA,
 	PGRUN,
@@ -63,18 +63,11 @@ function prepareRestoreEnvironment() {
 		} catch {
 			log.warn("Standard move failed; attempting copy-and-clean fallback");
 			fs.ensureDir(backupPath, { mode: 0o700 });
-			// copy fallback via shell (fs exposes no recursive copy)
-			if (
-				process.run({
-					process: {
-						binaryPath: "/bin/sh",
-						arguments: ["-c", "cp -a " + shell.quote(PGDATA) + "/. " + shell.quote(backupPath) + "/"],
-						user: PG_USER,
-						group: PG_GROUP,
-					},
-				}) !== 0
-			) {
-				throw new Error("Failed to safeguard existing data directory contents");
+			// Use native fs.copy for recursive copy (preserves mode/ownership/times like cp -a)
+			try {
+				fs.copyTree(PGDATA, backupPath, { overwrite: true, preserveOwner: true });
+			} catch (copyErr) {
+				throw new Error("Failed to safeguard existing data directory contents: " + copyErr.message);
 			}
 			fs.chownRecursive(backupPath, owner);
 			fs.removeAll(PGDATA);

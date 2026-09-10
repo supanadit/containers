@@ -11,14 +11,20 @@
 //   init/03-config       -> config.js (declarative FileProvision)
 //   init/04-backup       -> runtime.js backup node-builders (scheduled pgBackRest)
 //   init/05-sshd         -> setupSshd() below
-//   runtime/startup      -> runtime.js (chain.run supervision)
+//   runtime/startup      -> runtime.js (chain.run supervision, flat DAG)
 //   runtime/backup       -> api.js (cron scheduler + manual-trigger API)
 //   runtime/healthcheck  -> health.readyProbe (tcp gate on /readyz)
 //   runtime/shutdown     -> orchestrator ShutdownConfig + ForwardSignals
 //   (reaper)             -> handled silently by ezx (PID 1 init)
 //
-// ezx stays PID 1 and supervises every child; it never exec's away. Requires a
-// postgres image with postgres installed. Run:
+// ezx stays PID 1 and supervises every node; it never exec's away. Init
+// one-shots (stanza-init, replication-user, userlist-init) are `oneshot: true`
+// nodes that run to completion before their dependents proceed; long-running
+// sidecars (pgbouncer, sshd) and scheduled nodes (backup-full/diff/incr,
+// patroni-role-check) share the same flat dependency graph (ezx 0.3.0+).
+// Each node has its own rotated log file under /opt/containers/logs/, so a
+// noisy sidecar cannot drown out postgres (or vice versa) on the parent
+// stdout. Requires a postgres image with postgres installed. Run:
 //   ezx bootstrap examples/bootstrap/supanadit/postgresql/main.js
 const { fs, editor, log } = require("ezx");
 const { SLEEP_MODE, RESTORE_SENTINEL, PG_USER, PG_GROUP } = require("./env");

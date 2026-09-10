@@ -55,7 +55,8 @@ ARG PGMETRICS_VERSION=1.18.0
 ARG PGREPACK_VERSION=1.5.3
 ARG PG_CRON_VERSION=1.6.7
 
-ARG FORGE_VERSION=0.9.0
+ARG FORGE_VERSION=1.0.3
+ARG EZX_VERSION=0.5.0
 ARG TARGETARCH
 
 COPY forge.toml /opt/forge.toml
@@ -68,6 +69,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     && mv forge-${FORGE_VERSION}-linux-${TARGETARCH} /usr/local/bin/forge \
     && chmod +x /usr/local/bin/forge \
     && rm -f forge.sha256 \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o ezx-${EZX_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o ezx.sha256 \
+    && sha256sum -c ezx.sha256 \
+    && mv ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
+    && chmod +x /usr/local/bin/ezx \
+    && rm -f ezx.sha256 \
     && forge build --verbose \
         --var POSTGRESQL_VERSION=${POSTGRESQL_VERSION} \
         --var PGAUDIT_VERSION=${PGAUDIT_VERSION} \
@@ -89,7 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
 
 # ---------------------------------------------------------------------------
-# Runtime layer — entrypoint scripts + ezx engine (volatile files isolated
+# Runtime layer — entrypoint scripts (volatile files isolated
 # from the heavy setup stage so entrypoint changes don't trigger a full
 # rebuild).
 # ---------------------------------------------------------------------------
@@ -105,19 +112,6 @@ COPY entrypoint.d/ /opt/container/entrypoint.d/
 RUN mkdir -p /opt/containers/data /opt/containers/config /opt/containers/logs /opt/containers/run /opt/containers/backup \
     && chown -R postgres:postgres /opt/container /opt/containers \
     && chmod -R 755 /opt/container/
-
-# Install the EZX entrypoint engine (release binary, checksum-verified).
-# curl stays in the image: it is the binary child used by the Patroni
-# role-change poller and operator curl to the health server.
-ARG EZX_VERSION=0.2.2
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o /tmp/ezx-${EZX_VERSION}-linux-${TARGETARCH} \
-    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o /tmp/ezx.sha256 \
-    && (cd /tmp && sha256sum -c ezx.sha256) \
-    && mv /tmp/ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
-    && chmod +x /usr/local/bin/ezx \
-    && rm -f /tmp/ezx.sha256 \
-    && rm -rf /var/lib/apt/lists/*
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM
