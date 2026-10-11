@@ -7,10 +7,10 @@
 const { chain } = require("ezx");
 const {
   PGPOOL_PORT,
-  PGPOOL_PID_FILE,
   PGPOOL_USER,
   PGPOOL_GROUP,
   PGPOOL_CONF,
+  POOL_HBA_CONF,
   PGPOOL_LOG_DIR,
   PGPOOL_READY_MAX_ATTEMPTS,
 } = require("./env");
@@ -54,8 +54,12 @@ function startPgpool() {
         // no FileProvision rules.
         process: {
           binaryPath: "pgpool",
-          // -n: run in foreground (ezx supervises); -F: pid file; -f: pgpool.conf
-          arguments: ["-f", PGPOOL_CONF, "-F", PGPOOL_PID_FILE, "-n"],
+          // -n: run in foreground (ezx supervises). -f: our generated pgpool.conf.
+          // -a: our generated pool_hba.conf. -F is NOT the pid file (it is the
+          // PCP config file), and -a is required because pgpool otherwise reads
+          // the compiled-in default pool_hba.conf; the pid file is configured
+          // via pid_file_name in pgpool.conf instead.
+          arguments: ["-f", PGPOOL_CONF, "-a", POOL_HBA_CONF, "-n"],
           user: PGPOOL_USER,
           group: PGPOOL_GROUP,
           log: pgpoolLog(),

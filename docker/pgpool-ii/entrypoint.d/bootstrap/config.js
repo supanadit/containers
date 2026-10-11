@@ -76,6 +76,8 @@ const {
   PGPOOL_CONF,
   POOL_HBA_CONF,
   POOL_PASSWD_FILE,
+  PGPOOL_PID_FILE,
+  PGPOOL_RUN_DIR,
   PGPOOL_USER,
   PGPOOL_GROUP,
 } = require("./env");
@@ -120,6 +122,10 @@ function pgpoolConf() {
   b.comment("Connection settings");
   b.set("listen_addresses", "'*'");
   b.set("port", PGPOOL_PORT);
+  // pgpool's compiled-in default is /var/run/pgpool/pgpool.pid, which does not
+  // exist in this image and makes pgpool abort at startup with
+  // 'could not open pid file'. Point it at the volume-normalized run dir.
+  b.set("pid_file_name", "'" + PGPOOL_PID_FILE + "'");
   b.set("pcp_listen_addresses", "'*'");
   b.set("pcp_port", PGPOOL_PCP_PORT);
   b.set("pcp_timeout", PGPOOL_PCP_TIMEOUT);
@@ -313,28 +319,51 @@ function formatValue(value) {
 }
 
 // generatePoolPasswd — create pool_passwd with pgpool's own pg_md5 tool (no
-// shell, no reimplemented md5). pg_md5 -m -u <user> <password> prints
-// "<user>:md5<hash>".
+// shell, no reimplemented md5).
 //
-// pg_md5 reads pgpool.conf to locate pool_passwd, so this MUST run after
-// pgpool.conf has been written to disk — hence the explicit ordering in
-// provisionConfig().
+// Two details matter here, both learned the hard way:
+//
+//  1. pg_md5 MUST be told which pgpool.conf to read (-f), otherwise it reads
+//     its compiled-in default (/usr/local/pgpool/etc/pgpool.conf) which does not
+//     contain our `pool_passwd` setting, and exits with
+//     "Unable to get configuration. Exiting...". It reads pgpool.conf to
+//     locate pool_passwd, so this MUST run after pgpool.conf has been written
+//     to disk — hence the explicit ordering in provisionConfig().
+//  2. pg_md5 -m writes the pool_passwd entry itself; its stdout is progress
+//     chatter, not the hash. The caller must NOT overwrite the file with
+//     stdout. The password is handed over in a 0600 input file (-i) rather than
+//     argv, so it never shows up in the process list.
 function generatePoolPasswd() {
   if (!PGPOOL_BACKEND_PASSWORD) {
     log.warn("PGPOOL_BACKEND_PASSWORD not set, skipping pool_passwd generation");
     return false;
   }
-  const res = process.capture({
-    process: {
-      binaryPath: "pg_md5",
-      arguments: ["-m", "-u", PGPOOL_HEALTH_CHECK_USER, PGPOOL_BACKEND_PASSWORD],
-    },
+
+  const input = PGPOOL_RUN_DIR + "/pg_md5.input";
+  fs.write(input, PGPOOL_HEALTH_CHECK_USER + ":" + PGPOOL_BACKEND_PASSWORD + "\n", {
+    mode: 0o600,
+    owner: OWNER,
   });
+  fs.chmod(input, 0o600);
+
+  let res;
+  try {
+    res = process.capture({
+      process: {
+        binaryPath: "pg_md5",
+        arguments: ["-m", "-f", PGPOOL_CONF, "-i", input],
+      },
+    });
+  } finally {
+    if (fs.exists(input)) fs.remove(input);
+  }
+
   if (res.code !== 0) {
     log.error("pg_md5 failed (code=" + res.code + "): " + res.stderr);
     return false;
   }
-  fs.write(POOL_PASSWD_FILE, res.stdout.trim() + "\n", { mode: 0o600, owner: OWNER });
+
+  // pg_md5 has already written pool_passwd; only fix ownership/mode.
   fs.chmod(POOL_PASSWD_FILE, 0o600);
   fs.chown(POOL_PASSWD_FILE, OWNER);
   return true;
