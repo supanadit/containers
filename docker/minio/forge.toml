@@ -1,0 +1,72 @@
+[project]
+name = "minio"
+description = "MinIO community edition, built from Go source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.23.12"
+MINIO_VERSION = "RELEASE.2025-04-22T22-12-26Z"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Go toolchain for the build stage. MinIO stopped shipping community binaries and
+# containers, so the binary is built from source at the pinned release tag.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["git"], runtime = ["ca-certificates", "procps", "tzdata"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. GO TOOLCHAIN ============
+
+# Installed into /usr/local/go so the build stage can call it. The Go tarball
+# extracts to a top-level go/ directory; strategy=none leaves the move to the
+# after hook (which runs inside the extracted source dir).
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  { source_install = { type = "archive", url = "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz", strategy = "none",
+    after = [
+      { raw = "rm -rf /usr/local/go && mv go /usr/local/go" },
+    ] } },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 3. MINIO ============
+
+# Built from the pinned release tag. cmd/minio is the build path in every release
+# since 2020; the main.go fallback the old script carried is kept as a guard for
+# older tags.
+[[components]]
+name = "minio"
+needs = ["golang"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/minio/minio.git", ref = "${MINIO_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/go/bin:/usr/local/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", CGO_ENABLED = "0" },
+    after = [
+      { raw = "if [ -d cmd/minio ]; then go build -o /usr/local/bin/minio ./cmd/minio; elif [ -f main.go ]; then go build -o /usr/local/bin/minio .; else echo 'Unable to find MinIO build path' >&2; exit 1; fi" },
+      { raw = "chmod 0755 /usr/local/bin/minio" },
+    ],
+    verify = [{ file = "/usr/local/bin/minio" }] } },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+
+# The runtime stage is debian:bookworm-slim and copies only the binary, so this
+# cleanup trims the build stage (and keeps a rebuild cheap). Forge filters the
+# remove list to packages that are actually installed.
+[[components]]
+name = "cleanup"
+needs = ["minio"]
+ops = [
+  { packages = { remove = ["git", "nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go /tmp/*go${GO_VERSION}.linux-${ARCH}.tar.gz 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]
