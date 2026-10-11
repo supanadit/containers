@@ -44,7 +44,7 @@ ENV PATH="/opt/java/bin:/opt/kafka/bin:$PATH"
 # ---------------------------------------------------------------------------
 FROM base AS toolchain
 
-ARG FORGE_VERSION=1.0.3
+ARG FORGE_VERSION=1.0.6
 ARG TARGETARCH=amd64
 
 # Install forge (checksum-verified).
@@ -100,7 +100,7 @@ RUN apt-get update \
 FROM setup AS runtime
 
 ARG KAFKA_VERSION=3.9.2
-ARG EZX_VERSION=0.7.1
+ARG EZX_VERSION=0.8.0
 ARG TARGETARCH=amd64
 
 # The bootstrap reads KAFKA_VERSION to pick the log4j flavour (log4j 1.x on

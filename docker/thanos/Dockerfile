@@ -35,7 +35,7 @@ ENV PATH="/usr/local/bin:$PATH"
 # ---------------------------------------------------------------------------
 FROM base AS toolchain
 
-ARG FORGE_VERSION=1.0.3
+ARG FORGE_VERSION=1.0.6
 ARG TARGETARCH=amd64
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
@@ -76,7 +76,7 @@ RUN apt-get update \
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.7.1
+ARG EZX_VERSION=0.8.0
 ARG TARGETARCH=amd64
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).

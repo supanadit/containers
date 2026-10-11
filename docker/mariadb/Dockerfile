@@ -34,7 +34,7 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
 # ---------------------------------------------------------------------------
 FROM base AS toolchain
 
-ARG FORGE_VERSION=1.0.3
+ARG FORGE_VERSION=1.0.6
 ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \

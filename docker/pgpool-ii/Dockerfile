@@ -33,7 +33,7 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
 # ---------------------------------------------------------------------------
 FROM base AS toolchain
 
-ARG FORGE_VERSION=1.0.3
+ARG FORGE_VERSION=1.0.6
 ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
@@ -87,7 +87,7 @@ ENV EZX_HEALTH_ADDR="127.0.0.1:8080"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.7.1
+ARG EZX_VERSION=0.8.0
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).

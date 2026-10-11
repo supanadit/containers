@@ -48,7 +48,7 @@ ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 # ---------------------------------------------------------------------------
 FROM base AS toolchain
 
-ARG FORGE_VERSION=1.0.3
+ARG FORGE_VERSION=1.0.6
 ARG TARGETARCH
 
 # Download and verify the builder. Its own layer, keyed only on FORGE_VERSION
@@ -118,7 +118,7 @@ ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.7.1
+ARG EZX_VERSION=0.8.0
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).
