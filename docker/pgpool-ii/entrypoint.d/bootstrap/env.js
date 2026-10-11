@@ -14,6 +14,9 @@ const PGPOOL_LOG_DIR = env.get("PGPOOL_LOG_DIR", "/opt/containers/logs");
 const PGPOOL_RUN_DIR = env.get("PGPOOL_RUN_DIR", "/opt/containers/run");
 const PGPOOL_USER = env.get("PGPOOL_USER", "postgres");
 const PGPOOL_GROUP = env.get("PGPOOL_GROUP", "postgres");
+// postgres's home directory. pgpool falls back to $HOME/.pgpoolkey when
+// PGPOOLKEYFILE is unset, so the pool key is mirrored there (see ensurePoolKey).
+const PGPOOL_USER_HOME = env.get("PGPOOL_USER_HOME", "/home/" + PGPOOL_USER);
 
 // ---------------------------------------------------------------------------
 // Core ports
@@ -64,6 +67,24 @@ const PGPOOL_ENABLE_POOL_HBA = env.bool("PGPOOL_ENABLE_POOL_HBA");
 const PGPOOL_POOL_PASSWD = env.get("PGPOOL_POOL_PASSWD", "pool_passwd");
 const PGPOOL_BACKEND_USER = env.get("PGPOOL_BACKEND_USER", "postgres");
 const PGPOOL_BACKEND_PASSWORD = env.get("PGPOOL_BACKEND_PASSWORD", "");
+
+// pgpool encrypts pool_passwd entries with AES (pg_enc) using a key read from
+// $PGPOOLKEYFILE, defaulting to <home>/.pgpoolkey. The key is what lets pgpool
+// hold a *recoverable* backend password, which is the only way it can perform
+// SCRAM as a client — an md5 line (pg_md5) and a raw SCRAM-SHA-256 verifier are
+// both rejected for that purpose. PGPOOL_KEY_FILE / PGPOOL_KEY let an operator
+// supply their own key; otherwise the bootstrap generates one under the
+// normalized config dir.
+const PGPOOL_KEY_FILE = env.get("PGPOOL_KEY_FILE", "");
+const PGPOOL_KEY = env.get("PGPOOL_KEY", "");
+
+// PGPOOL_KEY_PATH is the canonical key file (what pg_enc is pointed at with -k).
+// PGPOOL_KEY_HOME_PATH is postgres's $HOME/.pgpoolkey — pgpool's own fallback
+// when $PGPOOLKEYFILE is unset. The key is written to both: the env var does not
+// reliably reach the pgpool process, and without the home copy pgpool answers
+// every query with "unable to decrypt password from pool_passwd".
+const PGPOOL_KEY_PATH = PGPOOL_KEY_FILE || PGPOOL_CONFIG_DIR + "/.pgpoolkey";
+const PGPOOL_KEY_HOME_PATH = PGPOOL_USER_HOME + "/.pgpoolkey";
 
 // ---------------------------------------------------------------------------
 // Health check
@@ -163,6 +184,9 @@ const SLEEP_MODE = env.bool("SLEEP_MODE");
 const PGPOOL_CONF = PGPOOL_CONFIG_DIR + "/pgpool.conf";
 const POOL_HBA_CONF = PGPOOL_CONFIG_DIR + "/pool_hba.conf";
 const POOL_PASSWD_FILE = PGPOOL_CONFIG_DIR + "/" + PGPOOL_POOL_PASSWD;
+// The AES key is a secret; it lives beside the pool file and is never logged.
+// PGPOOL_KEY_PATH is defined with the other key settings above (it is needed
+// early, before the derived-paths block).
 const PGPOOL_PID_FILE = PGPOOL_RUN_DIR + "/pgpool.pid";
 
 // pgpool ships these samples via `make install` under its prefix.
@@ -210,6 +234,8 @@ module.exports = {
   PGPOOL_POOL_PASSWD,
   PGPOOL_BACKEND_USER,
   PGPOOL_BACKEND_PASSWORD,
+  PGPOOL_KEY_FILE,
+  PGPOOL_KEY,
   // health check
   PGPOOL_HEALTH_CHECK_TIMEOUT,
   PGPOOL_HEALTH_CHECK_PERIOD,
@@ -273,6 +299,8 @@ module.exports = {
   PGPOOL_CONF,
   POOL_HBA_CONF,
   POOL_PASSWD_FILE,
+  PGPOOL_KEY_PATH,
+  PGPOOL_KEY_HOME_PATH,
   PGPOOL_PID_FILE,
   PGPOOL_CONF_SAMPLE,
   POOL_HBA_CONF_SAMPLE,

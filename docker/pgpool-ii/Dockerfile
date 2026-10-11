@@ -72,6 +72,12 @@ RUN apt-get update \
 # Set PATH for pgpool-II binaries
 ENV PATH="/usr/local/pgpool/bin:$PATH"
 
+# The ezx health API (which every container's api.js registers routes on, and
+# which the HEALTHCHECK below probes) only listens when EZX_HEALTH_ADDR is set.
+# Bind it to loopback: it is an in-container surface for the healthcheck and
+# operators, not a public port, so it is deliberately not published.
+ENV EZX_HEALTH_ADDR="127.0.0.1:8080"
+
 # ---------------------------------------------------------------------------
 # Runtime layer — the ezx engine is fetched here (it is only needed at run
 # time), then the entrypoint scripts are copied. Because the ezx download sits
@@ -110,5 +116,14 @@ STOPSIGNAL SIGTERM
 
 # Expose the pgpool-II listener, PCP port, and the ezx health API port
 EXPOSE 5432 9898 8080
+
+# Healthcheck runs a real query through pgpool, not just a port check: pgpool
+# accepts connections and passes a TCP probe while rejecting every query with
+# "failed to authenticate with backend using SCRAM" — green while broken.
+# ezx.api always answers HTTP 200 whatever the body, so the check greps the
+# payload for "healthy":true rather than relying on the status code.
+# Requires EZX_HEALTH_ADDR (set above) and PGPOOL_HEALTH_CHECK_PASSWORD.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -fsS "http://${EZX_HEALTH_ADDR}/health/comprehensive" | grep -q '"healthy":true' || exit 1
 
 ENTRYPOINT ["/usr/local/bin/ezx", "bootstrap", "/opt/container/entrypoint.d/bootstrap/main.js"]

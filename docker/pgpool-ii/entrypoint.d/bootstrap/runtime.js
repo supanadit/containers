@@ -12,6 +12,7 @@ const {
   PGPOOL_CONF,
   POOL_HBA_CONF,
   PGPOOL_LOG_DIR,
+  PGPOOL_KEY_PATH,
   PGPOOL_READY_MAX_ATTEMPTS,
 } = require("./env");
 
@@ -60,6 +61,11 @@ function startPgpool() {
           // the compiled-in default pool_hba.conf; the pid file is configured
           // via pid_file_name in pgpool.conf instead.
           arguments: ["-f", PGPOOL_CONF, "-a", POOL_HBA_CONF, "-n"],
+          // PGPOOLKEYFILE points pgpool at the AES key it needs to decrypt the
+          // pool_passwd entries. pgpool would otherwise fall back to
+          // <home>/.pgpoolkey; the bootstrap mirrors the key there too, so this
+          // is belt-and-braces rather than the only copy.
+          environment: ["PGPOOLKEYFILE=" + PGPOOL_KEY_PATH],
           user: PGPOOL_USER,
           group: PGPOOL_GROUP,
           log: pgpoolLog(),

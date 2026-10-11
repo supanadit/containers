@@ -14,12 +14,22 @@ PGPOOLII_TAG = "V4_6_3"
 # ============ 1. SYSTEM LAYER ============
 
 # 01-install-dependencies.sh
+#
+# Build deps include libssl-dev: pgpool's configure.ac defaults --with-openssl to
+# "no", and without OpenSSL the build cannot do AES, which means it cannot hold
+# a recoverable backend password and therefore cannot authenticate to a backend
+# using SCRAM (see generatePoolPasswd in entrypoint.d/bootstrap/config.js). The
+# same build-time switch also enables server-side TLS (ssl=on).
+#
+# Optional auth backends (libpam0g-dev, libldap2-dev, libmemcached-dev) are
+# build+runtime pairs: users can drive PAM, LDAP and the memcached query cache
+# without rebuilding the image.
 [[components]]
 name = "system-deps"
 ops = [
   { packages = {
-    build = ["build-essential", "gcc", "autoconf", "automake", "libtool", "pkg-config", "libpq-dev", "flex", "bison", "git", "wget"],
-    runtime = ["curl", "jq", "postgresql-client", "libpq5", "procps", "ca-certificates"]
+    build = ["build-essential", "gcc", "autoconf", "automake", "libtool", "pkg-config", "libpq-dev", "libssl-dev", "libpam0g-dev", "libldap2-dev", "libmemcached-dev", "flex", "bison", "git", "wget"],
+    runtime = ["curl", "jq", "postgresql-client", "libpq5", "libssl3", "libpam0g", "libldap-2.5-0", "libmemcached11", "procps", "ca-certificates"]
   } },
   { user = { name = "postgres", create_home = true } },
 ]
@@ -28,6 +38,10 @@ ops = [
 
 # 02-install-pgpool-ii.sh — pgpool-II ships configure.ac only, so the `autogen`
 # strategy runs `autoreconf -fi && ./configure && make` before install.
+#
+# --with-openssl is REQUIRED, not optional: without it pg_enc/the AES pool_passwd
+# path is compiled out, and pgpool cannot authenticate to a backend whose
+# password is stored as scram-sha-256 (the PostgreSQL default since v14).
 [[components]]
 name = "pgpool-ii"
 needs = ["system-deps"]
@@ -35,6 +49,7 @@ ops = [
   { source_install = {
     type = "git", url = "https://github.com/pgpool/pgpool2.git", ref = "${PGPOOLII_TAG}",
     strategy = "autogen", prefix = "/usr/local/pgpool",
+    flags = ["--with-openssl", "--with-pam=yes", "--with-ldap=yes", "--with-memcached=/usr"],
     verify = [{ file = "/usr/local/pgpool/bin/pgpool" }]
   } },
 ]

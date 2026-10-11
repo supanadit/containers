@@ -6,7 +6,7 @@
 // heredoc's exact keys and values, with PGPOOL_CONFIG_* overrides applied on
 // top). This keeps byte-for-byte parity with the previous container while
 // letting users override any native pgpool key via env.
-const { config, env, fs, process, log } = require("ezx");
+const { config, crypto, editor, env, fs, process, log } = require("ezx");
 const {
   PGPOOL_PORT,
   PGPOOL_PCP_PORT,
@@ -73,9 +73,13 @@ const {
   PGPOOL_BACKEND_WEIGHTS,
   PGPOOL_BACKEND_FLAGS,
   PGPOOL_BACKEND_PASSWORD,
+  PGPOOL_KEY_FILE,
+  PGPOOL_KEY,
   PGPOOL_CONF,
   POOL_HBA_CONF,
   POOL_PASSWD_FILE,
+  PGPOOL_KEY_PATH,
+  PGPOOL_KEY_HOME_PATH,
   PGPOOL_PID_FILE,
   PGPOOL_RUN_DIR,
   PGPOOL_USER,
@@ -318,28 +322,93 @@ function formatValue(value) {
   return "'" + v.replace(/'/g, "''") + "'";
 }
 
-// generatePoolPasswd — create pool_passwd with pgpool's own pg_md5 tool (no
-// shell, no reimplemented md5).
+// ensurePoolKey — make sure an AES key exists at PGPOOL_KEY_PATH and return it.
 //
-// Two details matter here, both learned the hard way:
+// pgpool reads the key itself to decrypt pool_passwd entries at startup; pg_enc
+// reads the same file to encrypt them. The operator can supply PGPOOL_KEY (the
+// key literally) or PGPOOL_KEY_FILE (a path); otherwise a 32-byte key is
+// generated once and reused, so an existing volume keeps decrypting after a
+// restart.
 //
-//  1. pg_md5 MUST be told which pgpool.conf to read (-f), otherwise it reads
-//     its compiled-in default (/usr/local/pgpool/etc/pgpool.conf) which does not
-//     contain our `pool_passwd` setting, and exits with
-//     "Unable to get configuration. Exiting...". It reads pgpool.conf to
-//     locate pool_passwd, so this MUST run after pgpool.conf has been written
-//     to disk — hence the explicit ordering in provisionConfig().
-//  2. pg_md5 -m writes the pool_passwd entry itself; its stdout is progress
-//     chatter, not the hash. The caller must NOT overwrite the file with
-//     stdout. The password is handed over in a 0600 input file (-i) rather than
-//     argv, so it never shows up in the process list.
+// The key is written to TWO places: PGPOOL_KEY_PATH (the canonical copy pg_enc
+// is pointed at) and PGPOOL_KEY_HOME_PATH, which is postgres's $HOME/.pgpoolkey.
+// pgpool resolves the key from $PGPOOLKEYFILE or, failing that, <home>/.pgpoolkey
+// — and the env var does not reliably survive to the pgpool process here (it
+// silently fell back to <home>/.pgpoolkey and answered every query with
+// "unable to decrypt password from pool_passwd"). Writing the home copy makes
+// pgpool find it whether or not the env var took effect. The two files are kept
+// byte-identical so a stale copy can never cause a decrypt failure.
+function writePoolKey(key) {
+  for (const path of [PGPOOL_KEY_PATH, PGPOOL_KEY_HOME_PATH]) {
+    if (!path) {
+      continue;
+    }
+    fs.write(path, key + "\n", { mode: 0o600, owner: OWNER });
+    fs.chmod(path, 0o600);
+    fs.chown(path, OWNER);
+  }
+}
+
+function ensurePoolKey() {
+  if (PGPOOL_KEY) {
+    writePoolKey(PGPOOL_KEY);
+    return PGPOOL_KEY;
+  }
+
+  if (fs.exists(PGPOOL_KEY_PATH)) {
+    // Reuse the existing key so an existing volume keeps decrypting after a
+    // restart; regenerate only if it is empty/unreadable.
+    let existing = "";
+    try {
+      existing = (editor.open(PGPOOL_KEY_PATH).read() || "").trim();
+    } catch (e) {
+      log.warn("could not read pool key " + PGPOOL_KEY_PATH + ": " + e);
+    }
+    if (existing) {
+      writePoolKey(existing);
+      return existing;
+    }
+  }
+
+  // 32 random bytes, hex-encoded (64 chars) — comfortably past AES's minimum.
+  const key = crypto.randomHex(32);
+  writePoolKey(key);
+  log.info("Generated pool key at " + PGPOOL_KEY_PATH);
+  return key;
+}
+
+// generatePoolPasswd — create pool_passwd with pgpool's own pg_enc tool (no
+// shell, no reimplemented crypto).
+//
+// This MUST use pg_enc (AES), not pg_md5. A backend whose password is stored as
+// scram-sha-256 — the PostgreSQL default since v14 — cannot be authenticated to
+// with an md5, plaintext, or SCRAM-verifier pool_passwd entry: for SCRAM, pgpool
+// has to compute a client proof, which needs the recoverable password. Only an
+// AES entry (decryptable via the pool key) provides it. See pgpool's
+// get_pgpool_config_user_password(): anything that is not PLAINTEXT or MD5 is
+// treated as unusable for this purpose.
+//
+// Notes, each learned the hard way:
+//  1. pg_enc MUST be told which pgpool.conf to read (-f), otherwise it reads its
+//     compiled-in default and exits with "Unable to get configuration". It reads
+//     pgpool.conf to locate pool_passwd, so this runs after that file is written.
+//  2. pg_enc -m writes the pool_passwd entry itself; its stdout is progress
+//     chatter. The caller must NOT overwrite the file with stdout.
+//  3. The password goes through a 0600 input file (-i), and the key through either
+//     --key-file (a path) or PGPOOLKEYFILE, never argv — so neither secret shows
+//     up in the process list.
+//  4. AES support is a build-time feature (--with-openssl). If pg_enc reports
+//     "AES encryption is not supported by this build", the image was built
+//     without it and pool_passwd cannot hold a usable backend password.
 function generatePoolPasswd() {
   if (!PGPOOL_BACKEND_PASSWORD) {
     log.warn("PGPOOL_BACKEND_PASSWORD not set, skipping pool_passwd generation");
     return false;
   }
 
-  const input = PGPOOL_RUN_DIR + "/pg_md5.input";
+  ensurePoolKey();
+
+  const input = PGPOOL_RUN_DIR + "/pg_enc.input";
   fs.write(input, PGPOOL_HEALTH_CHECK_USER + ":" + PGPOOL_BACKEND_PASSWORD + "\n", {
     mode: 0o600,
     owner: OWNER,
@@ -350,8 +419,8 @@ function generatePoolPasswd() {
   try {
     res = process.capture({
       process: {
-        binaryPath: "pg_md5",
-        arguments: ["-m", "-f", PGPOOL_CONF, "-i", input],
+        binaryPath: "pg_enc",
+        arguments: ["-m", "-f", PGPOOL_CONF, "-k", PGPOOL_KEY_PATH, "-i", input],
       },
     });
   } finally {
@@ -359,11 +428,19 @@ function generatePoolPasswd() {
   }
 
   if (res.code !== 0) {
-    log.error("pg_md5 failed (code=" + res.code + "): " + res.stderr);
+    // Surface the classic build-time cause instead of a bare non-zero exit.
+    if (/AES encryption is not supported/i.test(res.stderr || "")) {
+      log.error(
+        "pg_enc reports AES is unsupported by this pgpool build; it must be " +
+          "compiled with --with-openssl for pool_passwd to authenticate against " +
+          "scram-sha-256 backends"
+      );
+    }
+    log.error("pg_enc failed (code=" + res.code + "): " + res.stderr);
     return false;
   }
 
-  // pg_md5 has already written pool_passwd; only fix ownership/mode.
+  // pg_enc has already written pool_passwd; only fix ownership/mode.
   fs.chmod(POOL_PASSWD_FILE, 0o600);
   fs.chown(POOL_PASSWD_FILE, OWNER);
   return true;
@@ -395,6 +472,7 @@ module.exports = {
   pgpoolConf,
   poolHbaConf,
   parseBackends,
+  ensurePoolKey,
   generatePoolPasswd,
   provisionConfig,
   applyConfigOverrides,
