@@ -1,0 +1,59 @@
+[project]
+name = "thanos"
+description = "Thanos — highly available Prometheus setup with long-term storage"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+THANOS_VERSION = "0.40.1"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Binary-release container: Thanos ships prebuilt tarballs, so there is no
+# source build. Only the runtime libs Thanos links against are installed; curl
+# stays for user-supplied hooks and health scripts.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+
+# Thanos previously ran as root. A dedicated unprivileged account lets ezx drop
+# privileges per node (process.user/group) while ezx itself stays PID 1.
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "thanos", system = true, create_home = false } }]
+
+# ============ 3. THANOS ============
+
+# Single static binary out of the release tarball. The checksum is verified by
+# forge before extraction.
+[[components]]
+name = "thanos"
+needs = ["identity"]
+ops = [
+  { binary_install = { url = "https://github.com/thanos-io/thanos/releases/download/v${THANOS_VERSION}/thanos-${THANOS_VERSION}.linux-${ARCH}.tar.gz", copy = [{ from = "thanos-${THANOS_VERSION}.linux-${ARCH}/thanos", to = "/usr/local/bin/thanos", mode = "0755" }] } },
+  { verify = [{ file = "/usr/local/bin/thanos" }] },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+
+# Strip the binary, remove docs/man and non-English locales. Forge filters the
+# remove list to packages that are actually installed, so it stays portable
+# across base images.
+[[components]]
+name = "cleanup"
+needs = ["thanos"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "strip --strip-unneeded /usr/local/bin/thanos 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]
