@@ -76,7 +76,7 @@ RUN apt-get update \
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.7.0
+ARG EZX_VERSION=0.7.1
 ARG TARGETARCH=amd64
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).
