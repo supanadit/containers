@@ -78,25 +78,43 @@ function componentArgOperations() {
 
 		case "store":
 			ops.push({ flag: "--data-dir", value: THANOS_DATA_DIR });
-			ops.push({ flag: "--index-cache.config", value: THANOS_STORE_INDEX_CACHE_CONFIG });
-			ops.push({ flag: "--index-cache.config-file", value: THANOS_STORE_INDEX_CACHE_CONFIG_FILE });
-			ops.push({ flag: "--store.caching-bucket.config", value: THANOS_STORE_CACHING_BUCKET_CONFIG });
-			ops.push({
-				flag: "--store.caching-bucket.config-file",
-				value: THANOS_STORE_CACHING_BUCKET_CONFIG_FILE,
-			});
+			// Optional flags must be guarded: `value: ""` emits `--flag=`, an empty
+			// argument. The pre-migration entrypoint guarded every one with `-n`.
+			// Index cache: an inline config wins over a file (the old if/elif).
+			if (THANOS_STORE_INDEX_CACHE_CONFIG) {
+				ops.push({ flag: "--index-cache.config", value: THANOS_STORE_INDEX_CACHE_CONFIG });
+			} else if (THANOS_STORE_INDEX_CACHE_CONFIG_FILE) {
+				ops.push({ flag: "--index-cache.config-file", value: THANOS_STORE_INDEX_CACHE_CONFIG_FILE });
+			}
+			// Caching bucket: inline config wins over a file.
+			if (THANOS_STORE_CACHING_BUCKET_CONFIG) {
+				ops.push({ flag: "--store.caching-bucket.config", value: THANOS_STORE_CACHING_BUCKET_CONFIG });
+			} else if (THANOS_STORE_CACHING_BUCKET_CONFIG_FILE) {
+				ops.push({
+					flag: "--store.caching-bucket.config-file",
+					value: THANOS_STORE_CACHING_BUCKET_CONFIG_FILE,
+				});
+			}
 			break;
 
 		case "query-frontend":
-			ops.push({ flag: "--query-frontend.downstream-url", value: THANOS_QUERY_FRONTEND_DOWNSTREAM_URL });
-			ops.push({ flag: "--query-range.split-interval", value: THANOS_QUERY_RANGE_SPLIT_INTERVAL });
-			ops.push({ flag: "--query-range.max-retries-per-request", value: THANOS_QUERY_RANGE_MAX_RETRIES });
-			ops.push({ flag: "--labels.split-interval", value: THANOS_LABELS_SPLIT_INTERVAL });
+			if (THANOS_QUERY_FRONTEND_DOWNSTREAM_URL) {
+				ops.push({ flag: "--query-frontend.downstream-url", value: THANOS_QUERY_FRONTEND_DOWNSTREAM_URL });
+			}
+			if (THANOS_QUERY_RANGE_SPLIT_INTERVAL) {
+				ops.push({ flag: "--query-range.split-interval", value: THANOS_QUERY_RANGE_SPLIT_INTERVAL });
+			}
+			if (THANOS_QUERY_RANGE_MAX_RETRIES) {
+				ops.push({ flag: "--query-range.max-retries-per-request", value: THANOS_QUERY_RANGE_MAX_RETRIES });
+			}
+			if (THANOS_LABELS_SPLIT_INTERVAL) {
+				ops.push({ flag: "--labels.split-interval", value: THANOS_LABELS_SPLIT_INTERVAL });
+			}
 			// An inline response-cache config was written to the config volume at
 			// provisioning time; it wins over an explicitly mounted file.
 			if (THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG) {
 				ops.push({ flag: "--query-range.response-cache-config-file", value: THANOS_CACHE_CONFIG_FILE });
-			} else {
+			} else if (THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG_FILE) {
 				ops.push({
 					flag: "--query-range.response-cache-config-file",
 					value: THANOS_QUERY_RANGE_RESPONSE_CACHE_CONFIG_FILE,
@@ -109,11 +127,21 @@ function componentArgOperations() {
 			if (THANOS_COMPACT_DOWNSAMPLING_DISABLE) {
 				ops.push({ flag: "--downsampling.disable", format: "bare-flag", value: "true" });
 			}
-			ops.push({ flag: "--retention.resolution-raw", value: THANOS_COMPACT_RETENTION_RAW });
-			ops.push({ flag: "--retention.resolution-5m", value: THANOS_COMPACT_RETENTION_5M });
-			ops.push({ flag: "--retention.resolution-1h", value: THANOS_COMPACT_RETENTION_1H });
-			ops.push({ flag: "--consistency-delay", value: THANOS_COMPACT_CONSISTENCY_DELAY });
-			ops.push({ flag: "--compact.concurrency", value: THANOS_COMPACT_COMPACTION_CONCURRENCY });
+			if (THANOS_COMPACT_RETENTION_RAW) {
+				ops.push({ flag: "--retention.resolution-raw", value: THANOS_COMPACT_RETENTION_RAW });
+			}
+			if (THANOS_COMPACT_RETENTION_5M) {
+				ops.push({ flag: "--retention.resolution-5m", value: THANOS_COMPACT_RETENTION_5M });
+			}
+			if (THANOS_COMPACT_RETENTION_1H) {
+				ops.push({ flag: "--retention.resolution-1h", value: THANOS_COMPACT_RETENTION_1H });
+			}
+			if (THANOS_COMPACT_CONSISTENCY_DELAY) {
+				ops.push({ flag: "--consistency-delay", value: THANOS_COMPACT_CONSISTENCY_DELAY });
+			}
+			if (THANOS_COMPACT_COMPACTION_CONCURRENCY) {
+				ops.push({ flag: "--compact.concurrency", value: THANOS_COMPACT_COMPACTION_CONCURRENCY });
+			}
 			// The bash entrypoint always added --wait for compact.
 			ops.push({ flag: "--wait", format: "bare-flag", value: "true" });
 			break;
@@ -126,7 +154,9 @@ function componentArgOperations() {
 			});
 			ops.push({ flag: "--receive.local-endpoint", value: THANOS_RECEIVE_LOCAL_ENDPOINT });
 			ops.push({ flag: "--remote-write.address", value: THANOS_REMOTE_WRITE_ADDRESS });
-			ops.push({ flag: "--receive.hashring-file", value: THANOS_RECEIVE_HASHRING_FILE });
+			if (THANOS_RECEIVE_HASHRING_FILE) {
+				ops.push({ flag: "--receive.hashring-file", value: THANOS_RECEIVE_HASHRING_FILE });
+			}
 			// External labels from THANOS_RECEIVE_LABELS_<NAME> (uppercase snake
 			// in the var, lowercased for the label name).
 			ops.push({

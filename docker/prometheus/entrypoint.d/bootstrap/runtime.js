@@ -32,14 +32,27 @@ function prometheusArgOperations() {
 		{ flag: "--web.listen-address", value: ":" + PROMETHEUS_PORT },
 	];
 
-	// Optional TLS / auth config for the web endpoint.
-	ops.push({ flag: "--web.config.file", value: PROMETHEUS_WEB_CONFIG_FILE });
+	// Optional TLS / auth config for the web endpoint. Guard every optional
+	// flag: `value: ""` does NOT mean "omit me" — it emits `--flag=""`, and
+	// Prometheus rejects an empty duration with
+	// 'Error parsing command line arguments: empty duration string' and exits 2.
+	if (PROMETHEUS_WEB_CONFIG_FILE) {
+		ops.push({ flag: "--web.config.file", value: PROMETHEUS_WEB_CONFIG_FILE });
+	}
 
 	// TSDB block durations / retention (only when set).
-	ops.push({ flag: "--storage.tsdb.min-block-duration", value: PROMETHEUS_STORAGE_TSDB_MIN_BLOCK_DURATION });
-	ops.push({ flag: "--storage.tsdb.max-block-duration", value: PROMETHEUS_STORAGE_TSDB_MAX_BLOCK_DURATION });
-	ops.push({ flag: "--storage.tsdb.retention.time", value: PROMETHEUS_STORAGE_TSDB_RETENTION_TIME });
-	ops.push({ flag: "--storage.tsdb.retention.size", value: PROMETHEUS_STORAGE_TSDB_RETENTION_SIZE });
+	if (PROMETHEUS_STORAGE_TSDB_MIN_BLOCK_DURATION) {
+		ops.push({ flag: "--storage.tsdb.min-block-duration", value: PROMETHEUS_STORAGE_TSDB_MIN_BLOCK_DURATION });
+	}
+	if (PROMETHEUS_STORAGE_TSDB_MAX_BLOCK_DURATION) {
+		ops.push({ flag: "--storage.tsdb.max-block-duration", value: PROMETHEUS_STORAGE_TSDB_MAX_BLOCK_DURATION });
+	}
+	if (PROMETHEUS_STORAGE_TSDB_RETENTION_TIME) {
+		ops.push({ flag: "--storage.tsdb.retention.time", value: PROMETHEUS_STORAGE_TSDB_RETENTION_TIME });
+	}
+	if (PROMETHEUS_STORAGE_TSDB_RETENTION_SIZE) {
+		ops.push({ flag: "--storage.tsdb.retention.size", value: PROMETHEUS_STORAGE_TSDB_RETENTION_SIZE });
+	}
 
 	// Feature flags: one declarative row per enabled feature (env.js already
 	// filtered the table, so these are literals).
