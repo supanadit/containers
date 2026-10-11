@@ -78,7 +78,7 @@ ENV PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.7.1
+ARG EZX_VERSION=0.8.0
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).
@@ -102,6 +102,13 @@ COPY entrypoint.d/ /opt/container/entrypoint.d/
 RUN mkdir -p /opt/containers/data /opt/containers/config /opt/containers/logs /opt/containers/run /opt/containers/backup \
     && chown -R mysql:mysql /opt/container /opt/containers \
     && chmod -R 755 /opt/container/
+
+# The ezx health API (which api.js registers routes on, and which the
+# HEALTHCHECK-style probes in the compose examples target) only listens when
+# EZX_HEALTH_ADDR is set. Bind it to loopback: it is an in-container surface for
+# healthchecks and operators, not a public port, so it is deliberately not
+# published.
+ENV EZX_HEALTH_ADDR="127.0.0.1:8080"
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM
