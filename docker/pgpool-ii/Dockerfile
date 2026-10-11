@@ -38,10 +38,10 @@ ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && cd /tmp \
-    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH} -o forge \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH} -o forge-${FORGE_VERSION}-linux-${TARGETARCH} \
     && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH}.sha256 -o forge.sha256 \
     && sha256sum -c forge.sha256 \
-    && mv forge /usr/local/bin/forge \
+    && mv forge-${FORGE_VERSION}-linux-${TARGETARCH} /usr/local/bin/forge \
     && chmod +x /usr/local/bin/forge \
     && rm -f forge.sha256 \
     && rm -rf /var/lib/apt/lists/*
@@ -87,10 +87,10 @@ ARG TARGETARCH
 # Download and verify the ezx entrypoint engine (runtime-only dependency).
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && cd /tmp \
-    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o ezx \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o ezx-${EZX_VERSION}-linux-${TARGETARCH} \
     && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o ezx.sha256 \
     && sha256sum -c ezx.sha256 \
-    && mv ezx /usr/local/bin/ezx \
+    && mv ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
     && chmod +x /usr/local/bin/ezx \
     && rm -f ezx.sha256 \
     && rm -rf /var/lib/apt/lists/*
