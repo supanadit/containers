@@ -1,0 +1,13 @@
+# Edge-case test — non-root runtime, dir ownership, KAFKA_CONFIG_* overrides,
+# and restart idempotency (cluster id must be stable across restarts).
+services:
+  kafka:
+    image: kafka:test
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      # Generic override must win and land in server.properties.
+      KAFKA_CONFIG_AUTO_CREATE_TOPICS_ENABLE: "false"

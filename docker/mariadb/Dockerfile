@@ -1,14 +1,20 @@
-# Multi-stage build for MariaDB with optimized layer caching
-# syntax=docker/dockerfile:1.4
-FROM debian:bookworm-slim AS base
+# Multi-stage build for MariaDB.
+#
+# Layout: `toolchain` → `setup` → `runtime`.
+#
+# - `toolchain` downloads and checksum-verifies the forge builder. It depends
+#   only on FORGE_VERSION / TARGETARCH, so bumping forge rebuilds a curl-sized
+#   layer instead of the whole source build.
+# - `setup` copies forge from `toolchain` and runs the full TOML manifest in a
+#   single RUN (forge's scheduler parallelizes steps inside it). Its cache key
+#   is driven by the app version args and forge.toml — the things that genuinely
+#   require recompiling.
+# - `runtime` downloads the ezx entrypoint engine (needed only at run time) and
+#   copies the entrypoint scripts, keeping both out of the heavy setup stage.
+# syntax=docker/dockerfile:1.6
+FROM debian:bookworm AS base
 
 ARG MARIADB_VERSION=11.8.3
-ARG MARIADB_GALERA_VERSION=26.4.16
-
-STOPSIGNAL SIGTERM
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
 
 # Build metadata
 ARG BUILD_DATE
@@ -17,42 +23,90 @@ ARG VCS_REF
 LABEL org.opencontainers.image.created=$BUILD_DATE \
     org.opencontainers.image.revision=$VCS_REF \
     org.opencontainers.image.title="MariaDB" \
-    org.opencontainers.image.description="Optimized MariaDB container" \
+    org.opencontainers.image.description="MariaDB built from source with Galera Cluster support" \
     org.opencontainers.image.authors="Supan Adit Pratama <email@supanadit.com>" \
     org.opencontainers.image.source=https://github.com/supanadit/containers
 
-# Setup layer - copy stable files first for better caching
-FROM base AS setup
+# ---------------------------------------------------------------------------
+# Toolchain layer — download the forge builder (release binary,
+# checksum-verified). Isolated so a FORGE_VERSION bump does not invalidate the
+# source build layer below.
+# ---------------------------------------------------------------------------
+FROM base AS toolchain
 
-# Copy setup scripts and configuration (stable files that change infrequently)
-COPY setup.sh /opt/setup.sh
-COPY setup/ /opt/setup/
+ARG FORGE_VERSION=1.0.3
+ARG TARGETARCH
 
-# Run the complete setup in a single layer with BuildKit cache mounts
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt \
-    chmod +x /opt/setup.sh && \
-    /opt/setup.sh && \
-    rm /opt/setup.sh && \
-    rm -rf /opt/setup/
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && cd /tmp \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH} -o forge-${FORGE_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH}.sha256 -o forge.sha256 \
+    && sha256sum -c forge.sha256 \
+    && mv forge-${FORGE_VERSION}-linux-${TARGETARCH} /usr/local/bin/forge \
+    && chmod +x /usr/local/bin/forge \
+    && rm -f forge.sha256 \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/usr/local/mariadb/bin:$PATH"
+# ---------------------------------------------------------------------------
+# Setup layer — reuse the prebuilt toolchain and run the full TOML manifest in
+# a single layer.
+# ---------------------------------------------------------------------------
+FROM toolchain AS setup
 
-# Runtime layer - copy volatile files later
+ARG MARIADB_VERSION=11.8.3
+
+COPY forge.toml /opt/forge.toml
+
+# forge build shells out to apt-get install, which needs a current package
+# index. The toolchain layer's index was discarded with its apt lists, so
+# refresh here first.
+RUN apt-get update \
+    && forge build --verbose \
+        --var MARIADB_VERSION=${MARIADB_VERSION} \
+        /opt/forge.toml \
+    && rm -f /opt/forge.toml /usr/local/bin/forge \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
+
+# ---------------------------------------------------------------------------
+# Runtime layer — the ezx engine is fetched here (it is only needed at run
+# time), then the entrypoint scripts are copied. Because the ezx download sits
+# in its own layer above the heavy setup stage, bumping EZX_VERSION rebuilds a
+# curl-sized layer instead of the whole source build, and editing entrypoint
+# scripts does not re-download ezx.
+# ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-# Create required runtime directories
-RUN mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
+ARG EZX_VERSION=0.5.0
+ARG TARGETARCH
+
+# Download and verify the ezx entrypoint engine (runtime-only dependency).
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && cd /tmp \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o ezx-${EZX_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o ezx.sha256 \
+    && sha256sum -c ezx.sha256 \
+    && mv ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
+    && chmod +x /usr/local/bin/ezx \
+    && rm -f ezx.sha256 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/
-RUN find /opt/container/entrypoint.d -name "*.sh" -exec chmod +x {} \;
 
-# Copy main entrypoint script
-COPY entrypoint.d/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Set proper ownership of the entrypoint and the container data/config/log/run
+# directories. The runtime bootstrap (directories.js) owns these paths but
+# cannot create them when the parent /opt is root-owned and the bootstrap
+# drops to the mysql user; pre-creating them keeps mariadb-install-db working.
+RUN mkdir -p /opt/containers/data /opt/containers/config /opt/containers/logs /opt/containers/run /opt/containers/backup \
+    && chown -R mysql:mysql /opt/container /opt/containers \
+    && chmod -R 755 /opt/container/
 
-# Expose MariaDB port
-EXPOSE 3306
+# Set the stop signal for proper container shutdown
+STOPSIGNAL SIGTERM
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Expose MariaDB and the ezx health API ports
+EXPOSE 3306 8080
+
+ENTRYPOINT ["/usr/local/bin/ezx", "bootstrap", "/opt/container/entrypoint.d/bootstrap/main.js"]

@@ -1,0 +1,26 @@
+# SSL/TLS test — server TLS on the broker listener (PKCS12 keystore/truststore)
+services:
+  kafka:
+    image: kafka:test
+    environment:
+      KAFKA_CLUSTER_ID: "1WZuYbe_TRuaTK_PM8S7sQ"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "SSL://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "SSL://localhost:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "SSL"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,SSL:SSL"
+      KAFKA_SSL_ENABLE: "true"
+      KAFKA_SSL_KEYSTORE_TYPE: "PKCS12"
+      KAFKA_SSL_KEYSTORE_LOCATION: "/opt/containers/config/kafka.keystore.p12"
+      KAFKA_SSL_KEYSTORE_PASSWORD: "keystore-password"
+      KAFKA_SSL_KEY_PASSWORD: "keystore-password"
+      KAFKA_SSL_TRUSTSTORE_TYPE: "PKCS12"
+      KAFKA_SSL_TRUSTSTORE_LOCATION: "/opt/containers/config/kafka.truststore.p12"
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: "truststore-password"
+      KAFKA_SSL_CLIENT_AUTH: "none"
+      KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: ""
+    volumes:
+      - ./certs/kafka.keystore.p12:/opt/containers/config/kafka.keystore.p12:ro
+      - ./certs/kafka.truststore.p12:/opt/containers/config/kafka.truststore.p12:ro

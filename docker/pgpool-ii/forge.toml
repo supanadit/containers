@@ -1,0 +1,54 @@
+[project]
+name = "pgpool-ii"
+description = "PgPool-II connection pooler built from source"
+no_cache = true
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+PGPOOLII_VERSION = "4.6.3"
+# pgpool2 git tags encode the version with underscores (V4_6_3 for 4.6.3).
+# forge interpolation has no string-replace syntax, so the Dockerfile derives
+# the tag and passes it as PGPOOLII_TAG; this is only a fallback.
+PGPOOLII_TAG = "V4_6_3"
+
+# ============ 1. SYSTEM LAYER ============
+
+# 01-install-dependencies.sh
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = {
+    build = ["build-essential", "gcc", "autoconf", "automake", "libtool", "pkg-config", "libpq-dev", "flex", "bison", "git", "wget"],
+    runtime = ["curl", "jq", "postgresql-client", "libpq5", "procps", "ca-certificates"]
+  } },
+  { user = { name = "postgres", create_home = true } },
+]
+
+# ============ 2. PgPool-II CORE ============
+
+# 02-install-pgpool-ii.sh — pgpool-II ships configure.ac only, so the `autogen`
+# strategy runs `autoreconf -fi && ./configure && make` before install.
+[[components]]
+name = "pgpool-ii"
+needs = ["system-deps"]
+ops = [
+  { source_install = {
+    type = "git", url = "https://github.com/pgpool/pgpool2.git", ref = "${PGPOOLII_TAG}",
+    strategy = "autogen", prefix = "/usr/local/pgpool",
+    verify = [{ file = "/usr/local/pgpool/bin/pgpool" }]
+  } },
+]
+
+# ============ 3. IMAGE CLEANUP ============
+
+# 99-cleanup.sh — forge strips the build packages and refreshes the apt cache
+# automatically once all components finish. Only the build tree and static libs
+# remain to be cleaned here.
+[[components]]
+name = "cleanup"
+needs = ["pgpool-ii"]
+ops = [
+  { raw = "strip --strip-unneeded /usr/local/pgpool/bin/* 2>/dev/null || true" },
+  { raw = "find /usr/local/pgpool -name '*.a' -delete 2>/dev/null || true" },
+  { raw = "find /usr/local/pgpool -name '*.la' -delete 2>/dev/null || true" },
+]

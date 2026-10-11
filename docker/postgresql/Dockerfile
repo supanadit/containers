@@ -1,10 +1,16 @@
 # Multi-stage build for PostgreSQL.
 #
-# Simple two-stage layout: one setup layer driven entirely by forge.toml
-# (forge's scheduler parallelizes steps inside the single RUN), and one
-# runtime layer for the entrypoint and ezx engine. No Docker cache mounts or
-# per-step layers — a change to forge.toml or any version arg rebuilds the
-# whole setup stage by design.
+# Layout: `toolchain` → `setup` → `runtime`.
+#
+# - `toolchain` downloads and checksum-verifies the forge builder. It depends
+#   only on FORGE_VERSION / TARGETARCH, so bumping forge rebuilds a curl-sized
+#   layer instead of the whole source build.
+# - `setup` copies forge from `toolchain` and runs the full TOML manifest in a
+#   single RUN (forge's scheduler parallelizes steps inside it). Its cache key
+#   is driven by the app version args and forge.toml — the things that genuinely
+#   require recompiling.
+# - `runtime` downloads the ezx entrypoint engine (needed only at run time) and
+#   copies the entrypoint scripts, keeping both out of the heavy setup stage.
 # syntax=docker/dockerfile:1.6
 FROM debian:bookworm AS base
 
@@ -36,10 +42,32 @@ LABEL org.opencontainers.image.created=$BUILD_DATE \
 ENV PG_CONFIG=/usr/local/pgsql/bin/pg_config
 
 # ---------------------------------------------------------------------------
-# Setup layer — install the forge builder (release binary, checksum-verified)
-# and run the full TOML manifest in a single layer.
+# Toolchain layer — download the forge builder (release binary,
+# checksum-verified). Isolated so a FORGE_VERSION bump does not invalidate the
+# source build layer below.
 # ---------------------------------------------------------------------------
-FROM base AS setup
+FROM base AS toolchain
+
+ARG FORGE_VERSION=1.0.3
+ARG TARGETARCH
+
+# Download and verify the builder. Its own layer, keyed only on FORGE_VERSION
+# and TARGETARCH.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && cd /tmp \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH} -o forge-${FORGE_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH}.sha256 -o forge.sha256 \
+    && sha256sum -c forge.sha256 \
+    && mv forge-${FORGE_VERSION}-linux-${TARGETARCH} /usr/local/bin/forge \
+    && chmod +x /usr/local/bin/forge \
+    && rm -f forge.sha256 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Setup layer — reuse the prebuilt toolchain and run the full TOML manifest in
+# a single layer.
+# ---------------------------------------------------------------------------
+FROM toolchain AS setup
 
 ARG POSTGRESQL_VERSION=13.5
 ARG PGAUDIT_VERSION=1.5.3
@@ -55,26 +83,12 @@ ARG PGMETRICS_VERSION=1.18.0
 ARG PGREPACK_VERSION=1.5.3
 ARG PG_CRON_VERSION=1.6.7
 
-ARG FORGE_VERSION=1.0.3
-ARG EZX_VERSION=0.5.0
-ARG TARGETARCH
-
 COPY forge.toml /opt/forge.toml
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && cd /tmp \
-    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH} -o forge-${FORGE_VERSION}-linux-${TARGETARCH} \
-    && curl -fsSL https://github.com/supanadit/forge/releases/download/${FORGE_VERSION}/forge-${FORGE_VERSION}-linux-${TARGETARCH}.sha256 -o forge.sha256 \
-    && sha256sum -c forge.sha256 \
-    && mv forge-${FORGE_VERSION}-linux-${TARGETARCH} /usr/local/bin/forge \
-    && chmod +x /usr/local/bin/forge \
-    && rm -f forge.sha256 \
-    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o ezx-${EZX_VERSION}-linux-${TARGETARCH} \
-    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o ezx.sha256 \
-    && sha256sum -c ezx.sha256 \
-    && mv ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
-    && chmod +x /usr/local/bin/ezx \
-    && rm -f ezx.sha256 \
+# forge build shells out to apt-get install, which needs a current package
+# index. The toolchain layer's index was discarded with its apt lists, so
+# refresh here first.
+RUN apt-get update \
     && forge build --verbose \
         --var POSTGRESQL_VERSION=${POSTGRESQL_VERSION} \
         --var PGAUDIT_VERSION=${PGAUDIT_VERSION} \
@@ -96,11 +110,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
 
 # ---------------------------------------------------------------------------
-# Runtime layer — entrypoint scripts (volatile files isolated
-# from the heavy setup stage so entrypoint changes don't trigger a full
-# rebuild).
+# Runtime layer — the ezx engine is fetched here (it is only needed at run
+# time), then the entrypoint scripts are copied. Because the ezx download sits
+# in its own layer above the heavy setup stage, bumping EZX_VERSION rebuilds a
+# curl-sized layer instead of the whole source build, and editing entrypoint
+# scripts does not re-download ezx.
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
+
+ARG EZX_VERSION=0.5.0
+ARG TARGETARCH
+
+# Download and verify the ezx entrypoint engine (runtime-only dependency).
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && cd /tmp \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH} -o ezx-${EZX_VERSION}-linux-${TARGETARCH} \
+    && curl -fsSL https://github.com/supanadit/ezx/releases/download/${EZX_VERSION}/ezx-${EZX_VERSION}-linux-${TARGETARCH}.sha256 -o ezx.sha256 \
+    && sha256sum -c ezx.sha256 \
+    && mv ezx-${EZX_VERSION}-linux-${TARGETARCH} /usr/local/bin/ezx \
+    && chmod +x /usr/local/bin/ezx \
+    && rm -f ezx.sha256 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy entrypoint scripts (volatile files that change frequently during development)
 COPY entrypoint.d/ /opt/container/entrypoint.d/

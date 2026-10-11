@@ -4,6 +4,22 @@
 
 Multi-stage builds with three stages: `base → setup → runtime`.
 
+The **forge/ezx containers** (postgresql, mariadb, apache-kafka, pgpool-ii) use
+`base → toolchain → setup → runtime`:
+
+- `toolchain` downloads the pinned, checksum-verified `forge` release binary and
+  nothing else, so bumping `FORGE_VERSION` invalidates a curl-sized layer instead
+  of the entire source build.
+- `setup` copies `forge.toml`, inherits forge from `toolchain`, and runs
+  `forge build`.
+- `runtime` downloads the pinned, checksum-verified `ezx` release binary (it is a
+  runtime-only dependency, so it lives here, not in the build path) and then
+  copies the entrypoint scripts. This makes an `EZX_VERSION` bump a curl-sized
+  layer and keeps entrypoint edits from re-downloading ezx.
+
+Never merge the forge download back into the `setup` RUN, and never download ezx
+before the `runtime` stage.
+
 ```dockerfile
 # syntax=docker/dockerfile:1.4
 FROM debian:bookworm AS base
@@ -39,9 +55,13 @@ EXPOSE 5432 6432 ...
 ENTRYPOINT ["/entrypoint.sh"]
 ```
 
-> **PostgreSQL exception:** its Dockerfile downloads the ezx release binary,
-> ENTRYPOINT is `["ezx", "bootstrap", ".../bootstrap/main.js"]`, and HEALTHCHECK
-> is `pg_isready`. See the Entrypoint Structure section below.
+> **PostgreSQL exception:** ENTRYPOINT is
+> `["ezx", "bootstrap", ".../bootstrap/main.js"]` and HEALTHCHECK is `pg_isready`.
+>
+> **Forge containers exception:** postgresql, mariadb, apache-kafka, and
+> pgpool-ii build via a `forge.toml` manifest: a `toolchain` stage provides the
+> forge builder, and the `runtime` stage downloads ezx. Their `setup` stage is a
+> single `forge build` RUN rather than a `setup.sh` orchestrator.
 
 - `base` stage: FROM, ARGs, LABELs, ENV for paths
 - `setup` stage: COPY setup scripts → RUN with BuildKit cache mounts → cleanup

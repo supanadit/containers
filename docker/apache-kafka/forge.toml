@@ -1,0 +1,91 @@
+[project]
+name = "apache-kafka"
+description = "Apache Kafka (KRaft) on Amazon Corretto, packaged for the ezx runtime"
+no_cache = true
+
+# Values come from Dockerfile ARG (passed via -var) or environment. Every
+# artifact is pinned and checksum-verified: forge's source_install archive
+# fetch has no checksum field, so the JDK and Kafka tarballs are downloaded
+# and verified via raw steps (the same curl + sha*sum -c pattern the
+# Dockerfile uses for the forge/ezx binaries).
+[vars]
+KAFKA_VERSION = "3.9.2"
+SCALA_VERSION = "2.13"
+KAFKA_SHA512 = "01186a5086b5ae753811ee71808a797baec1303d4e0d4b1c0acf42c489654a7b8988136f8469d0b66f0be439f8e3e9b816171ea0b0d7a36462b07aa2d3ef0023"
+CORRETTO_VERSION = "21.0.12.9.1"
+CORRETTO_SHA256_X64 = "f79824540cef882da0cdf1369f9d1d69afc14b5a9bc3a771fd5bb795793ce2f2"
+CORRETTO_SHA256_AARCH64 = "cda6f38775da6ba19e154dd2194a309dabfb12da87ad13f396893d9a555eb1ce"
+TARGETARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Runtime tools the Kafka scripts and operators need. Kafka's own launchers are
+# bash scripts, so bash must stay; curl/ca-certificates are kept for operator
+# convenience and the health/docs examples. tzdata lets the JVM resolve zones.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { runtime = ["curl", "ca-certificates", "bash", "coreutils", "procps", "tzdata", "gzip", "tar"] } },
+  { user = { name = "kafka", create_home = true, system = true, shell = "/bin/bash" } },
+]
+
+# ============ 2. JDK (Amazon Corretto) ============
+
+# Pinned Corretto release + per-arch SHA-256. TARGETARCH is mapped to the
+# Corretto artifact name (amd64 -> x64, arm64 -> aarch64).
+[[components]]
+name = "jdk"
+needs = ["system-deps"]
+ops = [
+  { raw = """
+set -e
+case "${TARGETARCH}" in
+  amd64) arch=x64; sha=${CORRETTO_SHA256_X64} ;;
+  arm64) arch=aarch64; sha=${CORRETTO_SHA256_AARCH64} ;;
+  *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;;
+esac
+url="https://corretto.aws/downloads/resources/${CORRETTO_VERSION}/amazon-corretto-${CORRETTO_VERSION}-linux-$arch.tar.gz"
+mkdir -p /tmp/jdk && cd /tmp/jdk
+curl -fsSL "$url" -o jdk.tar.gz
+echo "$sha  jdk.tar.gz" | sha256sum -c -
+mkdir -p /opt/java
+tar -xzf jdk.tar.gz --strip-components=1 -C /opt/java
+rm -rf /tmp/jdk
+""" },
+  { verify = [{ file = "/opt/java/bin/java" }] },
+]
+
+# ============ 3. KAFKA ============
+
+# Pinned Kafka release + SHA-512. The Scala build is pinned too, so the artifact
+# name (kafka_<scala>-<version>.tgz) never drifts.
+[[components]]
+name = "kafka"
+needs = ["system-deps"]
+ops = [
+  { raw = """
+set -e
+url="https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
+mkdir -p /tmp/kafka && cd /tmp/kafka
+curl -fsSL "$url" -o kafka.tgz
+echo "${KAFKA_SHA512}  kafka.tgz" | sha512sum -c -
+mkdir -p /opt/kafka
+tar -xzf kafka.tgz --strip-components=1 -C /opt/kafka
+rm -rf /tmp/kafka
+""" },
+  { verify = [{ file = "/opt/kafka/bin/kafka-server-start.sh" }, { file = "/opt/kafka/bin/kafka-storage.sh" }, { file = "/opt/kafka/bin/kafka-broker-api-versions.sh" }] },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+
+# Drop apt metadata, temp builds, docs and man pages. The JDK/Kafka payload is
+# intentionally left unstripped (Java runtime), so this only trims OS cruft.
+[[components]]
+name = "cleanup"
+needs = ["jdk", "kafka"]
+ops = [
+  { packages = { remove = ["gnupg", "gnupg-l10n", "gnupg-utils", "vim-tiny", "nano", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "logrotate", "hostname", "kmod"] } },
+  { raw = "rm -rf /var/lib/apt/lists/* /tmp/*" },
+  { raw = "find /opt/kafka -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /opt/kafka -type f -name '*.1' -delete 2>/dev/null || true" },
+]

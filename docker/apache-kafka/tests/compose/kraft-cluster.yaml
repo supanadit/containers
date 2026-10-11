@@ -1,0 +1,69 @@
+# KRaft cluster test — 3 combined broker+controller nodes, replication factor 3
+services:
+  kafka-1:
+    image: kafka:test
+    environment:
+      KAFKA_CLUSTER_ID: "hF0qe1zZQquUgjvBEfCb7A"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-1:9092"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "3"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "2"
+    volumes:
+      - kafka_1_data:/opt/containers/data
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f kafka.Kafka || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  kafka-2:
+    image: kafka:test
+    environment:
+      KAFKA_CLUSTER_ID: "hF0qe1zZQquUgjvBEfCb7A"
+      KAFKA_NODE_ID: "2"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-2:9092"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "3"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "2"
+    volumes:
+      - kafka_2_data:/opt/containers/data
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f kafka.Kafka || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  kafka-3:
+    image: kafka:test
+    environment:
+      KAFKA_CLUSTER_ID: "hF0qe1zZQquUgjvBEfCb7A"
+      KAFKA_NODE_ID: "3"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-3:9092"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "3"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "2"
+    volumes:
+      - kafka_3_data:/opt/containers/data
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f kafka.Kafka || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+volumes:
+  kafka_1_data:
+  kafka_2_data:
+  kafka_3_data:
