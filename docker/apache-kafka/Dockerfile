@@ -100,7 +100,7 @@ RUN apt-get update \
 FROM setup AS runtime
 
 ARG KAFKA_VERSION=3.9.2
-ARG EZX_VERSION=0.5.0
+ARG EZX_VERSION=0.7.0
 ARG TARGETARCH=amd64
 
 # The bootstrap reads KAFKA_VERSION to pick the log4j flavour (log4j 1.x on
