@@ -1,0 +1,13 @@
+# Smoke test — minimal Prometheus with the bundled default config.
+services:
+  prometheus:
+    image: prometheus:test
+    environment:
+      PROMETHEUS_PORT: "9090"
+    ports:
+      - "19090:9090"
+    volumes:
+      - prometheus-data:/opt/containers/data
+
+volumes:
+  prometheus-data:

@@ -1,0 +1,15 @@
+# Smoke test — Thanos query with a static store endpoint.
+services:
+  thanos:
+    image: thanos:test
+    environment:
+      THANOS_COMPONENT: query
+      THANOS_HTTP_ADDRESS: "0.0.0.0:10902"
+      THANOS_GRPC_ADDRESS: "0.0.0.0:10901"
+    ports:
+      - "10902:10902"
+    volumes:
+      - thanos-data:/opt/containers/data
+
+volumes:
+  thanos-data:
