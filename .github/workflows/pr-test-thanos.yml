@@ -6,6 +6,9 @@ on:
     paths:
       - 'docker/thanos/**'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
