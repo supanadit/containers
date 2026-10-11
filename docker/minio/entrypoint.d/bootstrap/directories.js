@@ -19,6 +19,28 @@ const {
 
 const OWNER = MINIO_USER + ":" + MINIO_GROUP;
 
+// chmodBestEffort — set directory mode, but do not fail when the path is a
+// read-only bind mount.
+function chmodBestEffort(path, mode) {
+	try {
+		fs.chmod(path, mode);
+	} catch (e) {
+		log.warn("could not chmod " + path + " (read-only mount?): " + e.message);
+	}
+}
+
+// chownBestEffort changes ownership recursively but does not fail the bootstrap
+// when it cannot. A read-only bind mount (e.g. a config file mounted :ro) is a
+// legitimate setup; a hard failure here would abort the container before the
+// app ever starts.
+function chownBestEffort(path) {
+	try {
+		fs.chownRecursive(path, OWNER);
+	} catch (e) {
+		log.warn("could not chown " + path + " (read-only mount?): " + e.message);
+	}
+}
+
 // ensureDrive — MinIO requires every drive to be an existing directory when it
 // starts (it will not create it). A drive may be given as a brace expansion
 // ("data/disk{1...4}") or a plain path.
@@ -30,23 +52,25 @@ function ensureDrive(path) {
 		const to = parseInt(toS, 10);
 		for (let i = from; i <= to; i++) {
 			const p = prefix + i;
-			fs.ensureDir(p, { mode: 0o750, owner: OWNER });
-			fs.chmod(p, 0o750);
-			fs.chownRecursive(p, OWNER);
+			fs.ensureDir(p, { mode: 0o750 });
+			chmodBestEffort(p, 0o750);
+			chownBestEffort(p);
 		}
 		return;
 	}
-	fs.ensureDir(path, { mode: 0o750, owner: OWNER });
-	fs.chmod(path, 0o750);
-	fs.chownRecursive(path, OWNER);
+	fs.ensureDir(path, { mode: 0o750 });
+	chmodBestEffort(path, 0o750);
+	chownBestEffort(path);
 }
 
 // setupDirectories — the normalized tree plus the drive directories.
 function setupDirectories() {
 	for (const d of [MINIO_DATA_DIR, MINIO_CONFIG_DIR, MINIO_LOG_DIR, MINIO_RUN_DIR, MINIO_BACKUP_DIR]) {
-		fs.ensureDir(d, { mode: 0o750, owner: OWNER });
-		fs.chmod(d, 0o750);
-		fs.chownRecursive(d, OWNER);
+		// No `owner` here: ensureDir's own chown is recursive and would walk into
+		// a read-only config file; the guarded helper below does it instead.
+		fs.ensureDir(d, { mode: 0o750 });
+		chmodBestEffort(d, 0o750);
+		chownBestEffort(d);
 	}
 
 	// In distributed mode the drives live inside every node's expansion (e.g.
