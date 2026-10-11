@@ -4,8 +4,8 @@
 
 Multi-stage builds with three stages: `base → setup → runtime`.
 
-The **forge/ezx containers** (postgresql, mariadb, apache-kafka, pgpool-ii) use
-`base → toolchain → setup → runtime`:
+The **forge/ezx containers** (postgresql, mariadb, apache-kafka, pgpool-ii,
+thanos, prometheus, minio) use `base → toolchain → setup → runtime`:
 
 - `toolchain` downloads the pinned, checksum-verified `forge` release binary and
   nothing else, so bumping `FORGE_VERSION` invalidates a curl-sized layer instead
@@ -58,10 +58,12 @@ ENTRYPOINT ["/entrypoint.sh"]
 > **PostgreSQL exception:** ENTRYPOINT is
 > `["ezx", "bootstrap", ".../bootstrap/main.js"]` and HEALTHCHECK is `pg_isready`.
 >
-> **Forge containers exception:** postgresql, mariadb, apache-kafka, and
-> pgpool-ii build via a `forge.toml` manifest: a `toolchain` stage provides the
-> forge builder, and the `runtime` stage downloads ezx. Their `setup` stage is a
-> single `forge build` RUN rather than a `setup.sh` orchestrator.
+> **Forge containers exception:** postgresql, mariadb, apache-kafka, pgpool-ii,
+> thanos, prometheus, and minio build via a `forge.toml` manifest: a `toolchain`
+> stage provides the forge builder, and the `runtime` stage downloads ezx. Their
+> `setup` stage is a single `forge build` RUN rather than a `setup.sh`
+> orchestrator. (minio keeps a Go source build and uses a slim runtime stage that
+> copies the built binary forward.)
 
 - `base` stage: FROM, ARGs, LABELs, ENV for paths
 - `setup` stage: COPY setup scripts → RUN with BuildKit cache mounts → cleanup
@@ -124,6 +126,30 @@ Each numbered script in `setup/scripts/` handles exactly one component:
 >   second bootstrap — `main.js` is the only entrypoint script.
 > - **No `.sh` in the PostgreSQL entrypoint.** `setup/` scripts are build-time
 >   and unchanged.
+>
+> **ezx bootstrap containers.** `pgpool-ii`, `thanos`, `prometheus`, and
+> `minio` follow the PostgreSQL pattern but with a much smaller module set:
+> `entrypoint.d/bootstrap/{env,validation,directories,config,runtime,api,main}.js`.
+> `main.js` validates, sets up directories, writes config, then calls a single
+> `start<App>()` from `runtime.js` that runs `chain.run({ nodes: [<one node>] })`.
+> The node declares `readiness`, `forwardSignals`, and `restart`, so ezx stays
+> PID 1 and supervises the app. `api.js` adds `/health/comprehensive` plus a
+> per-app readiness route on the shared health server (`EZX_HEALTH_ADDR`).
+>
+> Two ezx behaviours these bootstraps must respect, both learned from real
+> startup failures:
+>
+> - **An empty `value` is still an argument.** `argOperations` entries with
+>   `value: ""` emit `--flag=`, and apps often reject that (Prometheus exited 2
+>   with "empty duration string"). Guard every optional flag.
+> - **Chowning must be best-effort.** `fs.ensureDir(dir, {owner})` and
+>   `fs.chownRecursive(dir)` recurse, so a `:ro` config mount aborts the whole
+>   container. Use guarded `chmodBestEffort`/`chownBestEffort` helpers.
+>
+> Tests live in `tests/compose/*.yaml` + `tests/scripts/run-*.sh` and are gated by
+> `.github/workflows/pr-test-<name>.yml`. They inspect container state with
+> `docker exec` on named volumes (never bind mounts, which the recursive chown
+> would re-own on the host).
 >
 > Other containers (mariadb, kafka, grafana-*, ...) still use the bash model
 > below.
