@@ -14,7 +14,6 @@ const {
   PGPOOL_LOG_DIR,
   PGPOOL_READY_MAX_ATTEMPTS,
 } = require("./env");
-const { pgpoolFiles } = require("./config");
 
 // pgpoolLog — per-service rotated log (50 MiB x 5).
 function pgpoolLog() {
@@ -29,6 +28,7 @@ function pgpoolLog() {
 
 function startSleep() {
   chain.run({
+    execDefault: false,
     nodes: [
       {
         name: "sleep",
@@ -41,10 +41,17 @@ function startSleep() {
 
 function startPgpool() {
   chain.run({
+    // ezx must stay PID 1: it is the container's init (zombie reaping, signal
+    // forwarding, health). A lone node without restart/scheduler/health would
+    // otherwise be exec'd into: ezx would replace itself with pgpool and stop
+    // supervising.
+    execDefault: false,
     nodes: [
       {
         name: "pgpool",
-        files: pgpoolFiles(),
+        // Config files are written by provisionConfig() in main(), before the
+        // chain starts (pg_md5 needs pgpool.conf on disk), so the node carries
+        // no FileProvision rules.
         process: {
           binaryPath: "pgpool",
           // -n: run in foreground (ezx supervises); -F: pid file; -f: pgpool.conf
