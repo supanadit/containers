@@ -1,293 +1,140 @@
 # AGENTS.md
 
+Every container in this repository is built with **forge** and run under
+**ezx**. There are no setup scripts and no shell entrypoints: the build is a
+declarative `forge.toml` manifest, and the entrypoint is a single
+`ezx bootstrap` JavaScript program. Shell is only allowed when it comes from an
+upstream application (e.g. `pgpool-ii`'s own launchers); never write new shell.
+
 ## Dockerfile Pattern
 
-Multi-stage builds with three stages: `base → setup → runtime`.
-
-The **forge/ezx containers** (postgresql, mariadb, apache-kafka, pgpool-ii,
-thanos, prometheus, minio, wordpress) use `base → toolchain → setup → runtime`:
-
-- `toolchain` downloads the pinned, checksum-verified `forge` release binary and
-  nothing else, so bumping `FORGE_VERSION` invalidates a curl-sized layer instead
-  of the entire source build.
-- `setup` copies `forge.toml`, inherits forge from `toolchain`, and runs
-  `forge build`.
-- `runtime` downloads the pinned, checksum-verified `ezx` release binary (it is a
-  runtime-only dependency, so it lives here, not in the build path) and then
-  copies the entrypoint scripts. This makes an `EZX_VERSION` bump a curl-sized
-  layer and keeps entrypoint edits from re-downloading ezx.
-
-Never merge the forge download back into the `setup` RUN, and never download ezx
-before the `runtime` stage.
+Multi-stage builds with four stages: `base → toolchain → setup → runtime`.
 
 ```dockerfile
-# syntax=docker/dockerfile:1.4
-FROM debian:bookworm AS base
+# syntax=docker/dockerfile:1.6
+FROM debian:bookworm AS base         # FROM, ARGs, LABELs, ENV for paths
 
-# ARG for every version pin (app, extensions, plugins)
-ARG APP_VERSION=x.y.z
-ARG EXTENSION_VERSION=x.y.z
-ARG BUILD_DATE
-ARG VCS_REF
-
-LABEL org.opencontainers.image.created=$BUILD_DATE ...
-
-ENV PATH="/usr/local/app/bin:$PATH"
-
-FROM base AS setup
-COPY setup.sh /opt/setup.sh
-COPY setup/ /opt/setup/
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt \
-    chmod +x /opt/setup.sh && /opt/setup.sh && rm -rf /opt/setup/
-
-FROM setup AS runtime
-COPY entrypoint.d/ /opt/container/entrypoint.d/
-COPY config/ /etc/somewhere/       # optional config templates
-RUN chown -R appuser:appuser /opt/container/ && chmod -R 755 /opt/container/
-COPY entrypoint.d/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-STOPSIGNAL SIGTERM
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD /opt/container/entrypoint.d/scripts/runtime/healthcheck.sh || exit 1
-EXPOSE 5432 6432 ...
-ENTRYPOINT ["/entrypoint.sh"]
+FROM base AS toolchain               # download + checksum-verify forge
+FROM toolchain AS setup              # COPY forge.toml; RUN forge build ...
+FROM setup AS runtime                # download + checksum-verify ezx; COPY entrypoint.d/
 ```
 
-> **PostgreSQL exception:** ENTRYPOINT is
-> `["ezx", "bootstrap", ".../bootstrap/main.js"]` and HEALTHCHECK is `pg_isready`.
->
-> **Forge containers exception:** postgresql, mariadb, apache-kafka, pgpool-ii,
-> thanos, prometheus, minio, and wordpress build via a `forge.toml` manifest: a
-> `toolchain` stage provides the forge builder, and the `runtime` stage downloads
-> ezx. Their `setup` stage is a single `forge build` RUN rather than a `setup.sh`
-> orchestrator. (minio keeps a Go source build and uses a slim runtime stage that
-> copies the built binary forward.)
+Stage rules:
 
-- `base` stage: FROM, ARGs, LABELs, ENV for paths
-- `setup` stage: COPY setup scripts → RUN with BuildKit cache mounts → cleanup
-- `runtime` stage: COPY entrypoint scripts (volatile) → chown → final touches
-- `entrypoint.d/` goes into `/opt/container/entrypoint.d/`
-- `.dockerignore` excludes everything except what's needed for build
+- **`toolchain`** downloads the pinned, checksum-verified `forge` release
+  binary and nothing else, so bumping `FORGE_VERSION` invalidates a curl-sized
+  layer instead of the entire build.
+- **`setup`** copies `forge.toml`, inherits forge from `toolchain`, and runs
+  `forge build`. The RUN refreshes the apt index first (forge shells out to
+  apt-get), and removes forge afterwards.
+- **`runtime`** downloads the pinned, checksum-verified `ezx` release binary
+  (runtime-only, so it lives here, not in the build path), then copies the
+  entrypoint scripts. This makes an `EZX_VERSION` bump a curl-sized layer and
+  keeps entrypoint edits from re-downloading ezx.
+- Never merge the forge download back into the `setup` RUN, and never download
+  ezx before the `runtime` stage.
 
-## Setup Scripts (`setup/`)
+Version pins live in `ARG`s on the Dockerfile and are passed to forge as
+`--var NAME=${NAME}`; the manifest declares matching values in `[vars]` as
+fallbacks. `TARGETARCH` is mapped to the artifact architecture (e.g.
+`--var ARCH=${TARGETARCH}`).
 
-`setup.sh` is the build-time orchestrator:
+The `runtime` stage also pre-creates `/opt/containers/{data,config,logs,run,backup}`
+and chowns them to the application user, because the parent `/opt` is root-owned
+and `ezx` stays PID 1 (each supervised node drops privileges via
+`process.user`/`process.group`). A container whose binary is copied forward from
+the build stage (etcd, minio) creates its user in the runtime stage instead —
+accounts from the build stage do not carry over.
 
-```bash
-#!/bin/bash
-set -e
-SCRIPT_DIR="/opt/setup/scripts"
-chmod +x ${SCRIPT_DIR}/*.sh
+## forge Manifests (`forge.toml`)
 
-${SCRIPT_DIR}/01-install-dependencies.sh
-${SCRIPT_DIR}/02-install-<app>.sh
-${SCRIPT_DIR}/03-install-<extension>.sh
-...
-${SCRIPT_DIR}/99-cleanup.sh
-```
+One `forge.toml` per container. A component is an ordered `ops` list and
+dependencies are explicit `needs` edges. Typical shape:
 
-Each numbered script in `setup/scripts/` handles exactly one component:
-- `01-install-dependencies.sh` — apt system packages and tooling
-- `02-install-<app>.sh` — main application built/installed from source
-- `03..NN-install-<plugin>.sh` — one script per extension/plugin, installed via the app's native mechanism (USE_PGXS, pip, go build, etc.)
-- `99-cleanup.sh` — removes -dev packages, reinstalls runtime libs, cleans apt cache and /temp
+1. **system-deps** — `packages` (`build`/`runtime`/`remove`), locale setup.
+2. **identity** — the application `user`.
+3. **application / jdk** — `binary_install`, `source_install`, or `raw` for
+   pinned downloads (JDK tarballs are downloaded and checksum-verified via
+   `raw`, exactly like the forge/ezx binaries, because `source_install.archive`
+   has no checksum field).
+4. **cleanup** — strip binaries, drop docs/man and non-English locales. Forge
+   removes `build` packages automatically after all components finish, so the
+   cleanup component only handles the extra trimming.
 
-## Adding a Plugin / Extension
+Notes:
 
-1. Add `ARG` in Dockerfile for version pinning
-2. Create `setup/scripts/NN-install-<plugin>.sh` (next available number, before 99)
-3. Add execution line to `setup.sh` before `99-cleanup.sh`
-4. If it needs runtime configuration: add handling in `03-config.sh` (e.g., `shared_preload_libraries`, config generation)
-5. If it needs a runtime process: add startup in `startup.sh` (background with `&`, PID tracking)
+- Source builds (`source_install { type = "git", strategy = "none" }`) run their
+  build in `after` hooks, e.g. minio/etcd `make build` after a Go toolchain
+  install. See `minio/forge.toml` and `etcd/forge.toml`.
+- `no_cache = true` is set on manifests whose source build must not be cached
+  (mariadb, kafka, wordpress).
+- Package `remove` lists are filtered by forge to packages that are actually
+  installed, so the same list is portable across base images.
 
-## Entrypoint Structure
+## Entrypoint: `entrypoint.d/bootstrap/`
 
-> **PostgreSQL is EZX-migrated.** `docker/postgresql` no longer uses the bash
-> `entrypoint.d/scripts/` tree below. Its entrypoint is a single
-> `ezx bootstrap /opt/container/entrypoint.d/bootstrap/main.js` — the Dockerfile
-> downloads the pinned `ezx` release binary (checksum-verified) and HEALTHCHECK
-> is `pg_isready`. Everything runs inside that one bootstrap:
->
-> - **One chain, one root**: the postgres/patroni node with all sidecars as
->   `needParentReady` children (stanza-init, pgbouncer-userlist, replication
->   user, pgbouncer, sshd, scheduled pgBackRest backups, Patroni role-check).
->   ezx supervises them all concurrently; children drain when the parent exits
->   or on SIGTERM.
-> - **Modules** (`entrypoint.d/bootstrap/`): `main.js` (orchestrator),
->   `env.js` (defaults), `validation.js`, `directories.js`, `database.js`,
->   `config.js` (declarative config generation), `backup.js` (scheduler),
->   `cluster.js` (role detection), `sshd.js`, `patroni.js` (role-change
->   reconfig), `routes.js` (operator api routes).
-> - **Operator routes** on the health server (`EZX_HEALTH_ADDR`):
->   `POST /sync-reload`, `GET /health/comprehensive`, `POST /patroni/role-check`
->   (hit by a scheduled `curl` child). No shell launchers, no `ezx run`, no
->   second bootstrap — `main.js` is the only entrypoint script.
-> - **No `.sh` in the PostgreSQL entrypoint.** `setup/` scripts are build-time
->   and unchanged.
->
-> **ezx bootstrap containers.** `pgpool-ii`, `thanos`, `prometheus`, `minio`,
-> and `wordpress` follow the PostgreSQL pattern but with a much smaller module
-> set: `entrypoint.d/bootstrap/{env,validation,directories,config,runtime,api,main}.js`.
-> `main.js` validates, sets up directories, writes config, then calls a single
-> `start<App>()` from `runtime.js` that runs `chain.run({ nodes: [...] })`.
-> The node(s) declare `readiness`, `forwardSignals`, and `restart`, so ezx stays
-> PID 1 and supervises the app. `api.js` adds `/health/comprehensive` plus a
-> per-app readiness route on the shared health server (`EZX_HEALTH_ADDR`).
-> wordpress adds a second module for its PHP-source config (`wpconfig.js` —
-> wp-config.php is PHP, edited line-wise rather than with a key=value builder),
-> plus `phpini.js` and `apache.js`, and supervises httpd together with the
-> optional `apache_exporter` sidecar.
->
-> Two ezx behaviours these bootstraps must respect, both learned from real
-> startup failures:
->
-> - **An empty `value` is still an argument.** `argOperations` entries with
->   `value: ""` emit `--flag=`, and apps often reject that (Prometheus exited 2
->   with "empty duration string"). Guard every optional flag.
-> - **Chowning must be best-effort.** `fs.ensureDir(dir, {owner})` and
->   `fs.chownRecursive(dir)` recurse, so a `:ro` config mount aborts the whole
->   container. Use guarded `chmodBestEffort`/`chownBestEffort` helpers.
->
-> Tests live in `tests/compose/*.yaml` + `tests/scripts/run-*.sh` and are gated by
-> `.github/workflows/pr-test-<name>.yml`. They inspect container state with
-> `docker exec` on named volumes (never bind mounts, which the recursive chown
-> would re-own on the host).
->
-> Other containers (mariadb, kafka, grafana-*, ...) still use the bash model
-> below.
-
-Every container uses the same modular lifecycle under `entrypoint.d/`:
+Every container ships the same small module set. `main.js` is the only
+entrypoint script; it validates, sets up directories, writes config, registers
+health routes, then calls a `start<App>()` that runs `chain.run({ nodes: [...] })`.
 
 ```
-entrypoint.d/
-  entrypoint.sh           # Main orchestrator
-  scripts/
-    init/                 # Run once per container start, in numbered order
-      00-misc-scripts.sh
-      01-directories.sh
-      02-database.sh      # (app-specific: initdb, restore, clone)
-      03-config.sh        # Config generation, env overrides, HA setup
-      04-backup.sh        # Backup tool config generation
-      05-sshd.sh          # SSH setup for replication
-    runtime/
-      startup.sh          # exec'd from entrypoint, runs app as background process, handles signals
-      shutdown.sh         # Graceful stop
-      healthcheck.sh      # Docker HEALTHCHECK
-      backup-scheduler.sh # Optional recurring task
-    utils/
-      logging.sh          # Structured logging (log_debug/info/warn/error)
-      validation.sh       # Env/config validation functions
-      security.sh         # Permission hardening, temp file creation
-      helpers.sh          # is_truthy(), common helpers
-      cluster.sh          # Cluster role detection, replication helpers
-    misc/
-      <callback>.sh       # App-specific callbacks (e.g., patroni callbacks)
+entrypoint.d/bootstrap/
+  main.js         # orchestrator: umask -> dirs -> config -> validate -> run
+  env.js          # single source of truth for every env var (env.bool/int)
+  validation.js   # fail-fast checks before side effects
+  directories.js  # create + chown the /opt/containers/* tree (best-effort)
+  config.js       # env -> config file (config.build / yaml.build / FileProvision)
+  runtime.js      # the supervised node(s) + argument matrix
+  api.js          # routes + composite health on the shared health server
 ```
 
-### entrypoint.sh — Main Orchestrator
+Some containers add extra modules: kafka has `kraft.js` + `util.js`; the
+database images split `database.js`/`backup.js`; wordpress has `wpconfig.js`,
+`phpini.js`, `apache.js`.
 
-```bash
-#!/bin/bash
-set -euo pipefail
+`main.js` contract:
 
-# Source utilities
-source /opt/container/entrypoint.d/scripts/utils/logging.sh
-source /opt/container/entrypoint.d/scripts/utils/validation.sh
-source /opt/container/entrypoint.d/scripts/utils/security.sh
-
-# Default directories (env vars allow override)
-export DEFAULT_VAR="${DEFAULT_VAR:-/opt/containers/<category>}"
-export ACTUAL_VAR="$DEFAULT_VAR"
-
-# Bool normalization via case
-case "${FEATURE_ENABLE:-false}" in
-    true|1|yes|on) FEATURE_ENABLE="true" ;;
-    *) FEATURE_ENABLE="false" ;;
-esac
-
-main() {
-    log_script_start "entrypoint.sh"
-    validate_environment
-    setup_signal_handlers
-    run_initialization    # numbered init scripts in order
-    start_runtime         # exec startup.sh
+```js
+const { fs, log } = require("ezx");
+const { SLEEP_MODE } = require("./env");
+// ...
+function main() {
+    fs.umask(0o027);
+    setupDirectories();
+    provisionConfig();          // may be generateConfig() or seedDefaultConfig()
+    if (!validateEnvironment()) throw new Error("Environment validation failed");
+    if (SLEEP_MODE) { startSleep(); return; }
+    registerOpsRoutes();       // MUST be before chain.run
+    startApp();
 }
-main "$@"
+main();
 ```
 
-### Every script follows this template:
+## ezx Rules
 
-```bash
-#!/bin/bash
-# <script>.sh - One-line description
+- **ezx stays PID 1 and supervises.** Nodes are never exec'd away; ezx forwards
+  signals (`forwardSignals`), reaps zombies, rotates logs and probes readiness.
+- **Register `api` routes before `chain.run`.** `chain.run` blocks the script, so
+  routes registered after it never exist. When `EZX_HEALTH_ADDR` is unset the
+  registration throws — wrap it in try/catch and log a warning so the app still
+  starts.
+- **An empty `value` is still an argument.** `argOperations` entries with
+  `value: ""` emit `--flag=`; apps reject it. Guard every optional flag with an
+  `if`.
+- **Chowning must be best-effort.** `fs.ensureDir(dir, {owner})` and
+  `fs.chownRecursive` recurse, so a `:ro` config mount would abort the whole
+  container. Use guarded `chmodBestEffort`/`chownBestEffort` helpers.
+- **Durations are nanoseconds.** `interval: 1e9` is 1s, `timeout: 5e9` is 5s.
+- **Filter consumed secrets at spawn time.** `filterEnvPattern` strips variables
+  from the child environment (e.g. etcd strips `^ETCD_` so its own env
+  configuration cannot conflict with the explicit flags).
+- **`env.get(name, default)` applies the default when the var is empty too.**
+- **Scheduling** uses `scheduler.every(...)`/`scheduler.build(...)` as a node
+  property for recurring jobs (mariadb, kafka, postgresql pgBackRest).
 
-set -euo pipefail
+## CI
 
-source /opt/container/entrypoint.d/scripts/utils/logging.sh
-source /opt/container/entrypoint.d/scripts/utils/helpers.sh
-# ... other needed utils
-
-main() {
-    log_script_start "<script>.sh"
-    validate_environment
-    # ... actual logic ...
-    log_script_end "<script>.sh"
-}
-main "$@"
-```
-
-Key rules for every script:
-- `set -euo pipefail` at top, never omitted
-- `source` all needed utils explicitly
-- `main "$@"` pattern — no top-level code
-- `log_script_start` / `log_script_end` wrapping
-- `validate_environment` before any side effects
-- `is_truthy()` for boolean env vars, not direct string comparison
-
-## Environment Variables
-
-- Everything configurable by env var — the core differentiator from Bitnami
-- Defaults declared in `entrypoint.sh` as `DEFAULT_*` then copied to actual vars
-- Bool handling: normalize in entrypoint.sh, use `is_truthy()` in scripts
-- Config-override pattern: `POSTGRESQL_CONFIG_*` env vars dynamically applied via `apply_postgres_setting()`
-- Runtime features toggled via `_ENABLE` vars (PATRONI_ENABLE, PGBACKREST_ENABLE, PGBOUNCER_ENABLE, CITUS_ENABLE)
-
-## Volume Paths
-
-All persistent data uses `/opt/containers/<category>`:
-- `/opt/containers/data` — Persistent application data
-- `/opt/containers/config` — User-provided config files (flat or subdirectories)
-- `/opt/containers/backup` — Backup repositories
-- `/opt/containers/logs` — Persistent log output
-- `/opt/containers/run` — PID files, Unix sockets
-
-Application binary homes (e.g., `/usr/local/pgsql`, `/opt/kafka`) are NOT touched by this convention.
-
-## Config Generation (03-config.sh pattern)
-
-The config script follows this order:
-1. **Backup originals** — save postgresql.conf.original, pg_hba.conf.original
-2. **Copy user configs** — from `/opt/containers/config/` if provided
-3. **Generate defaults** — secure defaults if no user config present
-4. **Apply feature configs** — HA mode, replication, Patroni, pgBackRest archive
-5. **Apply env overrides** — `POSTGRESQL_CONFIG_*` vars (run LAST to override everything)
-6. **Generate subordinate configs** — Patroni YAML, PgBouncer INI
-
-Config template files in `config/` use `${ENV_VAR}` placeholders replaced by `sed` at startup.
-
-## Build Commands
-
-```bash
-# Standard build (uses layer caching)
-cd docker/<name> && docker build -t supanadit/<name>:latest .
-
-# NEVER use --no-cache — it destroys the multi-stage layer cache.
-# Changing entrypoint scripts auto-rebuilds only the runtime stage.
-```
-
-## Related Repos
-
-- `container-examples/` — Compose files: `<name>/compose.yaml` (basic), `compose.xxx.yaml` (variants)
-- `container-docs/` — Docusaurus docs at `docs/<name>/`
+- `.github/workflows/build-and-publish-<name>.yml` builds and pushes on tags.
+  The `build-args` in each workflow must match the Dockerfile `ARG`s.
+- `.github/workflows/pr-test-<name>.yml` runs the compose suites in
+  `docker/<name>/tests/`. Not every container has one yet.

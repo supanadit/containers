@@ -1,0 +1,72 @@
+[project]
+name = "apache-cassandra"
+description = "Apache Cassandra distributed database"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+JAVA_VERSION = "17"
+CORRETTO_VERSION = "17.0.20.12.1"
+# Cassandra is validated on x64 only (the previous image used openjdk:17-jdk-slim,
+# which is amd64). The checksum is pinned and supplied via --var by the Dockerfile.
+CORRETTO_SHA256_X64 = "b852a8bc8890149c71141e784cde160d7ecb09bfa82b71209179b25902a0ebe3"
+CASSANDRA_VERSION = "5.0.5"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+[[components]]
+name = "system-deps"
+ops = [
+  { user = { name = "cassandra", system = true, create_home = false } },
+  { packages = { runtime = ["curl", "ca-certificates", "bash", "coreutils", "procps", "tzdata", "gzip", "tar", "python3"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. JDK (Amazon Corretto 17) ============
+# Cassandra 5.0 requires Java 17. The Corretto release is pinned; the checksum
+# is supplied through --var by the Dockerfile so a bad pin fails the build.
+[[components]]
+name = "jdk"
+needs = ["system-deps"]
+ops = [
+  { raw = """
+set -e
+case "${ARCH}" in
+  amd64) arch=x64; sha=${CORRETTO_SHA256_X64} ;;
+  *) echo "unsupported ARCH=${ARCH}" >&2; exit 1 ;;
+esac
+url="https://corretto.aws/downloads/resources/${CORRETTO_VERSION}/amazon-corretto-${CORRETTO_VERSION}-linux-$arch.tar.gz"
+mkdir -p /tmp/jdk && cd /tmp/jdk
+curl -fsSL "$url" -o jdk.tar.gz
+if [ -n "$sha" ]; then echo "$sha  jdk.tar.gz" | sha256sum -c -; fi
+mkdir -p /opt/java
+tar -xzf jdk.tar.gz --strip-components=1 -C /opt/java
+rm -rf /tmp/jdk
+""" },
+  { verify = [{ file = "/opt/java/bin/java" }] },
+]
+
+# ============ 3. CASSANDRA ============
+[[components]]
+name = "cassandra"
+needs = ["system-deps"]
+ops = [
+  { source_install = { type = "archive", url = "https://archive.apache.org/dist/cassandra/${CASSANDRA_VERSION}/apache-cassandra-${CASSANDRA_VERSION}-bin.tar.gz", strategy = "none",
+    after = [
+      { raw = "mkdir -p /opt/cassandra && cp -a apache-cassandra-${CASSANDRA_VERSION}/. /opt/cassandra/ && chmod 0755 /opt/cassandra/bin/*.sh" },
+    ],
+    verify = [{ file = "/opt/cassandra/bin/cassandra" }, { file = "/opt/cassandra/conf/cassandra.yaml" }, { file = "/opt/cassandra/conf/jvm-server.options" }] } },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+[[components]]
+name = "cleanup"
+needs = ["jdk", "cassandra"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /opt/cassandra/tools /opt/cassandra/pylib/cqlshlib/test" },
+  { raw = "find /opt/cassandra -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]
