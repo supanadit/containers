@@ -1,0 +1,47 @@
+[project]
+name = "grafana-pyroscope"
+description = "Grafana Pyroscope continuous profiling platform"
+
+[vars]
+GRAFANA_PYROSCOPE_VERSION = "1.16.0"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "pyroscope", system = true, create_home = false } }]
+
+# ============ 3. GRAFANA PYROSCOPE ============
+[[components]]
+name = "pyroscope"
+needs = ["identity"]
+ops = [
+  { source_install = { type = "archive", url = "https://github.com/grafana/pyroscope/releases/download/v${GRAFANA_PYROSCOPE_VERSION}/pyroscope_${GRAFANA_PYROSCOPE_VERSION}_linux_${ARCH}.tar.gz", strategy = "none",
+    after = [
+      { raw = "mkdir -p /usr/share/grafana && mv pyroscope /usr/share/grafana/pyroscope && chmod 0755 /usr/share/grafana/pyroscope" },
+    ],
+    verify = [{ file = "/usr/share/grafana/pyroscope" }] } },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+[[components]]
+name = "cleanup"
+needs = ["pyroscope"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "strip --strip-unneeded /usr/share/grafana/pyroscope 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

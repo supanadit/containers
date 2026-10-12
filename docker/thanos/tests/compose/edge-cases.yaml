@@ -1,0 +1,43 @@
+# Edge cases — S3 objstore rendering, and validation of bad input.
+services:
+  # A component that requires an object store, configured via the S3 shorthand.
+  # The store will not become ready (there is no S3 endpoint here), which is
+  # fine: the point is that the objstore file is rendered before the process
+  # starts. It is inspected with `docker exec`, not a bind mount, so the
+  # container's own files never touch the host filesystem.
+  thanos-store:
+    image: thanos:test
+    environment:
+      THANOS_COMPONENT: store
+      THANOS_HTTP_ADDRESS: "0.0.0.0:10905"
+      THANOS_GRPC_ADDRESS: "0.0.0.0:10904"
+      THANOS_S3_BUCKET: thanos
+      THANOS_S3_ENDPOINT: minio:9000
+      THANOS_S3_ACCESS_KEY: superadmin
+      THANOS_S3_SECRET_KEY: supersecretpassword
+      THANOS_S3_INSECURE: "true"
+    volumes:
+      - thanos-store-data:/opt/containers/data
+
+  # An incomplete S3 shorthand must be rejected.
+  thanos-bad-s3:
+    image: thanos:test
+    environment:
+      THANOS_COMPONENT: store
+      THANOS_S3_BUCKET: thanos
+      THANOS_S3_ENDPOINT: minio:9000
+    volumes:
+      - thanos-bad-s3-data:/opt/containers/data
+
+  # An unknown component must be rejected.
+  thanos-bad-component:
+    image: thanos:test
+    environment:
+      THANOS_COMPONENT: does-not-exist
+    volumes:
+      - thanos-bad-component-data:/opt/containers/data
+
+volumes:
+  thanos-store-data:
+  thanos-bad-s3-data:
+  thanos-bad-component-data:

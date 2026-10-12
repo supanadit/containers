@@ -16,6 +16,7 @@ jobs:
       revision: ${{ steps.extract.outputs.revision }}
       context: ${{ steps.versions.outputs.context }}
       version: ${{ steps.extract.outputs.version }}
+      tag: ${{ steps.versions.outputs.tag }}
     steps:
       - name: Extract container, version and revision
         id: extract
@@ -49,6 +50,11 @@ jobs:
         run: |
           CONTEXT="docker/pgpool-ii"
           echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+          # pgpool2 git tags encode the version with underscores (V4_6_3 for 4.6.3).
+          TAG="V${VERSION//./_}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        env:
+          VERSION: ${{ steps.extract.outputs.version }}
 
   build:
     needs: setup
@@ -73,7 +79,8 @@ jobs:
           context: ${{ needs.setup.outputs.context }}
           push: true
           build-args: |
-            ETCD_VERSION=${{ needs.setup.outputs.version }}
+            PGPOOLII_VERSION=${{ needs.setup.outputs.version }}
+            PGPOOLII_TAG=${{ needs.setup.outputs.tag }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

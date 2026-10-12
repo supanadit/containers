@@ -1,0 +1,10 @@
+# Extensions test — verify shared_preload_libraries and extension availability
+services:
+  postgresql:
+    image: postgresql:test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass
+      POSTGRESQL_CONFIG_SHARED_PRELOAD_LIBRARIES: "pg_stat_statements,pgaudit,hypopg,pg_cron,pg_partman_bgw"
+      POSTGRESQL_CONFIG_PG_PARTMAN_BGW_DATABASE: "postgres"
+      POSTGRESQL_CONFIG_PG_PARTMAN_BGW_ROLE: "postgres"

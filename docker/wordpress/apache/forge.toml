@@ -1,0 +1,163 @@
+[project]
+name = "wordpress"
+description = "WordPress with Apache HTTP Server and PHP built from source"
+no_cache = true
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+WORDPRESS_VERSION = "6.9"
+APACHE_VERSION = "2.4.66"
+PHP_VERSION = "8.3.23"
+APR_VERSION = "1.7.6"
+APR_UTIL_VERSION = "1.6.5"
+APACHE_EXPORTER_VERSION = "1.0.10"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# 01-install-dependencies.sh
+#
+# Build deps for APR/Apache/PHP. Runtime libs are kept for the final image; the
+# -dev counterparts are stripped by the cleanup component once every source
+# build has finished.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["wget", "unzip", "build-essential", "perl", "pkg-config", "libexpat1-dev", "libpcre3-dev", "libssl-dev", "libxml2-dev", "libsqlite3-dev", "libcurl4-openssl-dev", "libonig-dev", "zlib1g-dev", "git", "autoconf", "flex", "bison", "libmemcached-dev", "libzip-dev", "libicu-dev", "libgd-dev", "libjpeg-dev", "libpng-dev", "libfreetype6-dev", "libmagickwand-dev"], runtime = ["libexpat1", "libpcre3", "libssl3", "libxml2", "libsqlite3-0", "libonig5", "zlib1g", "curl", "libmemcached11", "libzip4", "libicu72", "libgd3", "libjpeg62-turbo", "libpng16-16", "libfreetype6", "libcurl4", "libmagickcore-6.q16-6", "libmagickwand-6.q16-6", "imagemagick"] } },
+  { user = { name = "www-data", system = true, create_home = false } },
+  # WordPress runs as www-data but the entrypoint may exec the Apache master as
+  # root; keep the shell and home in a known state.
+  { mkdir = [{ path = "/var/www/html", mode = "0755", owner = "www-data" }] },
+  { mkdir = [{ path = "/opt/container", mode = "0755" }] },
+]
+
+# ============ 2. APR / APR-UTIL ============
+
+# 02-install-apr.sh — Apache Portable Runtime and its utility library. APR-util
+# must be pointed at the APR we just installed, so it depends on the apr step
+# and reuses its resolved prefix.
+[[components]]
+name = "apr"
+needs = ["system-deps"]
+ops = [
+  { source_install = { type = "archive", url = "https://archive.apache.org/dist/apr/apr-${APR_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/apr", jobs = 4, checksum_type = "sha256", checksum = "6a10e7f7430510600af25fabf466e1df61aaae910bf1dc5d10c44a4433ccc81d", verify = [{ file = "/usr/local/apr/lib/libapr-1.so" }] } },
+]
+
+[[components]]
+name = "apr-util"
+needs = ["apr"]
+ops = [
+  { source_install = { type = "archive", url = "https://archive.apache.org/dist/apr/apr-util-${APR_UTIL_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/apr", jobs = 4, checksum_type = "sha256", checksum = "f43a1c8c79eef497a022ec6c99dddbdf57e42001da6ccbfae259631ed5aa2805", flags = ["--with-apr=${step:apr.prefix}"], verify = [{ file = "/usr/local/apr/bin/apu-1-config" }] } },
+]
+
+# ============ 3. APACHE HTTP SERVER ============
+
+# 03-install-apache.sh — httpd with shared MPMs, mod_so and SSL. Installs to
+# /usr/local/apache2 (the httpd default prefix) with the PHP module loaded later
+# via mod_php.
+[[components]]
+name = "apache"
+needs = ["apr-util"]
+ops = [
+  { source_install = { type = "archive", url = "https://archive.apache.org/dist/httpd/httpd-${APACHE_VERSION}.tar.gz", strategy = "configure", prefix = "/usr/local/apache2", jobs = 4, checksum_type = "sha256", checksum = "442184763b60936471b88a91275f79d2407733b7aac27e345f270e8bc31c3d49", flags = ["--with-apr=${step:apr.prefix}", "--with-apr-util=${step:apr.prefix}/bin/apu-1-config", "--enable-so", "--enable-ssl", "--enable-mpms-shared=all"], verify = [{ file = "/usr/local/apache2/bin/httpd" }] } },
+]
+
+# ============ 4. APACHE EXPORTER ============
+
+# 04-install-apache-exporter.sh — single static binary out of the release
+# tarball; the checksum is verified by forge before extraction.
+[[components]]
+name = "apache-exporter"
+needs = ["system-deps"]
+ops = [
+  { binary_install = { url = "https://github.com/Lusitaniae/apache_exporter/releases/download/v${APACHE_EXPORTER_VERSION}/apache_exporter-${APACHE_EXPORTER_VERSION}.linux-${ARCH}.tar.gz", copy = [{ from = "apache_exporter-${APACHE_EXPORTER_VERSION}.linux-${ARCH}/apache_exporter", to = "/usr/local/bin/apache_exporter", mode = "0755" }] } },
+  { verify = [{ file = "/usr/local/bin/apache_exporter" }] },
+]
+
+# ============ 5. PHP ============
+
+# 05-install-php.sh + 06-install-php-extensions.sh — PHP is built once.
+#
+# exif is a bundled core extension, so it is compiled into the main build with
+# --enable-exif (built-in/static, no `extension=exif.so` line needed) instead of
+# a separate out-of-tree `phpize` build. opcache is a zend_extension that the
+# main configure builds shared by default, so its old standalone `ext/opcache`
+# phpize build was redundant; the runtime entrypoint.phpini.js loads it with
+# `zend_extension=opcache.so`. The third-party extensions (redis, memcached,
+# imagick) are genuine PECL-style out-of-tree builds that need phpize and their
+# -dev headers, so they stay as an ordered `after` list in the PHP source
+# directory (fast enough not to warrant their own source_install).
+[[components]]
+name = "php"
+needs = ["apache"]
+ops = [
+  { source_install = {
+      type = "archive",
+      url = "https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz",
+      strategy = "configure",
+      prefix = "/usr/local",
+      jobs = 4,
+      flags = ["--with-apxs2=/usr/local/apache2/bin/apxs", "--enable-mbstring", "--enable-gd", "--enable-intl", "--enable-exif", "--with-curl", "--with-openssl", "--with-pdo-mysql", "--with-mysqli", "--with-zlib", "--with-jpeg", "--with-freetype", "--with-zip"],
+      after = [
+        { raw = "cp php.ini-production /usr/local/lib/php.ini" },
+        { raw = "sed -i 's|;date.timezone =|date.timezone = UTC|' /usr/local/lib/php.ini" },
+        { raw = "git clone --depth 1 https://github.com/phpredis/phpredis.git /tmp/phpredis && cd /tmp/phpredis && /usr/local/bin/phpize && ./configure --with-php-config=/usr/local/bin/php-config && make -j4 && make install && echo 'extension=redis.so' >> /usr/local/lib/php.ini && rm -rf /tmp/phpredis" },
+        { raw = "git clone --depth 1 https://github.com/php-memcached-dev/php-memcached.git /tmp/php-memcached && cd /tmp/php-memcached && /usr/local/bin/phpize && ./configure --with-php-config=/usr/local/bin/php-config && make -j4 && make install && echo 'extension=memcached.so' >> /usr/local/lib/php.ini && rm -rf /tmp/php-memcached" },
+        { raw = "git clone --depth 1 https://github.com/Imagick/imagick.git /tmp/imagick && cd /tmp/imagick && /usr/local/bin/phpize && ./configure --with-php-config=/usr/local/bin/php-config && make -j4 && make install && echo 'extension=imagick.so' >> /usr/local/lib/php.ini && rm -rf /tmp/imagick" },
+      ],
+      verify = [{ file = "/usr/local/bin/php" }, { file = "/usr/local/lib/php.ini" }] } },
+]
+
+# ============ 6. WORDPRESS ============
+
+# 07-install-wordpress.sh — unpack WordPress into the document root. The
+# archive extracts to a `wordpress/` directory, so the `after` op flattens it.
+#
+# The stock httpd.conf edits (DocumentRoot, User/Group, mod_php, module enables)
+# are NOT done here: they are fast and env-overridable, so they run at runtime in
+# entrypoint.d/bootstrap/apache.js (provisionHttpdBase). In the original layout
+# they lived in setup/08-configure-apache.sh only because that numbered script
+# ran right after the Apache build that produces httpd.conf — an ordering
+# artifact, not a build requirement.
+[[components]]
+name = "wordpress"
+needs = ["php"]
+ops = [
+  { source_install = { type = "archive", url = "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz", strategy = "none", after = [{ raw = "cp -a wordpress/. /var/www/html/ && rm -rf wordpress" }, { chown = [{ path = "/var/www/html", owner = "www-data", group = "www-data", recursive = true }] }], verify = [{ file = "/var/www/html/wp-config-sample.php" }, { file = "/var/www/html/index.php" }] } },
+]
+
+# ============ 7. PLUGINS / THEMES (addons.sh) ============
+
+# User-supplied plugins and themes are copied into the build context and baked
+# into wp-content. Each entry is handled once:
+#   - a directory is copied verbatim
+#   - a .zip is extracted, collapsing a single top-level wrapper directory so a
+#     plugin packaged as "my-plugin/my-plugin/..." still lands flat
+# Anything else (notably the placeholder .gitkeep) is ignored, and both source
+# dirs are optional: the Dockerfile COPYs them into /tmp and this component is a
+# no-op when they hold nothing but .gitkeep.
+[[components]]
+name = "addons"
+needs = ["wordpress"]
+ops = [
+  { raw = "install_bundle() { src=\"$1\"; dest=\"$2\"; [ -d \"$src\" ] || return 0; mkdir -p \"$dest\"; for item in \"$src\"/*; do if [ -d \"$item\" ]; then cp -r \"$item\" \"$dest/\"; elif [ -f \"$item\" ] && [ \"${item##*.}\" = zip ]; then name=$(basename \"$item\" .zip); mkdir -p \"$dest/$name\"; unzip -q -o \"$item\" -d \"$dest/$name\"; if [ -d \"$dest/$name/$name\" ]; then mv \"$dest/$name/$name\"/* \"$dest/$name/\" 2>/dev/null || true; rmdir \"$dest/$name/$name\" 2>/dev/null || true; fi; fi; done; return 0; }; install_bundle /tmp/plugins /var/www/html/wp-content/plugins; install_bundle /tmp/themes /var/www/html/wp-content/themes" },
+  { chown = [{ path = "/var/www/html", owner = "www-data", group = "www-data", recursive = true }] },
+]
+
+# ============ 8. IMAGE CLEANUP ============
+
+# 09-cleanup.sh — strip build-only packages, static libs and non-English
+# locales. forge filters the remove list to packages actually installed, so it
+# stays portable across base images.
+[[components]]
+name = "cleanup"
+needs = ["addons", "apache-exporter"]
+ops = [
+  { packages = { remove = ["wget", "unzip", "build-essential", "perl", "pkg-config", "libexpat1-dev", "libpcre3-dev", "libssl-dev", "libxml2-dev", "libsqlite3-dev", "libcurl4-openssl-dev", "libonig-dev", "zlib1g-dev", "git", "autoconf", "flex", "bison", "libmemcached-dev", "libzip-dev", "libicu-dev", "libgd-dev", "libjpeg-dev", "libpng-dev", "libfreetype6-dev", "libmagickwand-dev", "nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "find /usr/local -name '*.a' -delete 2>/dev/null || true" },
+  { raw = "find /usr/local -name '*.la' -delete 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

@@ -1,0 +1,7 @@
+# Smoke test — minimal PostgreSQL with default config
+services:
+  postgresql:
+    image: postgresql:test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass

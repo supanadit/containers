@@ -1,0 +1,29 @@
+# Smoke test — PgPool-II bootstrapping without starting the daemon.
+#
+# SLEEP_MODE keeps ezx as PID 1 supervising a sleep node, so the bootstrap
+# (validation, directories, pgpool.conf/pool_hba.conf/pool_passwd generation)
+# runs to completion without needing live backends. This is the same switch the
+# other containers use for a cheap boot. Backend-dependent routing is covered by
+# the container-examples compose stacks, which need real PostgreSQL instances.
+services:
+  pgpool:
+    image: pgpool-ii:test
+    # The image's HEALTHCHECK runs a real query through pgpool against a live
+    # backend, which this sleep-mode test deliberately does not have. Disable it
+    # so `up --wait` waits for the container to run instead of timing out while
+    # waiting for a healthy backend.
+    healthcheck:
+      disable: true
+    environment:
+      PGPOOL_BACKENDS: "postgres-1:5432,postgres-2:5432"
+      PGPOOL_BACKEND_PASSWORD: "secret"
+      PGPOOL_ENABLE_POOL_HBA: "on"
+      PGPOOL_CONFIG_MAX_POOL: "7"
+      SLEEP_MODE: "true"
+    volumes:
+      - pgpool-config:/opt/containers/config
+      - pgpool-run:/opt/containers/run
+
+volumes:
+  pgpool-config:
+  pgpool-run:

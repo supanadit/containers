@@ -1,0 +1,16 @@
+# Combined test — PgBouncer + pgBackRest working together
+services:
+  postgresql:
+    image: postgresql:test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass
+      PGBOUNCER_ENABLE: "true"
+      PGBACKREST_ENABLE: "true"
+      PGBOUNCER_MAX_CLIENT_CONN: "100"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "10"
+    volumes:
+      - pgbackrest_backup:/opt/containers/backup
+
+volumes:
+  pgbackrest_backup:

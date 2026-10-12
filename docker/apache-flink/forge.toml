@@ -1,0 +1,74 @@
+[project]
+name = "apache-flink"
+description = "Apache Flink distributed stream processing engine"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+JAVA_VERSION = "21"
+CORRETTO_VERSION = "21.0.12.9.1"
+CORRETTO_SHA256_X64 = "f79824540cef882da0cdf1369f9d1d69afc14b5a9bc3a771fd5bb795793ce2f2"
+CORRETTO_SHA256_AARCH64 = "cda6f38775da6ba19e154dd2194a309dabfb12da87ad13f396893d9a555eb1ce"
+FLINK_VERSION = "2.1.1"
+SCALA_VERSION = "2.12"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+[[components]]
+name = "system-deps"
+ops = [
+  { user = { name = "flink", system = true, create_home = false } },
+  { packages = { runtime = ["curl", "ca-certificates", "bash", "coreutils", "procps", "tzdata", "gzip", "tar"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. JDK (Amazon Corretto) ============
+# Pinned Corretto release + per-arch SHA-256. TARGETARCH is mapped to the
+# Corretto artifact name (amd64 -> x64, arm64 -> aarch64).
+[[components]]
+name = "jdk"
+needs = ["system-deps"]
+ops = [
+  { raw = """
+set -e
+case "${ARCH}" in
+  amd64) arch=x64; sha=${CORRETTO_SHA256_X64} ;;
+  arm64) arch=aarch64; sha=${CORRETTO_SHA256_AARCH64} ;;
+  *) echo "unsupported ARCH=${ARCH}" >&2; exit 1 ;;
+esac
+url="https://corretto.aws/downloads/resources/${CORRETTO_VERSION}/amazon-corretto-${CORRETTO_VERSION}-linux-$arch.tar.gz"
+mkdir -p /tmp/jdk && cd /tmp/jdk
+curl -fsSL "$url" -o jdk.tar.gz
+echo "$sha  jdk.tar.gz" | sha256sum -c -
+mkdir -p /opt/java
+tar -xzf jdk.tar.gz --strip-components=1 -C /opt/java
+rm -rf /tmp/jdk
+""" },
+  { verify = [{ file = "/opt/java/bin/java" }] },
+]
+
+# ============ 3. FLINK ============
+[[components]]
+name = "flink"
+needs = ["system-deps"]
+ops = [
+  { source_install = { type = "archive", url = "https://archive.apache.org/dist/flink/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz", strategy = "none",
+    after = [
+      { raw = "mkdir -p /opt/flink && cp -a flink-${FLINK_VERSION}/. /opt/flink/ && chmod 0755 /opt/flink/bin/*.sh" },
+      { raw = "mkdir -p /opt/flink/plugins && cp /opt/flink/conf/flink-conf.yaml /opt/container/flink-conf.yaml.default 2>/dev/null || true" },
+    ],
+    verify = [{ file = "/opt/flink/bin/flink" }, { file = "/opt/flink/bin/jobmanager.sh" }, { file = "/opt/flink/bin/taskmanager.sh" }] } },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+[[components]]
+name = "cleanup"
+needs = ["jdk", "flink"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /opt/flink/examples /opt/flink/opt" },
+  { raw = "find /opt/flink -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

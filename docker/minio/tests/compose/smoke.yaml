@@ -1,0 +1,15 @@
+# Smoke test — minimal MinIO standalone server.
+services:
+  minio:
+    image: minio:test
+    environment:
+      MINIO_ROOT_USER: superadmin
+      MINIO_ROOT_PASSWORD: supersecretpassword
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - minio-data:/opt/containers/data
+
+volumes:
+  minio-data:

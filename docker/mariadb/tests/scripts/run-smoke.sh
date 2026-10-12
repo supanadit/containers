@@ -1,0 +1,47 @@
+#!/bin/bash
+# tests/scripts/run-smoke.sh — Minimal MariaDB smoke test
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="$DIR/../compose/smoke.yaml"
+SERVICE="mariadb"
+MARIADB_SOCKET="/opt/containers/run/mysqld.sock"
+
+trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
+
+echo "=== Smoke Test ==="
+echo "Starting container..."
+docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
+
+# --wait only guarantees PID 1 (ezx) is running. The first boot runs
+# mariadb-install-db, the bootstrap SQL and then starts the server, so poll the
+# socket until the server answers before asserting.
+echo "Waiting for MariaDB to accept connections..."
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
+    mariadb-admin --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl ping > /dev/null 2>&1 && break
+  sleep 1
+done
+
+echo ""
+echo "Test 1: mariadb-admin ping"
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb-admin --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl ping
+echo "  PASS"
+
+echo ""
+echo "Test 2: SELECT 1"
+result=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl -N -e "SELECT 1;" | tr -d '[:space:]')
+[ "$result" = "1" ] && echo "  PASS" || { echo "  FAIL: expected '1', got '$result'"; exit 1; }
+
+echo ""
+echo "Test 3: MariaDB version"
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl -N -e "SELECT VERSION();" | grep -q "MariaDB" || { echo "  FAIL: version check"; exit 1; }
+echo "  PASS"
+
+echo ""
+echo "Test 4: Server process running"
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "mariadbd" > /dev/null || { echo "  FAIL: no mariadbd process"; exit 1; }
+echo "  PASS"
+
+echo ""
+echo "=== ALL SMOKE TESTS PASSED ==="

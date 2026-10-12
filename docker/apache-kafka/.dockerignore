@@ -16,6 +16,7 @@ LICENSE*
 # Development and testing
 specs/
 test/
+tests/
 *.test
 .coverage
 node_modules/

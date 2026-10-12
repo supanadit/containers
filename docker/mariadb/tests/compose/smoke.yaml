@@ -1,0 +1,6 @@
+# Smoke test — minimal MariaDB with default config
+services:
+  mariadb:
+    image: mariadb:test
+    environment:
+      MARIADB_ROOT_PASSWORD: testpass
