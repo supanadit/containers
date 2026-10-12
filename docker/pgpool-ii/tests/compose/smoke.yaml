@@ -8,6 +8,12 @@
 services:
   pgpool:
     image: pgpool-ii:test
+    # The image's HEALTHCHECK runs a real query through pgpool against a live
+    # backend, which this sleep-mode test deliberately does not have. Disable it
+    # so `up --wait` waits for the container to run instead of timing out while
+    # waiting for a healthy backend.
+    healthcheck:
+      disable: true
     environment:
       PGPOOL_BACKENDS: "postgres-1:5432,postgres-2:5432"
       PGPOOL_BACKEND_PASSWORD: "secret"

@@ -13,7 +13,17 @@ trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FIL
 
 echo "=== Smoke Test ==="
 echo "Starting container..."
+# The image HEALTHCHECK needs a live backend, so it is disabled in smoke.yaml
+# (sleep mode has none); wait for the container to run instead of for healthy.
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 120
+
+# --wait only guarantees PID 1 (ezx) is running; poll until the bootstrap has
+# written pgpool.conf before asserting on generated files.
+echo "Waiting for the bootstrap to generate pgpool.conf..."
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" test -s /opt/containers/config/pgpool.conf > /dev/null 2>&1 && break
+  sleep 1
+done
 
 echo ""
 echo "Test 1: pgpool.conf is generated with pid_file_name set"
@@ -37,10 +47,12 @@ docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -q "^backend_hostname0
 echo "  PASS"
 
 echo ""
-echo "Test 4: pool_passwd is generated from pg_md5 (0600, postgres:md5...)"
+echo "Test 4: pool_passwd holds an AES entry (pg_enc, 0600)"
+# pgpool authenticates to scram-sha-256 backends as a client, which requires the
+# recoverable password, so the entry must be AES (pg_enc), never an md5 hash.
 passwd_contents="$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" cat /opt/containers/config/pool_passwd)"
-printf '%s' "$passwd_contents" | grep -qE '^postgres:md5[0-9a-f]{32}$' \
-  || { echo "  FAIL: unexpected pool_passwd content: $passwd_contents"; exit 1; }
+printf '%s' "$passwd_contents" | grep -qE '^postgres:AES[0-9A-Za-z+/=]+$' \
+  || { echo "  FAIL: expected 'postgres:AES<base64>', got: $passwd_contents"; exit 1; }
 perms="$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" stat -c '%a' /opt/containers/config/pool_passwd)"
 [ "$perms" = "600" ] || { echo "  FAIL: pool_passwd is $perms, want 600"; exit 1; }
 echo "  PASS"
