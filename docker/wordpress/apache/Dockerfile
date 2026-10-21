@@ -14,7 +14,7 @@
 # syntax=docker/dockerfile:1.6
 FROM debian:bookworm AS base
 
-ARG WORDPRESS_VERSION="6.9"
+ARG WORDPRESS_VERSION="6.9.5"
 ARG APACHE_VERSION="2.4.66"
 ARG PHP_VERSION="8.3.23"
 ARG APR_VERSION="1.7.6"
@@ -61,7 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # ---------------------------------------------------------------------------
 FROM toolchain AS setup
 
-ARG WORDPRESS_VERSION="6.9"
+ARG WORDPRESS_VERSION="6.9.5"
 ARG APACHE_VERSION="2.4.66"
 ARG PHP_VERSION="8.3.23"
 ARG APR_VERSION="1.7.6"
@@ -104,7 +104,7 @@ ENV EZX_HEALTH_ADDR="127.0.0.1:8080"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.8.0
+ARG EZX_VERSION=0.8.1
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).

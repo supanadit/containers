@@ -30,6 +30,15 @@ const APACHE_ROOT = env.get("APACHE_ROOT", "/usr/local/apache2");
 const APACHE_CONF = env.get("APACHE_CONF", APACHE_ROOT + "/conf/httpd.conf");
 const APACHE_STATUS_CONF = env.get("APACHE_STATUS_CONF", APACHE_ROOT + "/conf/extra/httpd-status.conf");
 const APACHE_MPM_CONF = env.get("APACHE_MPM_CONF", APACHE_ROOT + "/conf/extra/httpd-mpm.conf");
+// A container-owned security include. Kept separate from httpd.conf so the
+// hardening directives live in one fully-reset file (idempotent across
+// restarts) instead of being appended after a config that Apache may have
+// relocated (the php_module LoadModule/AddType block moves to EOF).
+const APACHE_SECURITY_CONF = env.get("APACHE_SECURITY_CONF", APACHE_ROOT + "/conf/extra/httpd-security.conf");
+// A container-owned performance include (compression + browser caching). Kept
+// separate from httpd.conf and from the security include for the same reason:
+// deterministic ordering and idempotent rewrites.
+const APACHE_PERFORMANCE_CONF = env.get("APACHE_PERFORMANCE_CONF", APACHE_ROOT + "/conf/extra/httpd-performance.conf");
 const APACHE_HTPASSWD = env.get("APACHE_BIN", APACHE_ROOT + "/bin/httpd");
 const PHP_INI = env.get("PHP_INI", "/usr/local/lib/php.ini");
 // PHP_DIR holds the shipped PHP fragments (https.php, loopback.php) that the
@@ -56,6 +65,55 @@ const IS_PROTECT_XMLRPC = env.bool("IS_PROTECT_XMLRPC");
 const IS_PROTECT_WPCONFIG = env.bool("IS_PROTECT_WPCONFIG");
 const CUSTOM_TABLE_PREFIX = env.get("CUSTOM_TABLE_PREFIX", "");
 const SKIP_PERMISSIONS = env.bool("SKIP_PERMISSIONS");
+
+// ---------------------------------------------------------------------------
+// Security baseline (hardening). See docs/wordpress/hardening.md.
+//
+// IS_SECURITY_BASELINE is the umbrella: when true it turns on the safe, no-
+// downside hardening set below. Each setting may also be toggled on its own,
+// independently of the umbrella. All default to the umbrella's value (off
+// unless the umbrella is set), so enabling the baseline enables everything and
+// granular flags still work alone.
+// ---------------------------------------------------------------------------
+const IS_SECURITY_BASELINE = env.bool("IS_SECURITY_BASELINE");
+const IS_HIDE_SERVER_INFO = env.bool("IS_HIDE_SERVER_INFO", IS_SECURITY_BASELINE);
+const IS_DISABLE_DIRLIST = env.bool("IS_DISABLE_DIRLIST", IS_SECURITY_BASELINE);
+const IS_DISABLE_TRACE = env.bool("IS_DISABLE_TRACE", IS_SECURITY_BASELINE);
+const IS_SECURITY_HEADERS = env.bool("IS_SECURITY_HEADERS", IS_SECURITY_BASELINE);
+const IS_BLOCK_SENSITIVE_FILES = env.bool("IS_BLOCK_SENSITIVE_FILES", IS_SECURITY_BASELINE);
+const IS_BLOCK_PHP_IN_UPLOADS = env.bool("IS_BLOCK_PHP_IN_UPLOADS", IS_SECURITY_BASELINE);
+const IS_SLOWLORIS_PROTECT = env.bool("IS_SLOWLORIS_PROTECT", IS_SECURITY_BASELINE);
+const IS_PROTECT_WPLOGIN = env.bool("IS_PROTECT_WPLOGIN");
+// IS_HSTS is off by default even under the umbrella: a wrong HSTS header can
+// make a domain unreachable, so it is always an explicit opt-in.
+const IS_HSTS = env.bool("IS_HSTS");
+
+// Explicit values. Empty means "use the built-in default".
+const APACHE_REQTIMEOUT = env.get("APACHE_REQTIMEOUT", "");
+const APACHE_RATE_LIMIT = env.get("APACHE_RATE_LIMIT", "");
+const APACHE_MAX_KEEPALIVE_REQUESTS = env.get("APACHE_MAX_KEEPALIVE_REQUESTS", "");
+const TRUSTED_PROXY_IPS = env.get("TRUSTED_PROXY_IPS", "");
+const WP_LOGIN_ALLOW_IPS = env.get("WP_LOGIN_ALLOW_IPS", "");
+
+// ---------------------------------------------------------------------------
+// Performance (compression + browser caching). See docs/wordpress/performance.md.
+//
+// Off by default, like the security baseline, so existing deployments are
+// unaffected. IS_COMPRESSION turns on gzip (mod_deflate) and, when APACHE_BROTLI
+// is also set, Brotli (mod_brotli) as the preferred encoding. IS_EXPIRES_CACHING
+// turns on mod_expires with long lifetimes for versioned static assets and a
+// revalidating lifetime for HTML.
+// ---------------------------------------------------------------------------
+const IS_COMPRESSION = env.bool("IS_COMPRESSION");
+const IS_EXPIRES_CACHING = env.bool("IS_EXPIRES_CACHING");
+// Brotli is opt-in: it compresses better than gzip but costs more CPU.
+const APACHE_BROTLI = env.bool("APACHE_BROTLI");
+const APACHE_BROTLI_QUALITY = env.get("APACHE_BROTLI_QUALITY", "5");
+// Comma/space separated MIME types to compress; empty means the built-in list.
+const APACHE_COMPRESS_TYPES = env.get("APACHE_COMPRESS_TYPES", "");
+// mod_expires lifetimes. Accepts Apache syntax, e.g. "access plus 1 year".
+const APACHE_EXPIRES_ASSETS = env.get("APACHE_EXPIRES_ASSETS", "");
+const APACHE_EXPIRES_HTML = env.get("APACHE_EXPIRES_HTML", "");
 
 // ---------------------------------------------------------------------------
 // PHP limits (php.ini)
@@ -158,6 +216,8 @@ module.exports = {
   APACHE_CONF,
   APACHE_STATUS_CONF,
   APACHE_MPM_CONF,
+  APACHE_SECURITY_CONF,
+  APACHE_PERFORMANCE_CONF,
   APACHE_HTPASSWD,
   PHP_INI,
   PHP_DIR,
@@ -173,6 +233,30 @@ module.exports = {
   IS_HTTPS,
   IS_PROTECT_XMLRPC,
   IS_PROTECT_WPCONFIG,
+  // security baseline
+  IS_SECURITY_BASELINE,
+  IS_HIDE_SERVER_INFO,
+  IS_DISABLE_DIRLIST,
+  IS_DISABLE_TRACE,
+  IS_SECURITY_HEADERS,
+  IS_BLOCK_SENSITIVE_FILES,
+  IS_BLOCK_PHP_IN_UPLOADS,
+  IS_SLOWLORIS_PROTECT,
+  IS_PROTECT_WPLOGIN,
+  IS_HSTS,
+  APACHE_REQTIMEOUT,
+  APACHE_RATE_LIMIT,
+  APACHE_MAX_KEEPALIVE_REQUESTS,
+  TRUSTED_PROXY_IPS,
+  WP_LOGIN_ALLOW_IPS,
+  // performance
+  IS_COMPRESSION,
+  IS_EXPIRES_CACHING,
+  APACHE_BROTLI,
+  APACHE_BROTLI_QUALITY,
+  APACHE_COMPRESS_TYPES,
+  APACHE_EXPIRES_ASSETS,
+  APACHE_EXPIRES_HTML,
   CUSTOM_TABLE_PREFIX,
   SKIP_PERMISSIONS,
   // php limits

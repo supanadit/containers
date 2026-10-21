@@ -33,6 +33,8 @@ const {
 } = require("./apache");
 const { startApache, startSleep } = require("./runtime");
 const { registerOpsRoutes } = require("./api");
+const { provisionSecurityBaseline } = require("./security");
+const { provisionPerformance } = require("./performance");
 
 function main() {
   fs.umask(0o027);
@@ -48,6 +50,15 @@ function main() {
 
   // php.ini limits and OPcache (init/06).
   provisionPhpIni();
+
+  // Optional hardening include (conf/extra/httpd-security.conf). Runs before
+  // provisionHttpdBase so the file exists when its Include line is written.
+  provisionSecurityBaseline();
+
+  // Optional performance include (conf/extra/httpd-performance.conf): response
+  // compression and browser caching. Also runs before provisionHttpdBase so its
+  // Include line and module LoadModule edits are in place.
+  provisionPerformance();
 
   // Apache httpd.conf: stock base config, then MPM, status, exporter
   // (setup/08 + init/07, 08, 09).

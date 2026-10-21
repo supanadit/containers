@@ -8,6 +8,7 @@
 // runtime (not build time) so it stays env-overridable and follows the
 // "only slow/blocking work belongs in the setup layer" rule.
 const { editor, fs, log } = require("ezx");
+const { apacheSecurityInclude, provisionHtaccessSecurity } = require("./security");
 const {
   APACHE_CONF,
   APACHE_STATUS_CONF,
@@ -67,7 +68,10 @@ function mpmSettings() {
       MinSpareServers: num(APACHE_MPM_PREFORK_MIN_SPARE_SERVERS, lowMemory ? 1 : 5),
       MaxSpareServers: num(APACHE_MPM_PREFORK_MAX_SPARE_SERVERS, lowMemory ? 3 : 10),
       MaxRequestWorkers: num(APACHE_MPM_PREFORK_MAX_REQUEST_WORKERS, lowMemory ? 10 : 250),
-      MaxConnectionsPerChild: num(APACHE_MPM_PREFORK_MAX_REQUESTS_PER_CHILD, lowMemory ? 100 : 0),
+      // A finite value is deliberate even outside low-memory mode: an unbounded
+      // worker (0) never releases leaked memory and is the classic cause of a
+      // long-uptime container slowly sliding into swap.
+      MaxConnectionsPerChild: num(APACHE_MPM_PREFORK_MAX_REQUESTS_PER_CHILD, lowMemory ? 100 : 10000),
     };
   }
   if (APACHE_MPM === "worker") {
@@ -77,7 +81,8 @@ function mpmSettings() {
       MaxSpareThreads: num(APACHE_MPM_WORKER_MAX_SPARE_THREADS, lowMemory ? 25 : 250),
       ThreadsPerChild: num(APACHE_MPM_WORKER_THREADS_PER_CHILD, lowMemory ? 10 : 25),
       MaxRequestWorkers: num(APACHE_MPM_WORKER_MAX_REQUEST_WORKERS, lowMemory ? 50 : 400),
-      MaxConnectionsPerChild: num(APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD, lowMemory ? 100 : 0),
+      // Finite by default so workers recycle and release memory over time.
+      MaxConnectionsPerChild: num(APACHE_MPM_WORKER_MAX_CONNECTIONS_PER_CHILD, lowMemory ? 100 : 10000),
     };
   }
   // event (default)
@@ -87,8 +92,14 @@ function mpmSettings() {
     MaxSpareThreads: num(APACHE_MPM_EVENT_MAX_SPARE_THREADS, lowMemory ? 25 : 250),
     ThreadsPerChild: num(APACHE_MPM_EVENT_THREADS_PER_CHILD, lowMemory ? 10 : 25),
     MaxRequestWorkers: num(APACHE_MPM_EVENT_MAX_REQUEST_WORKERS, lowMemory ? 50 : 400),
-    MaxConnectionsPerChild: num(APACHE_MPM_EVENT_MAX_CONNECTIONS_PER_CHILD, lowMemory ? 100 : 0),
+    // Finite by default so workers recycle and release memory over time.
+    MaxConnectionsPerChild: num(APACHE_MPM_EVENT_MAX_CONNECTIONS_PER_CHILD, lowMemory ? 100 : 10000),
   };
+}
+
+// escapeRegExp — escape a literal string for use inside a RegExp source.
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // provisionHttpdBase — the stock httpd.conf transforms that used to live in
@@ -104,13 +115,23 @@ function provisionHttpdBase() {
   conf.property("Group", WORDPRESS_GROUP);
   conf.property("DirectoryIndex", "index.php index.html");
 
-  // The document-root <Directory> block: retarget the opener and set its own
-  // AllowOverride/Require inside the block scope (so <Directory /> keeps its
-  // restrictive defaults).
-  conf.line('^\\s*<Directory\\s+"/usr/local/apache2/htdocs">', '<Directory "' + WORDPRESS_ROOT + '">');
-  const dir = conf.wrap('<Directory "' + WORDPRESS_ROOT + '">', "</Directory>");
-  dir.property("AllowOverride", "All");
-  dir.property("Require", "all granted");
+  // The document-root <Directory> block. `conf.property`/`conf.wrap` append at
+  // EOF when their pattern does not match, and there is at most one matching
+  // `<Directory ...>` opener per run. A second run (docker restart, crash-loop,
+  // host reboot) would otherwise append ANOTHER opener with no closer, leaving
+  // httpd.conf unparseable. So this block is written once: the opener is only
+  // retargeted while the retargeted form is not already present, and the
+  // in-block directives are only set when the opener was actually retargeted.
+  const alreadyRetargeted = new RegExp(
+    '^\\s*<Directory\\s+"' + escapeRegExp(WORDPRESS_ROOT) + '">',
+    "m",
+  ).test(conf.read());
+  if (!alreadyRetargeted) {
+    conf.line('^\\s*<Directory\\s+"/usr/local/apache2/htdocs">', '<Directory "' + WORDPRESS_ROOT + '">');
+    const dir = conf.wrap('<Directory "' + WORDPRESS_ROOT + '">', "</Directory>");
+    dir.property("AllowOverride", "All");
+    dir.property("Require", "all granted");
+  }
 
   // mod_php + MIME handlers
   conf.add("LoadModule", "php_module modules/libphp.so");
@@ -125,6 +146,10 @@ function provisionHttpdBase() {
       "LoadModule " + mod + "_module modules/mod_" + mod + ".so",
     );
   }
+
+  // Pull in the container-owned hardening include last, so its server-scope
+  // directives apply after the stock defaults.
+  apacheSecurityInclude();
 }
 
 // setModule — comment or uncomment the LoadModule line for an MPM module, in
@@ -150,15 +175,21 @@ function provisionMpm() {
     conf.line("^\\s*#?\\s*Include\\s+conf/extra/httpd-mpm\\.conf", "Include conf/extra/httpd-mpm.conf");
   }
 
-  // A custom MPM block is only applied when the matching MPM is selected and the
-  // extra config is included (mirrors the bash guards).
+  // The MPM block is written when the extra config is included and either a
+  // per-MPM custom flag is set, or APACHE_LOW_MEMORY_MODE is on. Low-memory mode
+  // alone is therefore sufficient (as the docs promise): mpmSettings() supplies
+  // the low-memory defaults, and any explicit APACHE_MPM_* value still wins.
+  // Without the APACHE_LOW_MEMORY_MODE clause the documented "just set
+  // APACHE_LOW_MEMORY_MODE" workflow silently wrote no settings at all.
   const customSelected =
     (APACHE_CUSTOM_MPM_PREFORK && APACHE_MPM === "prefork") ||
     (APACHE_CUSTOM_MPM_EVENT && APACHE_MPM === "event") ||
     (APACHE_CUSTOM_MPM_WORKER && APACHE_MPM === "worker");
 
-  if (customSelected && includeMpm) {
-    log.info("Configuring custom " + APACHE_MPM + " MPM settings");
+  if (includeMpm && (customSelected || APACHE_LOW_MEMORY_MODE)) {
+    log.info(
+      "Configuring " + (customSelected ? "custom " : "low-memory ") + APACHE_MPM + " MPM settings",
+    );
     const block = editor.open(APACHE_MPM_CONF).wrap(
       "<IfModule mpm_" + APACHE_MPM + "_module>",
       "</IfModule>",
@@ -194,9 +225,9 @@ function provisionStatus() {
 }
 
 // provisionHtaccess — init/10-htaccess.sh: WordPress rewrite rules, xmlrpc and
-// wp-config protections. Also the mod_info/server-info exclusions the exporter
-// needs (init/09-apache-exporter.sh) so /server-status and /server-info bypass
-// the WordPress front controller.
+// wp-config protections. /server-status bypasses the WordPress front controller
+// whenever APACHE_STATUS is on; /server-info only when the exporter (which loads
+// mod_info) is enabled.
 function provisionHtaccess() {
   const htaccess = WORDPRESS_ROOT + "/.htaccess";
   const ed = editor.open(htaccess);
@@ -212,12 +243,25 @@ function provisionHtaccess() {
   wp.add("RewriteRule", "^index\\.php$ - [L]");
   wp.add("RewriteCond", "%{REQUEST_FILENAME} !-f");
   wp.add("RewriteCond", "%{REQUEST_FILENAME} !-d");
+  // /server-status bypasses the WordPress front controller whenever Apache
+  // status is enabled. This must NOT depend on APACHE_EXPORTER: the exporter is
+  // only the optional metrics sidecar, and gating this on it made
+  // /server-status 404 (rewritten to index.php) for anyone who enabled
+  // APACHE_STATUS on its own.
+  if (APACHE_STATUS) {
+    wp.add("RewriteCond", "%{REQUEST_URI} !^/server-status");
+  }
+  // mod_info (and therefore /server-info) is only loaded alongside the
+  // exporter, so its exclusion stays tied to it.
   if (APACHE_EXPORTER && APACHE_STATUS) {
     wp.add("RewriteCond", "%{REQUEST_URI} !^/wp-admin/");
-    wp.add("RewriteCond", "%{REQUEST_URI} !^/server-status");
     wp.add("RewriteCond", "%{REQUEST_URI} !^/server-info");
   }
   wp.add("RewriteRule", ". /index.php [L]");
+
+  // Optional hardening rules (sensitive files, wp-login allowlist). Owned by
+  // security.js and written into their own managed sections.
+  provisionHtaccessSecurity(ed);
 
   provisionSecurity(ed);
 
@@ -266,4 +310,5 @@ module.exports = {
   provisionSecurity,
   mpmSettings,
   setModule,
+  escapeRegExp,
 };

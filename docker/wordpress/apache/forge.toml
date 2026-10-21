@@ -5,7 +5,7 @@ no_cache = true
 
 # Values come from Dockerfile ARG (passed via -var) or environment.
 [vars]
-WORDPRESS_VERSION = "6.9"
+WORDPRESS_VERSION = "6.9.5"
 APACHE_VERSION = "2.4.66"
 PHP_VERSION = "8.3.23"
 APR_VERSION = "1.7.6"
