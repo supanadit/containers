@@ -17,7 +17,10 @@
 // every sidecar's stdout/stderr to its own file under /opt/containers/logs/
 // with size-based rotation, so a noisy pgbouncer cannot drown out postgres
 // (or vice versa) on the shared parent stdout.
-const { env, fs, chain, scheduler } = require("ezx");
+// `process` and `log` must come from the ezx module scope — they are NOT
+// globals in the goja runtime (typeof process === "undefined"), so using them
+// un-imported inside a callback throws a ReferenceError.
+const { env, fs, chain, scheduler, process, log } = require("ezx");
 const {
 	PGDATA,
 	PGRUN,
@@ -35,6 +38,7 @@ const {
 	REPL_ROLE,
 	REPL_USER,
 	REPL_PASSWORD,
+	REPL_SLOTS,
 	HA_MODE,
 	STANZA,
 	PG_READY_MAX_ATTEMPTS,
@@ -85,7 +89,9 @@ function userlistInit() {
 	const pgUser = env.get("POSTGRES_USER", "postgres");
 	const pgPass = PG_PASS;
 	const escapedUser = pgUser.replace(/"/g, '\\"');
-	// Build the userlist line inside onStart (after postgres is ready).
+	// Build the userlist line after postgres is ready. This is a callback-only
+	// oneshot: `onStart` is the documented hook for its work (ezx >= 0.8.1),
+	// and it runs to completion before dependents proceed.
 	const build = () => {
 		if (!pgPass) {
 			return '"' + pgUser + '" ""';
@@ -172,6 +178,9 @@ function stanzaInit() {
 // startup.sh:create_replication_user). Connects via the local unix socket as
 // the postgres superuser (POSTGRES_PASSWORD), matching the original bash which
 // used peer/trust auth on the socket — NOT the replicator's password.
+// Implemented as a real process node (not a JS callback) so the oneshot's exit
+// code is genuine: a psql failure aborts the graph rather than being reduced to
+// the callback's own return.
 function replUser() {
 	if (HA_MODE !== "native" || REPL_ROLE !== "primary" || !REPL_USER) return null;
 	if (!REPL_PASSWORD) throw new Error("REPLICATION_PASSWORD required for native-HA primary");
@@ -185,26 +194,59 @@ function replUser() {
 		"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + escapedRole + "') THEN " +
 		"CREATE ROLE " + REPL_USER + " REPLICATION LOGIN PASSWORD '" + escapedPass + "'; " +
 		"END IF; END $$;";
-	const create = () => {
-		const code = process.run({
-			process: {
-				binaryPath: "psql",
-				arguments: ["-h", PGRUN, "-p", PG_PORT, "-U", pgUser, "-d", "postgres", "-c", sql],
-				environment: ["PGPASSWORD=" + pgPass],
-				user: PG_USER,
-				group: PG_GROUP,
-			},
-		});
-		if (code !== 0) {
-			log.error("[replication] failed to create replication role (code=" + code + ")");
-		}
-	};
 	return {
 		name: "replication-user",
 		oneshot: true,
 		dependsOnEdges: [readyOn()],
-		onStart: create,
-		log: shotLog("replication-user"),
+		process: {
+			binaryPath: "psql",
+			arguments: ["-v", "ON_ERROR_STOP=1", "-h", PGRUN, "-p", PG_PORT, "-U", pgUser, "-d", "postgres", "-c", sql],
+			environment: ["PGPASSWORD=" + pgPass],
+			user: PG_USER,
+			group: PG_GROUP,
+			log: shotLog("replication-user"),
+		},
+	};
+}
+
+// replSlots — create the physical replication slots declared in the
+// comma-separated REPLICATION_SLOTS env on a native-HA primary (bash
+// startup.sh:create_replication_slots). Idempotent: each name is only created
+// when it does not already exist in pg_replication_slots. immediately_reserve
+// => true starts WAL retention at the current LSN so a standby that connects
+// later is guaranteed its WAL from connection time onward; cap runaway
+// retention with POSTGRESQL_CONFIG_MAX_SLOT_WAL_KEEP_SIZE on the primary.
+// Replicas reference these slots via REPLICATION_SLOT (primary_slot_name +
+// pg_basebackup -S), so this must exist before a standby clones. Implemented
+// as a real process node so a psql failure is a real oneshot failure.
+function replSlots() {
+	if (HA_MODE !== "native" || REPL_ROLE !== "primary") return null;
+	const slots = String(REPL_SLOTS || "")
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+	if (slots.length === 0) return null;
+	const pgUser = env.get("POSTGRES_USER", "postgres");
+	const pgPass = env.get("POSTGRES_PASSWORD", "");
+	// Names are validated up-front (validation.js), but still escape for SQL
+	// literal context (single-quote doubling) as defense in depth.
+	const list = slots.map((s) => "'" + s.replace(/'/g, "''") + "'").join(",");
+	const sql =
+		"SELECT pg_create_physical_replication_slot(s, true) " +
+		"FROM unnest(ARRAY[" + list + "]) AS t(s) " +
+		"WHERE NOT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = s);";
+	return {
+		name: "replication-slots",
+		oneshot: true,
+		dependsOnEdges: [readyOn()],
+		process: {
+			binaryPath: "psql",
+			arguments: ["-v", "ON_ERROR_STOP=1", "-h", PGRUN, "-p", PG_PORT, "-U", pgUser, "-d", "postgres", "-c", sql],
+			environment: ["PGPASSWORD=" + pgPass],
+			user: PG_USER,
+			group: PG_GROUP,
+			log: shotLog("replication-slots"),
+		},
 	};
 }
 
@@ -283,17 +325,19 @@ function backupFlags(type) {
 	};
 	flag("PGBACKREST_BACKUP_START_FAST", "--start-fast");
 	flag("PGBACKREST_BACKUP_STOP_AUTO", "--stop-auto");
-	flagDefault("PGBACKREST_BACKUP_VERIFY", "--verify", true);
+	// NOTE: pgBackRest has no `backup --verify` option; `verify` is a COMMAND
+	// (`pgbackrest verify --set=...`). The old PGBACKREST_BACKUP_VERIFY mapping
+	// emitted an invalid option, so EVERY backup failed with
+	// "[031] invalid option '--verify'". Removed.
 	flag("PGBACKREST_BACKUP_CHECKSUM_PAGE", "--checksum-page");
 	flagDefault("PGBACKREST_BACKUP_ARCHIVE_CHECK", "--archive-check", true);
 	flag("PGBACKREST_BACKUP_ARCHIVE_COPY", "--archive-copy");
 	flag("PGBACKREST_BACKUP_EXPIRE_AUTO", "--expire-auto");
 	flagDefault("PGBACKREST_BACKUP_RESUME", "--resume", true);
-	flagDefault(
-		"PGBACKREST_BACKUP_ARCHIVE_MISSING_RETRY",
-		"--archive-missing-retry",
-		true,
-	);
+	// NOTE: archive-missing-retry is a global/archive-get option, not a backup
+	// one ("[031] option 'archive-missing-retry' not valid for command
+	// 'backup'"). The old PGBACKREST_BACKUP_ARCHIVE_MISSING_RETRY mapping broke
+	// the default backup command too. Removed.
 	for (const x of (env.get("PGBACKREST_BACKUP_EXCLUDE") || "")
 		.split(/[, ]+/)
 		.filter(Boolean))
@@ -447,7 +491,7 @@ function startDatabase() {
 	// to be ready" via dependsOnEdges so the explicit wait mode is visible at
 	// each edge instead of being inherited from a parent in a nested tree.
 	const nodes = [database];
-	for (const n of [stanzaInit(), replUser(), userlistInit(), pgbouncerNode(), sshdNode(), roleCheck]) {
+	for (const n of [stanzaInit(), replUser(), replSlots(), userlistInit(), pgbouncerNode(), sshdNode(), roleCheck]) {
 		if (n) nodes.push(n);
 	}
 	for (const n of backupNodes()) nodes.push(n);

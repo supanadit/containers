@@ -211,6 +211,8 @@ function scramInitNode() {
 		// itself needs credentials, so waiting for ready would deadlock. A short
 		// settle delay lets the broker open its listener, then we add the users.
 		dependsOnEdges: [{ name: "kafka", waitFor: "started" }],
+		// Callback-only oneshot: `onStart` runs to completion before dependents
+		// proceed, so the settle sleep + SCRAM bootstrap stay ordered correctly.
 		onStart: () => {
 			process.sleep(5e9);
 			bootstrapScram();

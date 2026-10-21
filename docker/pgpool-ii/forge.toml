@@ -5,11 +5,11 @@ no_cache = true
 
 # Values come from Dockerfile ARG (passed via -var) or environment.
 [vars]
-PGPOOLII_VERSION = "4.6.3"
-# pgpool2 git tags encode the version with underscores (V4_6_3 for 4.6.3).
+PGPOOLII_VERSION = "4.6.8"
+# pgpool2 git tags encode the version with underscores (V4_6_8 for 4.6.8).
 # forge interpolation has no string-replace syntax, so the Dockerfile derives
 # the tag and passes it as PGPOOLII_TAG; this is only a fallback.
-PGPOOLII_TAG = "V4_6_3"
+PGPOOLII_TAG = "V4_6_8"
 
 # ============ 1. SYSTEM LAYER ============
 

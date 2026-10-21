@@ -164,6 +164,39 @@ function validateEnvironment() {
 		fail(`Invalid POSTGRESQL_MAX_CONNECTIONS: ${maxConn}`);
 	}
 
+	// Replication slot names (REPLICATION_SLOT / REPLICATION_SLOTS). PostgreSQL
+	// slot names must be lowercase letters, digits, underscores — and must not
+	// start with a digit — max 63 bytes. Validated here because the names are
+	// interpolated into the slot-creation SQL and written to primary_slot_name.
+	const slotName = /^[a-z_][a-z0-9_]{0,62}$/;
+	const replSlot = env.get("REPLICATION_SLOT");
+	if (replSlot && !slotName.test(replSlot)) {
+		fail(`Invalid REPLICATION_SLOT: ${replSlot} (must match [a-z_][a-z0-9_]*)`);
+	}
+	const replSlots = env.get("REPLICATION_SLOTS");
+	if (replSlots) {
+		for (const raw of replSlots.split(",")) {
+			const name = raw.trim();
+			if (name && !slotName.test(name)) {
+				fail(`Invalid REPLICATION_SLOTS entry: ${name} (must match [a-z_][a-z0-9_]*)`);
+			}
+		}
+	}
+
+	// wal_keep_size / max_slot_wal_keep_size (native HA). -1 is valid for
+	// max_slot_wal_keep_size (unlimited); wal_keep_size rejects it.
+	const walKeepSize = env.get("POSTGRESQL_CONFIG_WAL_KEEP_SIZE", env.get("REPLICATION_WAL_KEEP_SIZE"));
+	if (walKeepSize && !validateMemoryValue(walKeepSize)) {
+		fail(`Invalid wal_keep_size: ${walKeepSize} (use e.g. 256MB, 1GB)`);
+	}
+	const maxSlotWalKeepSize = env.get(
+		"POSTGRESQL_CONFIG_MAX_SLOT_WAL_KEEP_SIZE",
+		env.get("REPLICATION_MAX_SLOT_WAL_KEEP_SIZE"),
+	);
+	if (maxSlotWalKeepSize && maxSlotWalKeepSize !== "-1" && !validateMemoryValue(maxSlotWalKeepSize)) {
+		fail(`Invalid max_slot_wal_keep_size: ${maxSlotWalKeepSize} (use e.g. 2GB, or -1 for unlimited)`);
+	}
+
 	return !failed;
 }
 
@@ -174,6 +207,7 @@ function validateHaConfiguration() {
 		log.error(msg);
 		failed = true;
 	};
+	const warn = (msg) => log.warn(msg);
 
 	if (env.get("HA_MODE", "") === "native") {
 		if (env.bool("PATRONI_ENABLE")) {
@@ -185,6 +219,12 @@ function validateHaConfiguration() {
 		}
 		if (role === "replica" && !env.get("PRIMARY_HOST")) {
 			fail("PRIMARY_HOST must be set for replica role");
+		}
+		if (role === "primary" && env.get("REPLICATION_SLOT")) {
+			warn("REPLICATION_SLOT is set on a primary; it only has an effect on replicas");
+		}
+		if (role === "replica" && env.get("REPLICATION_SLOTS")) {
+			warn("REPLICATION_SLOTS is set on a replica; it only has an effect on the primary");
 		}
 	}
 	return !failed;

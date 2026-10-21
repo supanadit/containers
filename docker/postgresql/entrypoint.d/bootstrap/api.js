@@ -131,8 +131,10 @@ function checkRole() {
 }
 
 // handleSyncReload — rewrite synchronous_standby_names and reload without
-// restart (port of misc/pg-reload-sync-config.sh). POST body/query:
-//   mode=true&count=1&replicas=pg2  |  mode=false
+// restart (port of misc/pg-reload-sync-config.sh). The target value is read from
+// the container environment — handlers receive no request object, so there is no
+// body/query to parse:
+//   SYNC_MODE=true&SYNC_COUNT=1&SYNC_REPLICAS=pg2  |  SYNC_MODE=false
 function handleSyncReload() {
 	const mode = env.get("SYNC_MODE", env.get("REPLICATION_SYNCHRONOUS_MODE", "true"));
 	const count = env.get("SYNC_COUNT", env.get("REPLICATION_SYNCHRONOUS_COUNT", ""));
@@ -159,6 +161,97 @@ function handleSyncReload() {
 	});
 	if (code !== 0) throw new Error("pg_ctl reload failed (code=" + code + ")");
 	return { ok: true, synchronous_standby_names: mode === "true" ? (count && replicas ? "ANY " + count + " (" + replicas + ")" : "*") : "(removed)" };
+}
+
+// inRecovery — live standby check for the /promote guard. Returns true
+// (standby), false (primary), or null when the state cannot be determined
+// (server unreachable, psql failed, unreadable output). Callers must treat
+// null as "do not promote".
+function inRecovery() {
+	const res = process.capture({
+		process: {
+			binaryPath: "psql",
+			arguments: [
+				"-h",
+				env.get("POSTGRES_HOST", "127.0.0.1"),
+				"-p",
+				PG_PORT,
+				"-U",
+				PG_USER,
+				"-d",
+				env.get("POSTGRES_DB", PG_DB),
+				"-tA",
+				"-c",
+				"select pg_is_in_recovery();",
+			],
+			environment: ["PGPASSWORD=" + (env.get("POSTGRES_PASSWORD") || "")],
+			check: false,
+		},
+	});
+	if (res.code !== 0) return null;
+	const out = res.stdout.trim();
+	if (out === "t") return true;
+	if (out === "f") return false;
+	return null;
+}
+
+// refuse — uniform refusal payload for /promote. ok:false + reason, so an
+// operator (or automation) always gets an explicit answer, never a silent
+// no-op that looks like success.
+function refuse(reason) {
+	log.warn("[promote] refused: " + reason);
+	return { ok: false, promoted: false, reason: reason };
+}
+
+// handlePromote — POST /promote: turn this native-HA standby into the
+// primary (pg_ctl promote under the hood, ezx keeps supervising the
+// postmaster). Safety first: a promote is ONE-WAY for the data dir — Postgres
+// drops standby.signal, so the node comes back as a primary even if the
+// REPLICATION_ROLE env flip is forgotten — and a stray call on a primary
+// would be a split-brain starter. So the call is refused unless BOTH the
+// bootstrap role (env) and the live server state agree this node is a
+// standby:
+//   1. Patroni owns promotion there — never promote behind its back.
+//   2. HA_MODE must be native (nothing to promote otherwise).
+//   3. REPLICATION_ROLE must be "replica" (bootstrap-time role; a node
+//      started as primary is refused outright).
+//   4. The live server must report pg_is_in_recovery()=t — this also catches
+//      the already-promoted-then-restarted case, where the env still says
+//      replica but the data dir is already a primary.
+//   5. Unreachable/undeterminable state is treated as "do not promote".
+function handlePromote() {
+	if (PATRONI_ENABLE) {
+		return refuse("promotion under Patroni is Patroni's job (PATRONI REST /fail), not /promote");
+	}
+	if (env.get("HA_MODE") !== "native") {
+		return refuse("HA_MODE is not native; this node has no standby to promote");
+	}
+	const role = env.get("REPLICATION_ROLE");
+	if (role !== "replica") {
+		return refuse("REPLICATION_ROLE is '" + (role || "(unset)") + "', not 'replica'; refusing to promote a non-standby");
+	}
+	const recovery = inRecovery();
+	if (recovery === null) {
+		return refuse("cannot determine server state (is postgres up and reachable?); refusing to promote");
+	}
+	if (recovery === false) {
+		return refuse("server reports it is already a primary (pg_is_in_recovery()=f); refusing");
+	}
+	const code = process.run({
+		process: {
+			binaryPath: "pg_ctl",
+			arguments: ["-D", PGDATA, "promote"],
+			user: PG_USER,
+			group: PG_GROUP,
+		},
+	});
+	if (code !== 0) throw new Error("pg_ctl promote failed (code=" + code + ")");
+	log.warn("[promote] standby promoted to primary (new timeline)");
+	return {
+		ok: true,
+		promoted: true,
+		note: "promote is one-way: flip REPLICATION_ROLE=primary (+ REPLICATION_SLOTS, see compose ROLE SWAP) so restarts agree with the new topology; verify with SELECT pg_is_in_recovery();",
+	};
 }
 
 // healthCheck — composite health probes (port of runtime/healthcheck.sh).
@@ -243,10 +336,16 @@ function roleCheckNode() {
 }
 
 // registerOpsRoutes — bind operator routes + backup routes. The role-check
-// node is added to the chain by runtime.js.
+// node is added to the chain by runtime.js. /promote is only registered on a
+// native-HA node (404 elsewhere — a clearer signal than a guard refusal on
+// nodes that can never promote); the in-handler guards then cover the
+// role/state cases, including "hit while primary".
 function registerOpsRoutes() {
 	api.post("/sync-reload", () => handleSyncReload());
 	api.get("/health/comprehensive", () => handleHealth());
+	if (!PATRONI_ENABLE && env.get("HA_MODE") === "native") {
+		api.post("/promote", () => handlePromote());
+	}
 	registerBackupRoutes();
 }
 
@@ -256,6 +355,8 @@ module.exports = {
 	roleCheckNode,
 	handleSyncReload,
 	handleHealth,
+	handlePromote,
+	inRecovery,
 	checkRole,
 	regenerateForPrimary,
 	regenerateForReplica,

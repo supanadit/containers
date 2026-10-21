@@ -37,6 +37,11 @@ const HA_MODE = env.get("HA_MODE", "");
 const REPL_ROLE = env.get("REPLICATION_ROLE", "");
 const REPL_USER = env.get("REPLICATION_USER", "replicator");
 const REPL_PASSWORD = env.get("REPLICATION_PASSWORD", "");
+// Physical replication slots (native HA): REPL_SLOT is this standby's own
+// slot (primary_slot_name + pg_basebackup -S); REPL_SLOTS is the primary's
+// comma-separated list of slots to ensure exist, one per standby.
+const REPL_SLOT = env.get("REPLICATION_SLOT", "");
+const REPL_SLOTS = env.get("REPLICATION_SLOTS", "");
 const PRIMARY_HOST = env.get("PRIMARY_HOST", "");
 const PRIMARY_PORT = env.get("PRIMARY_PORT", "5432");
 const REPL_SYNC_MODE = env.get("REPLICATION_SYNCHRONOUS_MODE", "true");
@@ -110,6 +115,8 @@ module.exports = {
 	REPL_ROLE,
 	REPL_USER,
 	REPL_PASSWORD,
+	REPL_SLOT,
+	REPL_SLOTS,
 	PRIMARY_HOST,
 	PRIMARY_PORT,
 	REPL_SYNC_MODE,

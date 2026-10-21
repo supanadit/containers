@@ -23,6 +23,7 @@ const {
 	PGBOUNCER_POOL_MODE,
 	PGBOUNCER_MAX_CLIENT_CONN,
 	PGBOUNCER_DEFAULT_POOL_SIZE,
+	REPL_SLOT,
 	POSTGRES_CONF,
 	PG_HBA,
 	PGBACKREST_CONF,
@@ -662,17 +663,30 @@ function postgresFiles() {
 		],
 	},
 	// Native HA replication settings (HA_MODE=native), mirrors
-	// 03-config.sh:apply_native_ha_config.
+	// 03-config.sh:apply_native_ha_config. wal_keep_size and
+	// max_slot_wal_keep_size honour POSTGRESQL_CONFIG_* first (the generic
+	// override block above already wrote them; re-asserting the same value
+	// keeps this block from clobbering it), then the REPLICATION_* alias,
+	// then the built-in default.
 	{
 		path: POSTGRES_CONF,
 		when: { name: "HA_MODE", value: "native" },
 		operations: (() => {
+			const walKeepSize = env.get(
+				"POSTGRESQL_CONFIG_WAL_KEEP_SIZE",
+				env.get("REPLICATION_WAL_KEEP_SIZE", "256MB"),
+			);
+			const maxSlotWalKeepSize = env.get(
+				"POSTGRESQL_CONFIG_MAX_SLOT_WAL_KEEP_SIZE",
+				env.get("REPLICATION_MAX_SLOT_WAL_KEEP_SIZE", "-1"),
+			);
 			const ops = [
 				{ type: "set-property", pattern: "^listen_addresses\\s*=.*", value: "listen_addresses = '*'", valueFormat: "raw" },
 				{ type: "set-property", pattern: "^wal_level\\s*=.*", value: "wal_level = replica", valueFormat: "raw" },
 				{ type: "set-property", pattern: "^max_wal_senders\\s*=.*", value: "max_wal_senders = 10", valueFormat: "raw" },
 				{ type: "set-property", pattern: "^max_replication_slots\\s*=.*", value: "max_replication_slots = 10", valueFormat: "raw" },
-				{ type: "set-property", pattern: "^wal_keep_size\\s*=.*", value: "wal_keep_size = 256MB", valueFormat: "raw" },
+				{ type: "set-property", pattern: "^wal_keep_size\\s*=.*", value: "wal_keep_size = " + walKeepSize, valueFormat: "raw" },
+				{ type: "set-property", pattern: "^max_slot_wal_keep_size\\s*=.*", value: "max_slot_wal_keep_size = " + maxSlotWalKeepSize, valueFormat: "raw" },
 				{ type: "set-property", pattern: "^hot_standby\\s*=.*", value: "hot_standby = on", valueFormat: "raw" },
 			];
 			// Synchronous replication: on by default; when off, remove the line.
@@ -694,15 +708,29 @@ function postgresFiles() {
 			return ops;
 		})(),
 	},
-	// Replica-specific native HA settings (hot_standby_feedback, standby delays).
+	// Replica-specific native HA settings (hot_standby_feedback, standby
+	// delays). When REPLICATION_SLOT is set, it is also written as
+	// primary_slot_name so the standby streams through its own physical slot
+	// on the primary (WAL retention then follows the slot, not wal_keep_size).
 	{
 		path: POSTGRES_CONF,
 		when: { name: "REPLICATION_ROLE", value: "replica" },
-		operations: [
-			{ type: "set-property", pattern: "^hot_standby_feedback\\s*=.*", value: "hot_standby_feedback = on", valueFormat: "raw" },
-			{ type: "set-property", pattern: "^max_standby_streaming_delay\\s*=.*", value: "max_standby_streaming_delay = -1", valueFormat: "raw" },
-			{ type: "set-property", pattern: "^max_standby_archive_delay\\s*=.*", value: "max_standby_archive_delay = -1", valueFormat: "raw" },
-		],
+		operations: (() => {
+			const ops = [
+				{ type: "set-property", pattern: "^hot_standby_feedback\\s*=.*", value: "hot_standby_feedback = on", valueFormat: "raw" },
+				{ type: "set-property", pattern: "^max_standby_streaming_delay\\s*=.*", value: "max_standby_streaming_delay = -1", valueFormat: "raw" },
+				{ type: "set-property", pattern: "^max_standby_archive_delay\\s*=.*", value: "max_standby_archive_delay = -1", valueFormat: "raw" },
+			];
+			if (REPL_SLOT) {
+				ops.push({
+					type: "set-property",
+					pattern: "^primary_slot_name\\s*=.*",
+					value: "primary_slot_name = " + REPL_SLOT,
+					valueFormat: "raw",
+				});
+			}
+			return ops;
+		})(),
 	},
 	// pg_hba.conf: always overwrite the initdb-generated default (mirrors bash
 	// 03-config.sh), then external-access + PG_HBA_ADD_*.

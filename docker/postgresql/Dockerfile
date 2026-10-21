@@ -118,7 +118,7 @@ ENV PATH="/usr/local/pgsql/bin:/usr/local/pgbouncer/bin:$PATH"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.8.0
+ARG EZX_VERSION=0.8.1
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).
@@ -142,6 +142,12 @@ COPY entrypoint.d/ /opt/container/entrypoint.d/
 RUN mkdir -p /opt/containers/data /opt/containers/config /opt/containers/logs /opt/containers/run /opt/containers/backup \
     && chown -R postgres:postgres /opt/container /opt/containers \
     && chmod -R 755 /opt/container/
+
+# The ezx health API — the shared HTTP server that api.js registers routes on
+# (/promote, /sync-reload, /backup/*, /health/comprehensive) — only listens when
+# EZX_HEALTH_ADDR is set. Bind it to loopback: it is an in-container operator
+# surface, deliberately not published. Mirrors mariadb/pgpool-ii.
+ENV EZX_HEALTH_ADDR="127.0.0.1:8080"
 
 # Set the stop signal for proper container shutdown
 STOPSIGNAL SIGTERM

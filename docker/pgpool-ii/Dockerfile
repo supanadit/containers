@@ -13,7 +13,7 @@
 # syntax=docker/dockerfile:1.6
 FROM debian:bookworm AS base
 
-ARG PGPOOLII_VERSION=4.6.3
+ARG PGPOOLII_VERSION=4.6.8
 
 # Build metadata
 ARG BUILD_DATE
@@ -52,9 +52,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # ---------------------------------------------------------------------------
 FROM toolchain AS setup
 
-ARG PGPOOLII_VERSION=4.6.3
-# pgpool2 git tags encode the version with underscores (V4_6_3 for 4.6.3).
-ARG PGPOOLII_TAG=V4_6_3
+ARG PGPOOLII_VERSION=4.6.8
+# pgpool2 git tags encode the version with underscores (V4_6_8 for 4.6.8).
+ARG PGPOOLII_TAG=V4_6_8
 
 COPY forge.toml /opt/forge.toml
 
@@ -87,7 +87,7 @@ ENV EZX_HEALTH_ADDR="127.0.0.1:8080"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.8.0
+ARG EZX_VERSION=0.8.1
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).

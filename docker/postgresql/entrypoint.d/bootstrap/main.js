@@ -27,8 +27,16 @@
 // stdout. Requires a postgres image with postgres installed. Run:
 //   ezx bootstrap examples/bootstrap/supanadit/postgresql/main.js
 const { fs, editor, log } = require("ezx");
-const { SLEEP_MODE, RESTORE_SENTINEL, PG_USER, PG_GROUP } = require("./env");
+const {
+	SLEEP_MODE,
+	RESTORE_SENTINEL,
+	PG_USER,
+	PG_GROUP,
+	PGBACKREST_ENABLE,
+	PGBACKREST_CONF,
+} = require("./env");
 const { initdb, performRestore } = require("./database");
+const { pgbackrestConfig } = require("./config");
 const { startSleep, startDatabase } = require("./runtime");
 const {
 	validateEnvironment,
@@ -175,6 +183,16 @@ function setupSshd() {
 	} catch { /* read-only */ }
 }
 
+// writePgbackrestConf — materialise /etc/pgbackrest.conf from the environment
+// early. The process tree rewrites the same file from the same source later, so
+// this is idempotent; it exists so that restore-time helpers can read it.
+function writePgbackrestConf() {
+	if (!PGBACKREST_ENABLE) return;
+	fs.write(PGBACKREST_CONF, pgbackrestConfig(), { mode: 0o640 });
+	fs.chown(PGBACKREST_CONF, PG_USER + ":" + PG_GROUP);
+	fs.chmod(PGBACKREST_CONF, 0o640);
+}
+
 function main() {
 	fs.umask(0o027);
 
@@ -192,6 +210,14 @@ function main() {
 	}
 
 	setupDirectories();
+
+	// /etc/pgbackrest.conf must exist before initdb(): the restore path and its
+	// backup-age guard run ahead of the process tree that would normally write it
+	// declaratively. Without this the file is still the empty one baked into the
+	// image and pgbackrest fails with
+	// "restore command requires option: pg1-path".
+	writePgbackrestConf();
+
 	initdb();
 
 	// Config is generated declaratively when the process tree starts
