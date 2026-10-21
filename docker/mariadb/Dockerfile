@@ -78,7 +78,7 @@ ENV PATH="/usr/local/mariadb/bin:/usr/local/mariadb/scripts:$PATH"
 # ---------------------------------------------------------------------------
 FROM setup AS runtime
 
-ARG EZX_VERSION=0.8.0
+ARG EZX_VERSION=0.8.1
 ARG TARGETARCH
 
 # Download and verify the ezx entrypoint engine (runtime-only dependency).

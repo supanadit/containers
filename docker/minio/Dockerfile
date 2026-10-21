@@ -85,7 +85,7 @@ RUN apt-get update \
 # ---------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 
-ARG EZX_VERSION=0.8.0
+ARG EZX_VERSION=0.8.1
 ARG TARGETARCH=amd64
 
 COPY --from=setup /usr/local/bin/minio /usr/local/bin/minio
