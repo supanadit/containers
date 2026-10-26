@@ -13,13 +13,14 @@ echo "=== Smoke Test ==="
 echo "Starting container..."
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
 
-# --wait only guarantees PID 1 (ezx) is running. The first boot runs
-# mariadb-install-db, the bootstrap SQL and then starts the server, so poll the
-# socket until the server answers before asserting.
-echo "Waiting for MariaDB to accept connections..."
+# --wait only guarantees PID 1 (ezx) is running. On first boot a temporary
+# socket-only server (skip-networking) runs the bootstrap SQL before the real
+# server starts, so a socket ping answers too early. Only the real server
+# accepts TCP, so wait for that.
+echo "Waiting for MariaDB to accept TCP connections..."
 for _ in $(seq 1 60); do
   docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-    mariadb-admin --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl ping > /dev/null 2>&1 && break
+    mariadb -u root -ptestpass --skip-ssl -h 127.0.0.1 -N -e "SELECT 1;" > /dev/null 2>&1 && break
   sleep 1
 done
 
