@@ -13,6 +13,16 @@ echo "=== Edge-Case Test ==="
 echo "Starting container..."
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
 
+# --wait only guarantees PID 1 (ezx) is running. The first boot runs
+# mariadb-install-db, the bootstrap SQL and then starts the server, so poll the
+# socket until the server answers before asserting.
+echo "Waiting for MariaDB to accept connections..."
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
+    mariadb-admin --socket=/opt/containers/run/mysqld.sock -u root -ptestpass --skip-ssl ping > /dev/null 2>&1 && break
+  sleep 1
+done
+
 echo ""
 echo "Test 1: Database 'myapp' was created"
 result=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb -u root -ptestpass --skip-ssl --socket=/opt/containers/run/mysqld.sock -N -e "SHOW DATABASES LIKE 'myapp';" | tr -d '[:space:]')

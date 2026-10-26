@@ -14,8 +14,9 @@ trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FIL
 echo "=== Smoke Test ==="
 echo "Starting container..."
 # The image HEALTHCHECK needs a live backend, so it is disabled in smoke.yaml
-# (sleep mode has none); wait for the container to run instead of for healthy.
-docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 120
+# (sleep mode has none). `up --wait` errors out when the container has no
+# healthcheck, so plain `up -d` plus the poll below is the wait.
+docker compose -f "$COMPOSE_FILE" up -d
 
 # --wait only guarantees PID 1 (ezx) is running; poll until the bootstrap has
 # written pgpool.conf before asserting on generated files.
