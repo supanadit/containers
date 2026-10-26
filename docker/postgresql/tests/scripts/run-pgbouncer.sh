@@ -31,7 +31,14 @@ echo "  PASS"
 
 echo ""
 echo "Test 2: PgBouncer process running"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null || { echo "  FAIL: pgbouncer process not found"; exit 1; }
+# ezx starts pgbouncer only after the database reports ready, which is later
+# than the socket accepting connections — poll instead of a single shot.
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null 2>&1 && break
+  sleep 1
+done
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null \
+  || { echo "  FAIL: pgbouncer process not found"; docker compose -f "$COMPOSE_FILE" logs "$SERVICE" | tail -20; exit 1; }
 echo "  PASS"
 
 echo ""

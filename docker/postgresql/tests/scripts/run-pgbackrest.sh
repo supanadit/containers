@@ -40,6 +40,15 @@ docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" bash -c 'grep -q "^\[global
 echo "  PASS"
 
 echo ""
+# stanza-init is an ezx one-shot that runs after postgres is ready; give it
+# time to create the stanza before asserting on it.
+echo "Waiting for the pgBackRest stanza to be created..."
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T -u postgres "$SERVICE" pgbackrest --stanza=default info > /dev/null 2>&1 && break
+  sleep 1
+done
+
+echo ""
 echo "Test 4: pgbackrest stanza check (as postgres user)"
 docker compose -f "$COMPOSE_FILE" exec -T -u postgres "$SERVICE" pgbackrest --stanza=default check 2>&1 || { echo "  FAIL: pgbackrest check failed"; exit 1; }
 echo "  PASS"

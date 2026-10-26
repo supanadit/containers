@@ -31,13 +31,29 @@ echo "  PASS"
 
 echo ""
 echo "Test 2: pgbouncer process running"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null || { echo "  FAIL: pgbouncer process not found"; exit 1; }
+# ezx starts pgbouncer only after the database reports ready, which is later
+# than the socket accepting connections — poll instead of a single shot.
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null 2>&1 && break
+  sleep 1
+done
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null \
+  || { echo "  FAIL: pgbouncer process not found"; docker compose -f "$COMPOSE_FILE" logs "$SERVICE" | tail -20; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 3: Query through PgBouncer"
 result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -tA -c "SELECT 1;" | tr -d '[:space:]')
 [ "$result" = "1" ] && echo "  PASS" || { echo "  FAIL: expected '1' through pgbouncer, got '$result'"; exit 1; }
+
+echo ""
+# stanza-init is an ezx one-shot that runs after postgres is ready; give it
+# time to create the stanza before asserting on it.
+echo "Waiting for the pgBackRest stanza to be created..."
+for _ in $(seq 1 60); do
+  docker compose -f "$COMPOSE_FILE" exec -T -u postgres "$SERVICE" pgbackrest --stanza=default info > /dev/null 2>&1 && break
+  sleep 1
+done
 
 echo ""
 echo "Test 4: pgbackrest stanza check (as postgres user)"
