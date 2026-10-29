@@ -11,27 +11,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Show buildx + cache env
-        run: |
-          docker buildx version
-          echo "--- cache-related env (names only) ---"
-          env | grep -oE '^ACTIONS_[A-Z_]+' | sort || true
-
-      - name: Build trivial image with gha cache
+      - name: Prepare Dockerfile
         run: |
           mkdir -p /tmp/probe
           printf 'FROM alpine:3.20\nRUN echo probe && mkdir -p /out && echo ok > /out/x\n' > /tmp/probe/Dockerfile
-          docker buildx build --load --progress=plain \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            -t cache-probe:1 /tmp/probe
 
-      - name: Build again in the same job (selftest)
-        run: |
-          docker buildx build --load --progress=plain \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            -t cache-probe:2 /tmp/probe
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build trivial image with gha cache (action)
+        uses: docker/build-push-action@v5
+        with:
+          context: /tmp/probe
+          load: true
+          tags: cache-probe:1
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check cache entries
+        run: gh api "/repos/supanadit/containers/actions/caches" --jq '.total_count' || true
+        env:
+          GH_TOKEN: ${{ github.token }}
