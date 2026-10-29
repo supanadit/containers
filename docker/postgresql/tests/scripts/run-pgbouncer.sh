@@ -12,6 +12,23 @@ PG_SOCKET="/opt/containers/run"
 
 trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
 
+# A refused connection only says "port closed"; the reason lives in the
+# container (pgbouncer's own logfile plus the ezx per-node logs), so a bare
+# exit code is undiagnosable. Dump that state before failing.
+dump_diagnostics() {
+  echo "  --- diagnostics ---"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -a pgbouncer 2>&1 || echo "  (no pgbouncer process)"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pg_isready -h localhost -p 6432 -U postgres 2>&1 || true
+  echo "  --- pgbouncer.log ---"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" tail -40 /var/log/pgbouncer/pgbouncer.log 2>&1 || true
+  echo "  --- /opt/containers/logs/pgbouncer.log ---"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" tail -40 /opt/containers/logs/pgbouncer.log 2>&1 || true
+  echo "  --- /opt/containers/logs/pgbouncer-userlist.log ---"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" tail -20 /opt/containers/logs/pgbouncer-userlist.log 2>&1 || true
+  echo "  --- compose logs ---"
+  docker compose -f "$COMPOSE_FILE" logs --no-color --tail=40 "$SERVICE" 2>&1 || true
+}
+
 echo "=== PgBouncer Test ==="
 echo "Starting container..."
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
@@ -30,31 +47,36 @@ docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pg_isready -h "$PG_SOCKET" 
 echo "  PASS"
 
 echo ""
-echo "Test 2: PgBouncer process running"
-# ezx starts pgbouncer only after the database reports ready, which is later
-# than the socket accepting connections — poll instead of a single shot.
+echo "Test 2: PgBouncer accepting connections on 6432"
+# The process can exist without its listener: pgbouncer loads auth_file at
+# startup and exits if the userlist is not there yet, so poll the port itself
+# rather than a pid. pg_isready treats any server response (including an auth
+# request) as "accepting connections".
+ready=false
 for _ in $(seq 1 60); do
-  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null 2>&1 && break
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pg_isready -h localhost -p 6432 -U postgres > /dev/null 2>&1 \
+    && { ready=true; break; }
   sleep 1
 done
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" pgrep -f "pgbouncer" > /dev/null \
-  || { echo "  FAIL: pgbouncer process not found"; docker compose -f "$COMPOSE_FILE" logs "$SERVICE" | tail -20; exit 1; }
+$ready || { echo "  FAIL: pgbouncer is not listening on 6432"; dump_diagnostics; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 3: SHOW POOLS via PgBouncer admin interface"
-result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>/dev/null)
-echo "$result" | grep -q "postgres" || { echo "  FAIL: SHOW POOLS did not return pools"; echo "  output: $result"; exit 1; }
+# Keep psql's stderr: discarding it turns an auth failure into a bare exit 2.
+result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>&1) \
+  || { echo "  FAIL: SHOW POOLS could not connect"; echo "  output: $result"; dump_diagnostics; exit 1; }
+echo "$result" | grep -q "postgres" || { echo "  FAIL: SHOW POOLS did not return pools"; echo "  output: $result"; dump_diagnostics; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 4: Query through PgBouncer"
-result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -tA -c "SELECT 1;" | tr -d '[:space:]')
-[ "$result" = "1" ] && echo "  PASS" || { echo "  FAIL: expected '1', got '$result'"; exit 1; }
+result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -tA -c "SELECT 1;" 2>&1 | tr -d '[:space:]')
+[ "$result" = "1" ] && echo "  PASS" || { echo "  FAIL: expected '1', got '$result'"; dump_diagnostics; exit 1; }
 
 echo ""
 echo "Test 5: Connection count via PgBouncer SHOW STATS"
-docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW STATS;" > /dev/null 2>&1 || { echo "  FAIL: SHOW STATS failed"; exit 1; }
+docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW STATS;" > /dev/null || { echo "  FAIL: SHOW STATS failed"; dump_diagnostics; exit 1; }
 echo "  PASS"
 
 echo ""

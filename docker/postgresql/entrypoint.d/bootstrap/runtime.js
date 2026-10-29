@@ -260,7 +260,11 @@ function pgbouncerNode() {
 	if (!PGBOUNCER_ENABLE) return null;
 	return {
 		name: "pgbouncer",
-		dependsOnEdges: [readyOn()],
+		// pgbouncer loads auth_file at startup, so a start that races the
+		// userlist oneshot dies with "cannot open auth_file" and then sits in
+		// the restart backoff with the port closed. Wait for that oneshot's
+		// exit-0 success gate instead of just the postgres ready edge.
+		dependsOnEdges: [readyOn(), { name: "pgbouncer-userlist", waitFor: "exit" }],
 		optional: true,
 		process: {
 			binaryPath: "pgbouncer",
