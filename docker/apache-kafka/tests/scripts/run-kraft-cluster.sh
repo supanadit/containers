@@ -18,18 +18,34 @@ on_exit() {
     done
   fi
   echo ">>> Cleanup: bringing down compose"
-  rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+  docker compose -f "$COMPOSE_FILE" down -v > /dev/null 2>&1 || true
 }
 trap on_exit EXIT
 
 echo "=== KRaft Cluster Test ==="
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 240
 
+# The compose healthcheck only proves the JVM exists (pgrep), so `--wait`
+# returns while the node is still "waiting to be unfenced". Poll the controller
+# quorum instead: admin commands fail with UnsupportedVersionException ("The
+# node does not support METADATA") until the leader is elected.
+wait_quorum() {
+  local deadline=$((SECONDS + 180))
+  until docker compose -f "$COMPOSE_FILE" exec -T kafka-1 \
+        kafka-metadata-quorum.sh --bootstrap-server localhost:9093 describe --status 2>/dev/null \
+        | grep -q "CurrentVoters"; do
+    if [ $SECONDS -ge $deadline ]; then
+      echo "  FAIL: quorum never formed"
+      return 1
+    fi
+    sleep 5
+  done
+}
+
 echo ""
 echo "Test 1: all three brokers registered"
-docker compose -f "$COMPOSE_FILE" exec -T kafka-1 \
-    kafka-metadata-quorum.sh --bootstrap-server localhost:9093 describe --status \
-    | grep -q "CurrentVoters" && echo "  PASS" || { echo "  FAIL: no quorum status"; exit 1; }
+wait_quorum || exit 1
+echo "  PASS"
 
 echo ""
 echo "Test 2: create a replication-factor-3 topic"

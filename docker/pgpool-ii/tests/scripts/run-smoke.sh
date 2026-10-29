@@ -22,7 +22,7 @@ on_exit() {
     done
   fi
   echo ">>> Cleanup: bringing down compose"
-  rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+  docker compose -f "$COMPOSE_FILE" down -v > /dev/null 2>&1 || true
 }
 trap on_exit EXIT
 
