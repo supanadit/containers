@@ -59,9 +59,12 @@ echo "  PASS"
 
 echo ""
 echo "Test 4: composite health is healthy"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-    curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -c '"healthy":true' > /dev/null \
-    || { echo "  FAIL: health not healthy"; exit 1; }
+health="$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/health/comprehensive)" || true
+if ! grep -c '"healthy":true' <<<"$health" > /dev/null; then
+  printf '%s\n' "$health"
+  echo "  FAIL: health not healthy"
+  exit 1
+fi
 echo "  PASS"
 
 echo ""

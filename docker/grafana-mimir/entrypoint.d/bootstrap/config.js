@@ -10,6 +10,7 @@ const {
 	GRAFANA_MIMIR_CONFIG,
 	MIMIR_TARGET,
 	MIMIR_STORAGE_PREFIX,
+	MIMIR_ACTIVITY_FILE,
 	MIMIR_TSDB_DIR,
 	MIMIR_MEMBER_LIST,
 	MIMIR_INGESTER_REPLICATION_FACTOR,
@@ -42,6 +43,10 @@ function mimirConfig() {
 		ingester: {
 			ring: { replication_factor: MIMIR_INGESTER_REPLICATION_FACTOR },
 		},
+		// Defaults to ./metrics-activity.log in the working directory, which the
+		// mimir user cannot write: "open ./metrics-activity.log: permission
+		// denied" and the whole process exits 1 before /ready ever listens.
+		activity_tracker: { filepath: MIMIR_ACTIVITY_FILE },
 	};
 	const ml = memberlist();
 	if (ml) doc.memberlist = ml;

@@ -52,9 +52,9 @@ const FLINK_READY_ATTEMPT_INTERVAL = env.int("FLINK_READY_ATTEMPT_INTERVAL", 1);
 // Derived paths
 // ---------------------------------------------------------------------------
 const FLINK_HOME = env.get("FLINK_HOME", "/opt/flink");
-// flink-conf.yaml is generated in the config volume; the bash entrypoint used
-// FLINK_CONF_DIR for exactly this.
-const FLINK_CONF_FILE = FLINK_CONFIG_DIR + "/flink-conf.yaml";
+// Flink 2.x replaced flink-conf.yaml with config.yaml; FLINK_CONF_DIR points the
+// daemons at the config volume.
+const FLINK_CONF_FILE = FLINK_CONFIG_DIR + "/config.yaml";
 
 module.exports = {
 	FLINK_DATA_DIR,

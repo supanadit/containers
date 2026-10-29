@@ -32,6 +32,8 @@ const SPARK_MASTER_URL = env.get("SPARK_MASTER_URL", "");
 // Optional whitespace-separated extra args for the master / worker launchers.
 const SPARK_MASTER_OPTS = env.get("SPARK_MASTER_OPTS", "");
 const SPARK_WORKER_OPTS = env.get("SPARK_WORKER_OPTS", "");
+// 8080 is the master web UI and 8081 the ezx health API.
+const SPARK_WORKER_WEBUI_PORT = env.get("SPARK_WORKER_WEBUI_PORT", "8082");
 
 // ---------------------------------------------------------------------------
 // Testing / debugging
@@ -71,6 +73,7 @@ module.exports = {
 	SPARK_MASTER_URL,
 	SPARK_MASTER_OPTS,
 	SPARK_WORKER_OPTS,
+	SPARK_WORKER_WEBUI_PORT,
 	SLEEP_MODE,
 	SPARK_READY_MAX_ATTEMPTS,
 	SPARK_READY_ATTEMPT_INTERVAL,

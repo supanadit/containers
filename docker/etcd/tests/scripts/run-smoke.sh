@@ -17,15 +17,18 @@ fail() { echo "  FAIL: $1"; exit 1; }
 # wait_until <label> <attempts> <command...> — poll a probe until it succeeds.
 wait_until() {
   local label="$1" attempts="$2"; shift 2
+  local out=""
   for _ in $(seq 1 "$attempts"); do
     # A crashed container will never become ready: stop instead of polling out
     # the whole budget, which is what made red runs take ten minutes.
     if ! docker compose -f "$COMPOSE_FILE" ps -q etcd 2>/dev/null | grep -c . > /dev/null ; then
       echo "  FAIL: $label: container exited while waiting"; return 1
     fi
-    if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
+    if out=$("$@" 2>&1); then echo "  ready: $label"; return 0; fi
     sleep 2
   done
+  # the last attempt's output says why it never came up
+  printf '%s\n' "$out" | tail -n 20
   fail "$label did not become ready"
 }
 

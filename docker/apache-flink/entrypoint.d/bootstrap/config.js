@@ -1,4 +1,4 @@
-// config.js — generate flink-conf.yaml from CONFIG_* environment variables.
+// config.js — generate config.yaml from CONFIG_* environment variables.
 //
 // The bash entrypoint looped over `compgen -v CONFIG_`, stripped the CONFIG_
 // prefix, lowercased the name and replaced underscores with dots, then wrote
@@ -33,7 +33,8 @@ function configPairs() {
 		.map((k) => [k, pairMap[k]]);
 }
 
-// flinkConf — the generated flink-conf.yaml content from the CONFIG_* keys.
+// flinkConf — the generated config.yaml content from the CONFIG_* keys. Flink
+// flattens YAML keys, so dotted keys are equivalent to the nested form.
 // The bash entrypoint truncated the file and wrote only the CONFIG_* keys;
 // that behaviour is preserved (a mounted/default config is not merged).
 function flinkConf() {
@@ -42,7 +43,7 @@ function flinkConf() {
 	return b.build();
 }
 
-// generateConfig — (re)write flink-conf.yaml in the config volume.
+// generateConfig — (re)write config.yaml in the config volume.
 function generateConfig() {
 	const content = flinkConf();
 	try {

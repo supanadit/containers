@@ -55,7 +55,7 @@ ops = [
   { source_install = { type = "archive", url = "https://archive.apache.org/dist/flink/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz", strategy = "none",
     after = [
       { raw = "mkdir -p /opt/flink && cp -a flink-${FLINK_VERSION}/. /opt/flink/ && chmod 0755 /opt/flink/bin/*.sh" },
-      { raw = "mkdir -p /opt/flink/plugins && cp /opt/flink/conf/flink-conf.yaml /opt/container/flink-conf.yaml.default 2>/dev/null || true" },
+      { raw = "mkdir -p /opt/flink/plugins" },
     ],
     verify = [{ file = "/opt/flink/bin/flink" }, { file = "/opt/flink/bin/jobmanager.sh" }, { file = "/opt/flink/bin/taskmanager.sh" }] } },
 ]

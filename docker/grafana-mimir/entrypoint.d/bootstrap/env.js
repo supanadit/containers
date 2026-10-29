@@ -31,6 +31,7 @@ const GRAFANA_MIMIR_GROUP = env.get("GRAFANA_MIMIR_GROUP", "mimir");
 const MIMIR_TARGET = env.get("MIMIR_TARGET", "all");
 const MIMIR_STORAGE_PREFIX = env.get("MIMIR_STORAGE_PREFIX", "blocks");
 const MIMIR_TSDB_DIR = env.get("MIMIR_TSDB_DIR", GRAFANA_MIMIR_DATA_DIR);
+const MIMIR_ACTIVITY_FILE = env.get("MIMIR_ACTIVITY_FILE", GRAFANA_MIMIR_DATA_DIR + "/metrics-activity.log");
 // Comma-separated list of ingester addresses (enables clustering when set).
 const MIMIR_MEMBER_LIST = env.get("MIMIR_MEMBER_LIST", "");
 const GRAFANA_MIMIR_EXTRA_ARGS = env.get("GRAFANA_MIMIR_EXTRA_ARGS", "");
@@ -85,6 +86,7 @@ module.exports = {
 	MIMIR_TARGET,
 	MIMIR_STORAGE_PREFIX,
 	MIMIR_TSDB_DIR,
+	MIMIR_ACTIVITY_FILE,
 	MIMIR_MEMBER_LIST,
 	GRAFANA_MIMIR_EXTRA_ARGS,
 	SLEEP_MODE,

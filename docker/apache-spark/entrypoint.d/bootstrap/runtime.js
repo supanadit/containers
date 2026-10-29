@@ -55,12 +55,23 @@ function splitOpts(v) {
 }
 
 function masterNode() {
-	const args = ["start-foreground"];
+	// start-master.sh daemonises and forwards its words straight to the Master
+	// class, so `start-foreground` reached Master as an option and it printed
+	// Usage and exited (exit 1). Run the class directly instead.
+	const args = [
+		"org.apache.spark.deploy.master.Master",
+		"--host",
+		SPARK_MASTER_HOST,
+		"--port",
+		SPARK_MASTER_PORT,
+		"--webui-port",
+		SPARK_MASTER_WEBUI_PORT,
+	];
 	for (const a of splitOpts(SPARK_MASTER_OPTS)) args.push(a);
 	return {
 		name: "spark-master",
 		process: {
-			binaryPath: "start-master.sh",
+			binaryPath: "spark-class",
 			arguments: args,
 			user: SPARK_USER,
 			group: SPARK_GROUP,
@@ -81,13 +92,21 @@ function masterNode() {
 }
 
 function workerNode() {
-	const args = [masterUrl()];
+	// Same as the master: start-worker.sh daemonises, so run the class directly
+	// to keep the worker a supervised child of ezx. The worker web UI defaults to
+	// 8081, which the ezx health API also uses, so pin it to its own port.
+	const args = [
+		"org.apache.spark.deploy.worker.Worker",
+		"--webui-port",
+		SPARK_WORKER_WEBUI_PORT,
+		masterUrl(),
+	];
 	for (const a of splitOpts(SPARK_WORKER_OPTS)) args.push(a);
 	return {
 		name: "spark-worker",
 		dependsOnEdges: [{ name: "spark-master", waitFor: "ready" }],
 		process: {
-			binaryPath: "start-worker.sh",
+			binaryPath: "spark-class",
 			arguments: args,
 			user: SPARK_USER,
 			group: SPARK_GROUP,
