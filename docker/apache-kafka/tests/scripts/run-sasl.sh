@@ -38,14 +38,34 @@ trap on_exit EXIT
 
 echo "=== SASL Test ==="
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
-
-echo ""
-echo "Test 1: authenticated client can list topics"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" bash -c 'cat > /tmp/client.properties <<EOF
 security.protocol=SASL_PLAINTEXT
 sasl.mechanism=PLAIN
 sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin-secret";
 EOF'
+
+# wait_broker — block until the broker answers a real client handshake.
+# `up -d --wait` only proves the JVM exists (the healthcheck is a pgrep, and some
+# of these compose files have none), so a client that starts early fills the log
+# with "Connection to node -1 ... could not be established" retries and still
+# passes. Waiting here means the log only shows what was actually tested, and a
+# broker that never comes up fails as such instead of as client noise.
+wait_broker() {
+  local deadline=$((SECONDS + 180))
+  until docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
+        kafka-broker-api-versions.sh --bootstrap-server localhost:9092 --command-config /tmp/client.properties > /dev/null 2>&1; do
+    if [ $SECONDS -ge $deadline ]; then
+      echo "  FAIL: broker never accepted a client connection"
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+wait_broker || exit 1
+
+echo ""
+echo "Test 1: authenticated client can list topics"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
     kafka-topics.sh --bootstrap-server localhost:9092 --command-config /tmp/client.properties --list
 echo "  PASS"

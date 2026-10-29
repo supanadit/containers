@@ -56,9 +56,24 @@ wait_quorum() {
   done
 }
 
+# wait_broker — a broker (not the controller) accepting client handshakes, so the
+# suite never logs AdminClient retry noise.
+wait_broker() {
+  local deadline=$((SECONDS + 180))
+  until docker compose -f "$COMPOSE_FILE" exec -T kafka-1 \
+        kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1; do
+    if [ $SECONDS -ge $deadline ]; then
+      echo "  FAIL: no broker accepted a client connection"
+      return 1
+    fi
+    sleep 5
+  done
+}
+
 echo ""
 echo "Test 1: all three brokers registered"
 wait_quorum || exit 1
+wait_broker || exit 1
 echo "  PASS"
 
 echo ""

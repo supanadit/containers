@@ -28,6 +28,8 @@ const WORDPRESS_CONFIG_FILE = env.get("WORDPRESS_CONFIG_FILE", WORDPRESS_ROOT + 
 const WORDPRESS_CONTENT_ROOT = env.get("WORDPRESS_CONTENT_ROOT", WORDPRESS_ROOT + "/wp-content");
 const APACHE_ROOT = env.get("APACHE_ROOT", "/usr/local/apache2");
 const APACHE_CONF = env.get("APACHE_CONF", APACHE_ROOT + "/conf/httpd.conf");
+// Apache warns about a missing FQDN on every start without this.
+const APACHE_SERVER_NAME = env.get("APACHE_SERVER_NAME", "localhost");
 const APACHE_STATUS_CONF = env.get("APACHE_STATUS_CONF", APACHE_ROOT + "/conf/extra/httpd-status.conf");
 const APACHE_MPM_CONF = env.get("APACHE_MPM_CONF", APACHE_ROOT + "/conf/extra/httpd-mpm.conf");
 // A container-owned security include. Kept separate from httpd.conf so the

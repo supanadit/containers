@@ -11,6 +11,7 @@ const { editor, fs, log } = require("ezx");
 const { apacheSecurityInclude, provisionHtaccessSecurity } = require("./security");
 const {
   APACHE_CONF,
+  APACHE_SERVER_NAME,
   APACHE_STATUS_CONF,
   APACHE_MPM_CONF,
   APACHE_MPM,
@@ -114,6 +115,9 @@ function provisionHttpdBase() {
   conf.property("User", WORDPRESS_USER);
   conf.property("Group", WORDPRESS_GROUP);
   conf.property("DirectoryIndex", "index.php index.html");
+  // Without a ServerName Apache logs "Could not reliably determine the server's
+  // fully qualified domain name" on every start.
+  conf.property("ServerName", APACHE_SERVER_NAME);
 
   // The document-root <Directory> block. `conf.property`/`conf.wrap` append at
   // EOF when their pattern does not match, and there is at most one matching
@@ -133,8 +137,13 @@ function provisionHttpdBase() {
     dir.property("Require", "all granted");
   }
 
-  // mod_php + MIME handlers
-  conf.add("LoadModule", "php_module modules/libphp.so");
+  // mod_php + MIME handlers. Replace-in-place: `add` appended a second
+  // LoadModule php_module line, and Apache warned "module php_module is already
+  // loaded, skipping" on every start.
+  conf.line(
+    "^\\s*#?\\s*LoadModule\\s+php_module\\s+.*$",
+    "LoadModule php_module modules/libphp.so",
+  );
   for (const type of PHP_MIME_TYPES) {
     conf.add("AddType", "application/x-httpd-php " + type);
   }

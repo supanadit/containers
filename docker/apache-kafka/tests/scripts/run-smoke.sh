@@ -40,6 +40,26 @@ echo "=== Smoke Test ==="
 echo "Starting container..."
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
 
+# wait_broker — block until the broker answers a real client handshake.
+# `up -d --wait` only proves the JVM exists (the healthcheck is a pgrep, and some
+# of these compose files have none), so a client that starts early fills the log
+# with "Connection to node -1 ... could not be established" retries and still
+# passes. Waiting here means the log only shows what was actually tested, and a
+# broker that never comes up fails as such instead of as client noise.
+wait_broker() {
+  local deadline=$((SECONDS + 180))
+  until docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
+        kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1; do
+    if [ $SECONDS -ge $deadline ]; then
+      echo "  FAIL: broker never accepted a client connection"
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+wait_broker || exit 1
+
 echo ""
 echo "Test 1: kafka-topics.sh --list"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
