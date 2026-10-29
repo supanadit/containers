@@ -65,7 +65,9 @@ phpServed() { dc exec -T "$SERVICE" curl -fsS -o /dev/null http://127.0.0.1/wp-i
 # page (which is served with HTTP 200, so the body has to be inspected).
 siteRendered() {
   local out code
-  out="$(dc exec -T "$SERVICE" curl -sS -w 'HTTP:%{http_code}\n' http://127.0.0.1/index.php 2>&1)" || true
+  # WordPress answers /index.php with a canonical 302 to the front page, so
+  # follow redirects and judge the page that is actually served.
+  out="$(dc exec -T "$SERVICE" curl -sSL -w 'HTTP:%{http_code}\n' http://127.0.0.1/ 2>&1)" || true
   code="$(printf '%s' "$out" | grep -o 'HTTP:[0-9]*' | tail -1)"
   if [ "$code" = "HTTP:200" ] \
     && ! printf '%s' "$out" | grep -c 'Error establishing a database connection' > /dev/null; then
