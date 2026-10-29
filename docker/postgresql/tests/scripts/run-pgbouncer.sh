@@ -10,7 +10,7 @@ SERVICE="postgresql"
 # explicitly — otherwise they cannot find the server.
 PG_SOCKET="/opt/containers/run"
 
-trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
 
 # A refused connection only says "port closed"; the reason lives in the
 # container (pgbouncer's own logfile plus the ezx per-node logs), so a bare

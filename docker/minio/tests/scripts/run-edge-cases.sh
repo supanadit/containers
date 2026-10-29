@@ -9,7 +9,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$DIR/../compose/edge-cases.yaml"
 CRED_DIR="$DIR/../compose/file-creds"
 
-trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true; rm -rf "$CRED_DIR"' EXIT
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true; rm -rf "$CRED_DIR"' EXIT
 
 # The mounted credential files must exist before compose starts the container.
 mkdir -p "$CRED_DIR"

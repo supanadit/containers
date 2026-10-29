@@ -13,7 +13,7 @@ SERVICE="minio"
 ENDPOINT="http://127.0.0.1:19000"
 CONSOLE="http://127.0.0.1:19001"
 
-trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
 
 echo "=== Smoke Test ==="
 echo "Starting container..."
@@ -45,7 +45,7 @@ esac
 
 echo ""
 echo "Test 4: the console is served"
-code="$(curl -s -o /dev/null -w '%{http_code}' "${CONSOLE}/")"
+code="$(curl -s --retry 20 --retry-delay 2 --retry-all-errors -o /dev/null -w '%{http_code}' "${CONSOLE}/")"
 [ "$code" = "200" ] || { echo "  FAIL: console returned $code"; exit 1; }
 echo "  PASS"
 

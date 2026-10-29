@@ -7,7 +7,7 @@ COMPOSE_FILE="$DIR/../compose/smoke.yaml"
 SERVICE="mariadb"
 MARIADB_SOCKET="/opt/containers/run/mysqld.sock"
 
-trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
 
 echo "=== Smoke Test ==="
 echo "Starting container..."

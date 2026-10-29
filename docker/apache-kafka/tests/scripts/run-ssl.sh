@@ -8,7 +8,7 @@ SERVICE="kafka"
 IMAGE="kafka:test"
 CERTS="$DIR/../compose/certs"
 
-trap 'echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true' EXIT
 
 echo "=== SSL Test ==="
 mkdir -p "$CERTS"

@@ -61,11 +61,6 @@ jobs:
             if ! bash "$suite"; then
               echo "::endgroup::"
               echo "::error::Grafana Alloy: $(basename "$suite") failed"
-              docker ps -a
-              for c in $(docker ps -aq); do
-                echo "=== logs: $c"
-                docker logs "$c" 2>&1 | tail -80
-              done
               exit 1
             fi
             echo "::endgroup::"

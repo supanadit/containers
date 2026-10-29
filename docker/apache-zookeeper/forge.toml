@@ -54,7 +54,7 @@ ops = [
   { source_install = { type = "archive", url = "https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/apache-zookeeper-${ZOOKEEPER_VERSION}-bin.tar.gz", strategy = "none",
     after = [
       { raw = "mkdir -p /opt/zookeeper && cp -a apache-zookeeper-${ZOOKEEPER_VERSION}-bin/. /opt/zookeeper/ && chmod 0755 /opt/zookeeper/bin/*.sh" },
-      { raw = "mkdir -p /opt/container && cp /opt/zookeeper/conf/zoo.cfg /opt/container/zoo.cfg.default && cp /opt/zookeeper/conf/logback.xml /opt/container/logback.xml.default" },
+      { raw = "mkdir -p /opt/container && cp /opt/zookeeper/conf/zoo_sample.cfg /opt/container/zoo.cfg.default && cp /opt/zookeeper/conf/logback.xml /opt/container/logback.xml.default" },
     ],
     verify = [{ file = "/opt/zookeeper/bin/zkServer.sh" }, { file = "/opt/container/zoo.cfg.default" }] } },
 ]
