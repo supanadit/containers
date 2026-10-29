@@ -53,6 +53,12 @@ dump_diagnostics() {
   docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" tail -40 /opt/containers/logs/pgbouncer.log 2>&1 || true
   echo "  --- /opt/containers/logs/pgbouncer-userlist.log ---"
   docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" tail -20 /opt/containers/logs/pgbouncer-userlist.log 2>&1 || true
+  echo "  --- pgbouncer.ini [pgbouncer] ---"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
+    sed -n '/^\[pgbouncer\]/,/^\[/p' /etc/pgbouncer/pgbouncer.ini 2>&1 || true
+  echo "  --- userlist.txt (password hashes masked) ---"
+  docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
+    sed -E 's/"[^"]*"$/"<hash>"/' /etc/pgbouncer/userlist.txt 2>&1 || true
   echo "  --- compose logs ---"
   docker compose -f "$COMPOSE_FILE" logs --no-color --tail=40 "$SERVICE" 2>&1 || true
 }
@@ -92,14 +98,26 @@ echo "  PASS"
 echo ""
 echo "Test 3: SHOW POOLS via PgBouncer admin interface"
 # Keep psql's stderr: discarding it turns an auth failure into a bare exit 2.
-result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>&1) \
-  || { echo "  FAIL: SHOW POOLS could not connect"; echo "  output: $result"; dump_diagnostics; exit 1; }
+# pgbouncer loads its userlist at start, so an immediate connection can still be
+# refused while it settles; retry instead of failing on the first attempt.
+result=""
+for _ in $(seq 1 10); do
+  result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>&1) && break
+  sleep 2
+done
+echo "$result" | grep -c "password authentication failed" > /dev/null \
+  && { echo "  FAIL: SHOW POOLS could not connect"; echo "  output: $result"; dump_diagnostics; exit 1; }
 echo "$result" | grep -c "postgres" > /dev/null || { echo "  FAIL: SHOW POOLS did not return pools"; echo "  output: $result"; dump_diagnostics; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 4: Query through PgBouncer"
-result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -tA -c "SELECT 1;" 2>&1 | tr -d '[:space:]')
+result=""
+for _ in $(seq 1 10); do
+  result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -tA -c "SELECT 1;" 2>&1 | tr -d '[:space:]')
+  [ "$result" = "1" ] && break
+  sleep 2
+done
 [ "$result" = "1" ] && echo "  PASS" || { echo "  FAIL: expected '1', got '$result'"; dump_diagnostics; exit 1; }
 
 echo ""
