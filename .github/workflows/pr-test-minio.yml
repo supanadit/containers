@@ -32,13 +32,13 @@ jobs:
 
       - name: Build MinIO image (with gha cache)
         if: steps.skip-check.outputs.skip != 'true'
-        run: |
-          echo "Building MinIO for PR validation..."
-          docker buildx build --load \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            -t minio:test \
-            docker/minio/
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/minio
+          load: true
+          tags: minio:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Test — Smoke (standalone server)
         if: steps.skip-check.outputs.skip != 'true'

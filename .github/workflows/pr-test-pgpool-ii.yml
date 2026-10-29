@@ -32,13 +32,13 @@ jobs:
 
       - name: Build PgPool-II image (with gha cache)
         if: steps.skip-check.outputs.skip != 'true'
-        run: |
-          echo "Building PgPool-II for PR validation..."
-          docker buildx build --load \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            -t pgpool-ii:test \
-            docker/pgpool-ii/
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/pgpool-ii
+          load: true
+          tags: pgpool-ii:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Test — Smoke (config generation, no backends)
         if: steps.skip-check.outputs.skip != 'true'

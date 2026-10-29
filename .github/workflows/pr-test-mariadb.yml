@@ -33,14 +33,15 @@ jobs:
 
       - name: Build MariaDB image (with gha cache)
         if: steps.skip-check.outputs.skip != 'true'
-        run: |
-          echo "Building MariaDB 11.8.3 for PR validation..."
-          docker buildx build --load \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            --build-arg MARIADB_VERSION=11.8.3 \
-            -t mariadb:test \
-            docker/mariadb/
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/mariadb
+          load: true
+          tags: mariadb:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            MARIADB_VERSION=11.8.3
 
       - name: Test — Smoke (minimal config)
         if: steps.skip-check.outputs.skip != 'true'
