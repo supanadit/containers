@@ -30,6 +30,8 @@ const ZOOKEEPER_CLIENT_PORT = env.get("ZOOKEEPER_CLIENT_PORT", env.get("ZOOKEEPE
 const ZOOKEEPER_TICK_TIME = env.get("ZOOKEEPER_TICK_TIME", "2000");
 const ZOOKEEPER_MAX_CLIENT_CNXNS = env.get("ZOOKEEPER_MAX_CLIENT_CNXNS", "60");
 const ZOOKEEPER_ADMIN_ENABLE_SERVER = env.bool("ZOOKEEPER_ADMIN_ENABLE_SERVER", false);
+// 8080 belongs to the ezx health API, so the admin server moves by default.
+const ZOOKEEPER_ADMIN_SERVER_PORT = env.int("ZOOKEEPER_ADMIN_SERVER_PORT", 8081);
 
 // ---------------------------------------------------------------------------
 // Testing / debugging
@@ -46,9 +48,6 @@ const ZOOKEEPER_READY_ATTEMPT_INTERVAL = env.int("ZOOKEEPER_READY_ATTEMPT_INTERV
 // Derived paths
 // ---------------------------------------------------------------------------
 const ZOOKEEPER_CONFIG_FILE = ZOOKEEPER_CONFIG_DIR + "/zoo.cfg";
-// The bundled default config installed by forge, used to seed a missing
-// zoo.cfg. The container also regenerates it from the env defaults below.
-const ZOOKEEPER_DEFAULT_CONFIG = "/opt/container/zoo.cfg.default";
 const ZOOKEEPER_DATA_LOG_DIR = ZOOKEEPER_DATA_DIR + "/log";
 
 module.exports = {
@@ -64,10 +63,10 @@ module.exports = {
 	ZOOKEEPER_TICK_TIME,
 	ZOOKEEPER_MAX_CLIENT_CNXNS,
 	ZOOKEEPER_ADMIN_ENABLE_SERVER,
+	ZOOKEEPER_ADMIN_SERVER_PORT,
 	SLEEP_MODE,
 	ZOOKEEPER_READY_MAX_ATTEMPTS,
 	ZOOKEEPER_READY_ATTEMPT_INTERVAL,
 	ZOOKEEPER_CONFIG_FILE,
-	ZOOKEEPER_DEFAULT_CONFIG,
 	ZOOKEEPER_DATA_LOG_DIR,
 };

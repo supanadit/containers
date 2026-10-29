@@ -27,22 +27,24 @@ wait_until() {
 on_exit() {
   local rc=$?
   if [ $rc -ne 0 ]; then
-    echo ">>> Failure: container logs"
-    dc logs --no-color --tail 120 || true
-    for s in $(dc config --services 2>/dev/null); do
-      cid=$(dc ps -aq "$s" 2>/dev/null | head -1)
+    for s in $(docker compose -f "$COMPOSE_FILE" config --services 2>/dev/null); do
+      cid=$(docker compose -f "$COMPOSE_FILE" ps -aq "$s" 2>/dev/null | head -1)
       [ -n "$cid" ] || continue
-      echo "=== app logs: $s"
-      # Most lifecycles send child output to /opt/containers/logs instead of
-      # stdout, and a crash leaves the container exited where exec cannot reach
-      # it: docker cp reads the files out of the stopped container instead.
-      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null | tar -xO 2>/dev/null | tail -n 80
-      echo "=== rendered config: $s"
-      docker cp "$cid:/opt/containers/config/." - 2>/dev/null | tar -xO 2>/dev/null | head -80
+      echo "=== $s: container log (tail 80)"
+      docker compose -f "$COMPOSE_FILE" logs --no-color --tail 80 "$s" || true
+      echo "=== $s: app log files"
+      # Most lifecycles write child output to files under /opt/containers, and a
+      # crash leaves the container exited where `exec` cannot reach it: docker cp
+      # reads them out of the stopped container.
+      docker cp "$cid:/opt/containers/." - 2>/dev/null \
+        | tar -xO --wildcards '*.log' '*.out' 2>/dev/null | tail -n 120
+      echo "=== $s: rendered config"
+      docker cp "$cid:/opt/containers/config/." - 2>/dev/null \
+        | tar -xO 2>/dev/null | head -80
     done
   fi
   echo ">>> Cleanup: bringing down compose"
-  dc down -v > /dev/null 2>&1 || true
+  docker compose -f "$COMPOSE_FILE" down -v > /dev/null 2>&1 || true
 }
 trap on_exit EXIT
 

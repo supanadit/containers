@@ -1,15 +1,12 @@
 // config.js — generate zoo.cfg from the container defaults.
 //
-// The bash entrypoint copied the bundled /opt/zookeeper/conf/zoo.cfg into the
-// config volume when no config was mounted. Because the bundled config points
-// dataDir at /opt/containers/data, the container regenerates a config from the
-// env defaults when the user relies on the container default; a mounted
-// zoo.cfg is used unchanged.
+// A config the user mounted (or a zoo.cfg left in the config dir by a previous
+// start) is used unchanged; otherwise one is rendered from the env defaults so
+// dataDir lands inside the volume.
 const { fs, editor, config, log } = require("ezx");
 const {
 	ZOOKEEPER_CONFIG_FILE,
 	ZOOKEEPER_CONFIG_DIR,
-	ZOOKEEPER_DEFAULT_CONFIG,
 	ZOOKEEPER_DATA_DIR,
 	ZOOKEEPER_DATA_LOG_DIR,
 	ZOOKEEPER_CLIENT_PORT,
@@ -35,7 +32,16 @@ function zooCfg() {
 	b.set("dataDir", ZOOKEEPER_DATA_DIR);
 	b.set("clientPort", ZOOKEEPER_CLIENT_PORT);
 	b.set("maxClientCnxns", ZOOKEEPER_MAX_CLIENT_CNXNS);
-	b.set("admin.enableServer", ZOOKEEPER_ADMIN_ENABLE_SERVER ? "true" : "false");
+	b.set(
+		"admin.enableServer",
+		ZOOKEEPER_ADMIN_ENABLE_SERVER ? "true" : "false",
+	);
+	// ezx owns 8080 for its health API, and ZooKeeper's admin server defaults to
+	// 0.0.0.0:8080: enabling it on the default port makes QuorumPeerMain die with
+	// BindException (exit 4). Move it when it is enabled.
+	if (ZOOKEEPER_ADMIN_ENABLE_SERVER) {
+		b.set("admin.serverPort", ZOOKEEPER_ADMIN_SERVER_PORT);
+	}
 	return b.build();
 }
 
@@ -47,14 +53,10 @@ function seedDefaultConfig() {
 		return true;
 	}
 	if (!isDefaultPath()) return false;
-	// Prefer the bundled default (which keeps upstream layout) if it exists;
-	// otherwise generate from env so the normalized data dir is honoured.
-	let content;
-	if (fs.exists(ZOOKEEPER_DEFAULT_CONFIG)) {
-		content = editor.open(ZOOKEEPER_DEFAULT_CONFIG).read();
-	} else {
-		content = zooCfg();
-	}
+	// Always render from env. Seeding from the bundled zoo_sample.cfg made the
+	// container keep upstream's dataDir=/tmp/zookeeper (outside the volume) and
+	// its admin server on :8080, which collides with ezx's health API.
+	const content = zooCfg();
 	try {
 		fs.write(ZOOKEEPER_CONFIG_FILE, content, { mode: 0o644 });
 		fs.chown(ZOOKEEPER_CONFIG_FILE, OWNER);
