@@ -11,7 +11,6 @@ const { editor, fs, log } = require("ezx");
 const { apacheSecurityInclude, provisionHtaccessSecurity } = require("./security");
 const {
   APACHE_CONF,
-  APACHE_SERVER_NAME,
   APACHE_STATUS_CONF,
   APACHE_MPM_CONF,
   APACHE_MPM,
@@ -115,13 +114,6 @@ function provisionHttpdBase() {
   conf.property("User", WORDPRESS_USER);
   conf.property("Group", WORDPRESS_GROUP);
   conf.property("DirectoryIndex", "index.php index.html");
-  // Without a ServerName Apache warns AH00558 on every start. `conf.property`
-  // edits the stock commented line in place and leaves it as
-  // "ServerName localhost www.example.com:80", which Apache rejects
-  // ("ServerName takes one argument"), so append one line when there is none.
-  if (!/^\s*ServerName\s+\S+/m.test(conf.read())) {
-    conf.add("ServerName", APACHE_SERVER_NAME);
-  }
 
   // The document-root <Directory> block. `conf.property`/`conf.wrap` append at
   // EOF when their pattern does not match, and there is at most one matching
