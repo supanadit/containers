@@ -17,7 +17,7 @@ wait_until() {
   for _ in $(seq 1 "$attempts"); do
     # A crashed container will never become ready: stop instead of polling out
     # the whole budget, which is what made red runs take ten minutes.
-    if ! docker compose -f "$COMPOSE_FILE" ps -q maxscale 2>/dev/null | grep -q . ; then
+    if ! docker compose -f "$COMPOSE_FILE" ps -q maxscale 2>/dev/null | grep -c . > /dev/null ; then
       echo "  FAIL: $label: container exited while waiting"; return 1
     fi
     if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
@@ -64,7 +64,7 @@ restAnswers() {
 # monitor needs a few seconds to mark the server as the master.
 routed() {
   dc exec -T "$SERVICE" mariadb --host=127.0.0.1 --port=3306 \
-    --user=maxscale --password=maxscale --execute='SELECT 1' | grep -q '^1$'
+    --user=maxscale --password=maxscale --execute='SELECT 1' | grep -c '^1$' > /dev/null
 }
 
 echo "=== Smoke Test ==="
@@ -92,7 +92,7 @@ echo "  PASS"
 
 echo ""
 echo "Test 4: composite health is healthy"
-dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -q '"healthy":true' \
+dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -c '"healthy":true' > /dev/null \
   || fail "composite health"
 echo "  PASS"
 

@@ -70,7 +70,7 @@ echo "  PASS"
 echo ""
 echo "Test 2: configured keystore is present and used"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-    grep -q '^ssl.keystore.location=/opt/containers/config/kafka.keystore.p12$' \
+    grep -c '^ssl.keystore.location=/opt/containers/config/kafka.keystore.p12$' > /dev/null \
     /opt/containers/config/server.properties \
     && echo "  PASS" || { echo "  FAIL: ssl.keystore.location missing"; exit 1; }
 

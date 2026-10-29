@@ -60,7 +60,7 @@ result=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" psql -h "$PG_SOCKE
 
 echo ""
 echo "Test 3: PostgreSQL version"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" psql -h "$PG_SOCKET" -U postgres -tA -c "SELECT version();" | grep -q "PostgreSQL" || { echo "  FAIL: version check"; exit 1; }
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" psql -h "$PG_SOCKET" -U postgres -tA -c "SELECT version();" | grep -c "PostgreSQL" > /dev/null || { echo "  FAIL: version check"; exit 1; }
 echo "  PASS"
 
 echo ""

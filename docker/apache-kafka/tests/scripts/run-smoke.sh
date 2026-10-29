@@ -49,7 +49,7 @@ docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
     --create --topic smoke-topic --partitions 1 --replication-factor 1
 result=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
     kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic smoke-topic)
-echo "$result" | grep -q "smoke-topic" && echo "  PASS" || { echo "  FAIL: topic not described"; exit 1; }
+echo "$result" | grep -c "smoke-topic" > /dev/null && echo "  PASS" || { echo "  FAIL: topic not described"; exit 1; }
 
 echo ""
 echo "Test 3: KRaft cluster id file exists"
@@ -60,7 +60,7 @@ echo "  PASS"
 echo ""
 echo "Test 4: composite health is healthy"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-    curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -q '"healthy":true' \
+    curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -c '"healthy":true' > /dev/null \
     || { echo "  FAIL: health not healthy"; exit 1; }
 echo "  PASS"
 

@@ -56,12 +56,12 @@ echo "  PASS"
 echo ""
 echo "Test 2: shared_preload_libraries contains pgaudit"
 result=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" psql -h "$PG_SOCKET" -U postgres -tA -c "SHOW shared_preload_libraries;")
-echo "$result" | grep -q "pgaudit" || { echo "  FAIL: pgaudit not in shared_preload_libraries"; exit 1; }
+echo "$result" | grep -c "pgaudit" > /dev/null || { echo "  FAIL: pgaudit not in shared_preload_libraries"; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 3: shared_preload_libraries contains pg_stat_statements"
-echo "$result" | grep -q "pg_stat_statements" || { echo "  FAIL: pg_stat_statements not in shared_preload_libraries"; exit 1; }
+echo "$result" | grep -c "pg_stat_statements" > /dev/null || { echo "  FAIL: pg_stat_statements not in shared_preload_libraries"; exit 1; }
 echo "  PASS"
 
 echo ""

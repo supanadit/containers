@@ -53,7 +53,7 @@ echo "  PASS"
 echo ""
 echo "Test 2: query API answers"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-  curl -fsS "http://127.0.0.1:10902/api/v1/query?query=up" | grep -q '"status":"success"' \
+  curl -fsS "http://127.0.0.1:10902/api/v1/query?query=up" | grep -c '"status":"success"' > /dev/null \
   || { echo "  FAIL: query API"; exit 1; }
 echo "  PASS"
 

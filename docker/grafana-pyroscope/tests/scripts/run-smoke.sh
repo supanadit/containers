@@ -16,7 +16,7 @@ wait_until() {
   for _ in $(seq 1 "$attempts"); do
     # A crashed container will never become ready: stop instead of polling out
     # the whole budget, which is what made red runs take ten minutes.
-    if ! docker compose -f "$COMPOSE_FILE" ps -q pyroscope 2>/dev/null | grep -q . ; then
+    if ! docker compose -f "$COMPOSE_FILE" ps -q pyroscope 2>/dev/null | grep -c . > /dev/null ; then
       echo "  FAIL: $label: container exited while waiting"; return 1
     fi
     if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
@@ -60,7 +60,7 @@ wait_until "Pyroscope /ready" 60 ready
 
 echo ""
 echo "Test 1: Pyroscope reports itself ready"
-ready | grep -q ready || fail "/ready"
+ready | grep -c ready > /dev/null || fail "/ready"
 echo "  PASS"
 
 echo ""
@@ -70,7 +70,7 @@ echo "  PASS"
 
 echo ""
 echo "Test 3: composite health is healthy"
-dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -q '"healthy":true' \
+dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -c '"healthy":true' > /dev/null \
   || fail "composite health"
 echo "  PASS"
 

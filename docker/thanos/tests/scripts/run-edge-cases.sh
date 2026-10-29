@@ -58,7 +58,7 @@ expect_failure() {
   [ -n "$code" ] || { echo "  FAIL: $label (container never exited)"; exit 1; }
   [ "$code" != "0" ] || { echo "  FAIL: $label (exited 0, expected failure)"; docker logs "$cid" 2>&1 | tail -20; exit 1; }
   local out; out="$(docker logs "$cid" 2>&1)"
-  printf '%s' "$out" | grep -q "$pattern" \
+  printf '%s' "$out" | grep -c "$pattern" > /dev/null \
     || { echo "  FAIL: $label (missing '$pattern')"; echo "$out" | tail -20; exit 1; }
   echo "  PASS ($label, exit $code)"
 }
@@ -76,8 +76,8 @@ done
 docker compose -f "$COMPOSE_FILE" exec -T thanos-store test -f /opt/containers/config/thanos-objstore.yaml \
   || { echo "  FAIL: objstore file was not written"; exit 1; }
 objstore="$(docker compose -f "$COMPOSE_FILE" exec -T thanos-store cat /opt/containers/config/thanos-objstore.yaml)"
-printf '%s' "$objstore" | grep -q "access_key: superadmin" || { echo "  FAIL: access_key missing"; echo "$objstore"; exit 1; }
-printf '%s' "$objstore" | grep -q "secret_key: supersecretpassword" || { echo "  FAIL: secret_key missing"; exit 1; }
+printf '%s' "$objstore" | grep -c "access_key: superadmin" > /dev/null || { echo "  FAIL: access_key missing"; echo "$objstore"; exit 1; }
+printf '%s' "$objstore" | grep -c "secret_key: supersecretpassword" > /dev/null || { echo "  FAIL: secret_key missing"; exit 1; }
 perms="$(docker compose -f "$COMPOSE_FILE" exec -T thanos-store stat -c '%a' /opt/containers/config/thanos-objstore.yaml)"
 [ "$perms" = "600" ] || { echo "  FAIL: objstore file is $perms, want 600"; exit 1; }
 echo "  PASS (mode 600)"

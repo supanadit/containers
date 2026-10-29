@@ -56,7 +56,7 @@ expect_failure() {
   [ -n "$code" ] || { echo "  FAIL: $label (container never exited)"; exit 1; }
   [ "$code" != "0" ] || { echo "  FAIL: $label (exited 0, expected failure)"; docker logs "$cid" 2>&1 | tail -20; exit 1; }
   local out; out="$(docker logs "$cid" 2>&1)"
-  printf '%s' "$out" | grep -q "$pattern" \
+  printf '%s' "$out" | grep -c "$pattern" > /dev/null \
     || { echo "  FAIL: $label (missing '$pattern')"; echo "$out" | tail -20; exit 1; }
   echo "  PASS ($label, exit $code)"
 }
@@ -65,7 +65,7 @@ echo ""
 echo "Test 1: explicit config file is used"
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180 prometheus-custom
 docker compose -f "$COMPOSE_FILE" exec -T prometheus-custom \
-  curl -fsS http://127.0.0.1:9091/api/v1/status/config | grep -q 'localhost:9091' \
+  curl -fsS http://127.0.0.1:9091/api/v1/status/config | grep -c 'localhost:9091' > /dev/null \
   || { echo "  FAIL: custom config was not loaded"; exit 1; }
 echo "  PASS"
 

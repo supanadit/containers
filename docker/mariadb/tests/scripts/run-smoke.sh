@@ -60,7 +60,7 @@ result=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb --socket="
 
 echo ""
 echo "Test 3: MariaDB version"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl -N -e "SELECT VERSION();" | grep -q "MariaDB" || { echo "  FAIL: version check"; exit 1; }
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" mariadb --socket="$MARIADB_SOCKET" -u root -ptestpass --skip-ssl -N -e "SELECT VERSION();" | grep -c "MariaDB" > /dev/null || { echo "  FAIL: version check"; exit 1; }
 echo "  PASS"
 
 echo ""

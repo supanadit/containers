@@ -16,7 +16,7 @@ wait_until() {
   for _ in $(seq 1 "$attempts"); do
     # A crashed container will never become ready: stop instead of polling out
     # the whole budget, which is what made red runs take ten minutes.
-    if ! docker compose -f "$COMPOSE_FILE" ps -q spark 2>/dev/null | grep -q . ; then
+    if ! docker compose -f "$COMPOSE_FILE" ps -q spark 2>/dev/null | grep -c . > /dev/null ; then
       echo "  FAIL: $label: container exited while waiting"; return 1
     fi
     if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
@@ -60,7 +60,7 @@ wait_until "master REST API" 300 masterJson
 
 echo ""
 echo "Test 1: the master reports itself ALIVE"
-masterJson | grep -q '"status": *"ALIVE"' || fail "master not ALIVE"
+masterJson | grep -c '"status": *"ALIVE"' > /dev/null || fail "master not ALIVE"
 echo "  PASS"
 
 echo ""
@@ -70,7 +70,7 @@ echo "  PASS"
 
 echo ""
 echo "Test 3: composite health is healthy"
-dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8081/health/comprehensive | grep -q '"healthy":true' \
+dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8081/health/comprehensive | grep -c '"healthy":true' > /dev/null \
   || fail "composite health"
 echo "  PASS"
 

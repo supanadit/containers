@@ -92,7 +92,7 @@ echo "  PASS"
 echo ""
 echo "Test 6: SHOW POOLS via PgBouncer still works with pgbackrest enabled"
 result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>/dev/null)
-echo "$result" | grep -q "postgres" || { echo "  FAIL: SHOW POOLS failed when pgbackrest is also enabled"; exit 1; }
+echo "$result" | grep -c "postgres" > /dev/null || { echo "  FAIL: SHOW POOLS failed when pgbackrest is also enabled"; exit 1; }
 echo "  PASS"
 
 echo ""

@@ -90,7 +90,7 @@ echo "Test 3: SHOW POOLS via PgBouncer admin interface"
 # Keep psql's stderr: discarding it turns an auth failure into a bare exit 2.
 result=$(docker compose -f "$COMPOSE_FILE" exec -T -e PGPASSWORD=testpass "$SERVICE" psql -h localhost -p 6432 -U postgres -d pgbouncer -tA -c "SHOW POOLS;" 2>&1) \
   || { echo "  FAIL: SHOW POOLS could not connect"; echo "  output: $result"; dump_diagnostics; exit 1; }
-echo "$result" | grep -q "postgres" || { echo "  FAIL: SHOW POOLS did not return pools"; echo "  output: $result"; dump_diagnostics; exit 1; }
+echo "$result" | grep -c "postgres" > /dev/null || { echo "  FAIL: SHOW POOLS did not return pools"; echo "  output: $result"; dump_diagnostics; exit 1; }
 echo "  PASS"
 
 echo ""

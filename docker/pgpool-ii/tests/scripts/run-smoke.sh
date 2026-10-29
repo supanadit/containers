@@ -55,19 +55,19 @@ echo "Test 1: pgpool.conf is generated with pid_file_name set"
 # pgpool's compiled-in default pid file (/var/run/pgpool/pgpool.pid) does not exist
 # in this image, so pgpool aborts at startup unless pid_file_name is pointed at
 # the normalized run dir.
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -q "^pid_file_name = '/opt/containers/run/pgpool.pid'" \
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -c "^pid_file_name = '/opt/containers/run/pgpool.pid'" > /dev/null \
   /opt/containers/config/pgpool.conf || { echo "  FAIL: pid_file_name missing or wrong"; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 2: PGPOOL_CONFIG_* overrides are applied"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -q "^max_pool = 7" \
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -c "^max_pool = 7" > /dev/null \
   /opt/containers/config/pgpool.conf || { echo "  FAIL: max_pool override not applied"; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 3: backends are rendered"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -q "^backend_hostname0 = 'postgres-1'" \
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -c "^backend_hostname0 = 'postgres-1'" > /dev/null \
   /opt/containers/config/pgpool.conf || { echo "  FAIL: backend 0 missing"; exit 1; }
 echo "  PASS"
 
@@ -76,7 +76,7 @@ echo "Test 4: pool_passwd holds an AES entry (pg_enc, 0600)"
 # pgpool authenticates to scram-sha-256 backends as a client, which requires the
 # recoverable password, so the entry must be AES (pg_enc), never an md5 hash.
 passwd_contents="$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" cat /opt/containers/config/pool_passwd)"
-printf '%s' "$passwd_contents" | grep -qE '^postgres:AES[0-9A-Za-z+/=]+$' \
+printf '%s' "$passwd_contents" | grep -cE '^postgres:AES[0-9A-Za-z+/=]+$' > /dev/null \
   || { echo "  FAIL: expected 'postgres:AES<base64>', got: $passwd_contents"; exit 1; }
 perms="$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" stat -c '%a' /opt/containers/config/pool_passwd)"
 [ "$perms" = "600" ] || { echo "  FAIL: pool_passwd is $perms, want 600"; exit 1; }
@@ -84,7 +84,7 @@ echo "  PASS"
 
 echo ""
 echo "Test 5: pool_hba.conf is generated"
-docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -q "^host.*md5" \
+docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" grep -c "^host.*md5" > /dev/null \
   /opt/containers/config/pool_hba.conf || { echo "  FAIL: pool_hba.conf missing rules"; exit 1; }
 echo "  PASS"
 

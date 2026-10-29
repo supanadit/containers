@@ -53,14 +53,14 @@ echo "  PASS"
 echo ""
 echo "Test 2: /api/v1/status/config returns the loaded config"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-  curl -fsS http://127.0.0.1:9090/api/v1/status/config | grep -q '"status":"success"' \
+  curl -fsS http://127.0.0.1:9090/api/v1/status/config | grep -c '"status":"success"' > /dev/null \
   || { echo "  FAIL: config status endpoint"; exit 1; }
 echo "  PASS"
 
 echo ""
 echo "Test 3: Prometheus build info"
 docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
-  curl -fsS http://127.0.0.1:9090/api/v1/status/buildinfo | grep -q '"version"' \
+  curl -fsS http://127.0.0.1:9090/api/v1/status/buildinfo | grep -c '"version"' > /dev/null \
   || { echo "  FAIL: buildinfo"; exit 1; }
 echo "  PASS"
 

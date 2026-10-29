@@ -20,7 +20,7 @@ wait_until() {
   for _ in $(seq 1 "$attempts"); do
     # A crashed container will never become ready: stop instead of polling out
     # the whole budget, which is what made red runs take ten minutes.
-    if ! docker compose -f "$COMPOSE_FILE" ps -q etcd 2>/dev/null | grep -q . ; then
+    if ! docker compose -f "$COMPOSE_FILE" ps -q etcd 2>/dev/null | grep -c . > /dev/null ; then
       echo "  FAIL: $label: container exited while waiting"; return 1
     fi
     if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
@@ -66,19 +66,19 @@ wait_until "client API healthy" 60 healthy
 
 echo ""
 echo "Test 1: endpoint health reports the node as healthy"
-healthy | grep -q "is healthy" || fail "endpoint health"
+healthy | grep -c "is healthy" > /dev/null || fail "endpoint health"
 echo "  PASS"
 
 echo ""
 echo "Test 2: put/get round trip"
 dc exec -T "$SERVICE" etcdctl --endpoints=http://127.0.0.1:2379 put smoke-key smoke-value > /dev/null
-dc exec -T "$SERVICE" etcdctl --endpoints=http://127.0.0.1:2379 get smoke-key | grep -q smoke-value \
+dc exec -T "$SERVICE" etcdctl --endpoints=http://127.0.0.1:2379 get smoke-key | grep -c smoke-value > /dev/null \
   || fail "value not readable back"
 echo "  PASS"
 
 echo ""
 echo "Test 3: the member joined its own cluster"
-dc exec -T "$SERVICE" etcdctl --endpoints=http://127.0.0.1:2379 member list | grep -q "started" \
+dc exec -T "$SERVICE" etcdctl --endpoints=http://127.0.0.1:2379 member list | grep -c "started" > /dev/null \
   || fail "no started member"
 echo "  PASS"
 
