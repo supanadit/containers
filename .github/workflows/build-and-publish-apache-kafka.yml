@@ -77,5 +77,5 @@ jobs:
             JAVA_VERSION=${{ matrix.java_version }}
             KAFKA_SHA512=${{ matrix.kafka_sha512 }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ steps.tag.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-apache-kafka-${{ matrix.version }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-apache-kafka-${{ matrix.version }},mode=max,ignore-error=true

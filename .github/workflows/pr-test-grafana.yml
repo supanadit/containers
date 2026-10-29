@@ -2,6 +2,7 @@ name: PR Test - Grafana
 
 permissions:
   contents: read
+  packages: write
 
 on:
   pull_request:
@@ -35,22 +36,28 @@ jobs:
         if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GHCR (registry build cache)
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       # No build-args: the Dockerfile ARG defaults are the versions under test.
       #
-      # cache-from only: `yarn install && make build` lands in a single 5.5 GB
-      # layer, which is more than half of the 10 GB repo-wide Actions cache and
-      # evicts every other container's cache. Grafana changes rarely, so it
-      # rebuilds cold (~30 min) rather than starving the other 20 workflows.
-      # Move it to a registry cache (type=registry, ref=ghcr.io/...:buildcache-grafana)
-      # if that cost ever matters.
-      - name: Build Grafana image (gha cache read-only)
+      # `yarn install && make build` lands in a single 5.5 GB layer, which is why
+      # this one could never share the 10 GB gha cache. The registry cache below
+      # has no such ceiling.
+      - name: Build Grafana image (registry cache)
         if: steps.skip-check.outputs.skip != 'true'
         uses: docker/build-push-action@v5
         with:
           context: docker/grafana
           load: true
           tags: grafana:test
-          cache-from: type=gha,scope=grafana
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-grafana
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-grafana,mode=max,ignore-error=true
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

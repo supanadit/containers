@@ -148,3 +148,11 @@ Each script asserts the contract: the app answers on its own protocol/API, the
 composite health endpoint is healthy, the app runs as its dedicated non-root
 user, and `ezx` is PID 1. Shell is fine here — these run on a CI runner, not
 inside the image.
+
+Builds cache in GHCR, not the Actions cache: `type=gha` is capped at 10 GB for
+the whole repository and these images do not fit, so a cold build of one
+evicted several others. Each workflow owns one tag,
+`ghcr.io/supanadit/containers:buildcache-<name>` (release builds use
+`buildcache-release-<name>[-<version>]`), written with `mode=max,ignore-error=true`
+so a failed export never fails the build. That needs `packages: write` plus a
+`docker/login-action` step in every workflow that builds.

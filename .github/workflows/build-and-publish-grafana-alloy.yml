@@ -67,5 +67,5 @@ jobs:
             GO_VERSION=1.25.14
             NODE_VERSION=24.4.0
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-grafana-alloy
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-grafana-alloy,mode=max,ignore-error=true

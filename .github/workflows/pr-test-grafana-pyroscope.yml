@@ -2,6 +2,7 @@ name: PR Test - Grafana Pyroscope
 
 permissions:
   contents: read
+  packages: write
 
 on:
   pull_request:
@@ -35,16 +36,27 @@ jobs:
         if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GHCR (registry build cache)
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       # No build-args: the Dockerfile ARG defaults are the versions under test.
-      - name: Build Grafana Pyroscope image (with gha cache)
+      - name: Build Grafana Pyroscope image (registry cache)
         if: steps.skip-check.outputs.skip != 'true'
         uses: docker/build-push-action@v5
         with:
           context: docker/grafana-pyroscope
           load: true
           tags: pyroscope:test
-          cache-from: type=gha,scope=grafana-pyroscope
-          cache-to: type=gha,mode=max,scope=grafana-pyroscope
+          # Registry cache lives in GHCR next to the images: unlike type=gha
+          # it has no 10 GB repo-wide ceiling, so 21 images do not evict each
+          # other. ignore-error keeps a failed export from failing the build.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-grafana-pyroscope
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-grafana-pyroscope,mode=max,ignore-error=true
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'
