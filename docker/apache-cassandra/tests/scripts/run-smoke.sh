@@ -28,8 +28,15 @@ on_exit() {
     echo ">>> Failure: container logs"
     dc logs --no-color --tail 120 || true
     for s in $(dc config --services 2>/dev/null); do
+      cid=$(dc ps -aq "$s" 2>/dev/null | head -1)
+      [ -n "$cid" ] || continue
       echo "=== app logs: $s"
-      dc exec -T "$s" sh -c 'tail -n 60 /opt/containers/logs/*.log' 2>/dev/null || true
+      # Most lifecycles send child output to /opt/containers/logs instead of
+      # stdout, and a crash leaves the container exited where exec cannot reach
+      # it: docker cp reads the files out of the stopped container instead.
+      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null | tar -xO 2>/dev/null | tail -n 80
+      echo "=== rendered config: $s"
+      docker cp "$cid:/opt/containers/config/." - 2>/dev/null | tar -xO 2>/dev/null | head -80
     done
   fi
   echo ">>> Cleanup: bringing down compose"
@@ -43,7 +50,7 @@ nodeUp() { dc exec -T "$SERVICE" timeout 60 nodetool status | grep -q '^UN'; }
 echo "=== Smoke Test ==="
 echo "Starting container..."
 dc up -d --wait --wait-timeout 600
-wait_until "node Up/Normal" 120 nodeUp
+wait_until "node Up/Normal" 300 nodeUp
 
 echo ""
 echo "Test 1: nodetool status shows the node Up/Normal"

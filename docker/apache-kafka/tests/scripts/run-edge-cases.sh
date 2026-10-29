@@ -15,8 +15,15 @@ on_exit() {
     echo ">>> Failure: container logs"
     docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true
     for s in $(docker compose -f "$COMPOSE_FILE" config --services 2>/dev/null); do
+      cid=$(docker compose -f "$COMPOSE_FILE" ps -aq "$s" 2>/dev/null | head -1)
+      [ -n "$cid" ] || continue
       echo "=== app logs: $s"
-      docker compose -f "$COMPOSE_FILE" exec -T "$s" sh -c 'tail -n 60 /opt/containers/logs/*.log' 2>/dev/null || true
+      # Most lifecycles send child output to /opt/containers/logs instead of
+      # stdout, and a crash leaves the container exited where exec cannot reach
+      # it: docker cp reads the files out of the stopped container instead.
+      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null | tar -xO 2>/dev/null | tail -n 80
+      echo "=== rendered config: $s"
+      docker cp "$cid:/opt/containers/config/." - 2>/dev/null | tar -xO 2>/dev/null | head -80
     done
   fi
   echo ">>> Cleanup: bringing down compose"
@@ -47,7 +54,18 @@ docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
     && echo "  PASS" || { echo "  FAIL: override not applied"; exit 1; }
 
 echo ""
+# bootstrap writes /opt/containers/data/cluster.id while starting; this compose
+# file has no healthcheck, so wait for the file instead of racing the boot.
+wait_cluster_id() {
+  local deadline=$((SECONDS + 180))
+  until docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" test -s /opt/containers/data/cluster.id 2>/dev/null; do
+    if [ $SECONDS -ge $deadline ]; then echo "  FAIL: cluster.id never written"; return 1; fi
+    sleep 2
+  done
+}
+
 echo "Test 4: cluster id is stable across restart"
+wait_cluster_id || exit 1
 id_before=$(docker compose -f "$COMPOSE_FILE" exec -T "$SERVICE" \
     cat /opt/containers/data/cluster.id | tr -d '[:space:]')
 docker compose -f "$COMPOSE_FILE" restart "$SERVICE" >/dev/null
