@@ -1,0 +1,34 @@
+# Temporary diagnostic: does type=gha cache export/import actually work here?
+# Dispatch twice; the second run should print "CACHED" for the RUN step and a
+# cache entry should appear in the repo's Actions cache list.
+name: cache-probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Show buildx + cache env
+        run: |
+          docker buildx version
+          echo "--- cache-related env (names only) ---"
+          env | grep -oE '^ACTIONS_[A-Z_]+' | sort || true
+
+      - name: Build trivial image with gha cache
+        run: |
+          mkdir -p /tmp/probe
+          cat > /tmp/probe/Dockerfile <<'EOF'
+          FROM alpine:3.20
+          RUN echo "probe build $(date +%s)" && mkdir -p /out && echo ok > /out/x
+          EOF
+          docker buildx build --load --progress=plain \
+            --cache-from=type=gha \
+            --cache-to=type=gha,mode=max \
+            -t cache-probe:1 /tmp/probe
