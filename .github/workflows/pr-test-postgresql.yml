@@ -30,18 +30,19 @@ jobs:
 
       - name: Build PostgreSQL image (with gha cache)
         if: steps.skip-check.outputs.skip != 'true'
-        run: |
-          echo "Building PostgreSQL 18.1 for PR validation..."
-          docker buildx build --load \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            --build-arg POSTGRESQL_VERSION=18.1 \
-            --build-arg CITUS_VERSION=14.0.0 \
-            --build-arg PATRONI_VERSION=v4.1.0 \
-            --build-arg PYTHON_VERSION=v3.13.9 \
-            --build-arg PGAUDIT_VERSION=18.0 \
-            -t postgresql:test \
-            docker/postgresql/
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/postgresql
+          load: true
+          tags: postgresql:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            POSTGRESQL_VERSION=18.1
+            CITUS_VERSION=14.0.0
+            PATRONI_VERSION=v4.1.0
+            PYTHON_VERSION=v3.13.9
+            PGAUDIT_VERSION=18.0
 
       - name: Test — Smoke (minimal config)
         if: steps.skip-check.outputs.skip != 'true'
