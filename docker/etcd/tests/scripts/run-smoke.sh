@@ -42,6 +42,10 @@ on_exit() {
       [ -n "$cid" ] || continue
       echo "=== $s: container log (tail 80)"
       docker compose -f "$COMPOSE_FILE" logs --no-color --tail 80 "$s" || true
+      echo "=== $s: exit state"
+      docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' "$cid" || true
+      echo "=== $s: log dir"
+      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null | tar -tvf - 2>/dev/null | head -20 || true
       echo "=== $s: app log files"
       # Most lifecycles write child output to files under /opt/containers, and a
       # crash leaves the container exited where `exec` cannot reach it: docker cp

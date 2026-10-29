@@ -39,6 +39,10 @@ on_exit() {
       [ -n "$cid" ] || continue
       echo "=== $s: container log (tail 80)"
       docker compose -f "$COMPOSE_FILE" logs --no-color --tail 80 "$s" || true
+      echo "=== $s: exit state"
+      docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' "$cid" || true
+      echo "=== $s: log dir"
+      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null | tar -tvf - 2>/dev/null | head -20 || true
       echo "=== $s: app log files"
       # Most lifecycles write child output to files under /opt/containers, and a
       # crash leaves the container exited where `exec` cannot reach it: docker cp
@@ -74,8 +78,8 @@ dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8081/taskmanagers | grep -c 'id
 echo "  PASS"
 
 echo ""
-echo "Test 3: flink-conf.yaml was generated into the config volume"
-dc exec -T "$SERVICE" test -s /opt/containers/config/flink-conf.yaml || fail "no flink-conf.yaml"
+echo "Test 3: config.yaml was generated into the config volume"
+dc exec -T "$SERVICE" test -s /opt/containers/config/config.yaml || fail "no config.yaml"
 echo "  PASS"
 
 echo ""
