@@ -49,10 +49,10 @@ on_exit() {
       # crash leaves the container exited where `exec` cannot reach it: docker cp
       # reads them out of the stopped container.
       docker cp "$cid:/opt/containers/logs/." - 2>/dev/null \
-        | tar -xO 2>/dev/null | tail -n 80
+        | tar -xO 2>/dev/null | tail -n 80 || true
       echo "=== $s: rendered config"
       docker cp "$cid:/opt/containers/config/." - 2>/dev/null \
-        | tar -xO 2>/dev/null | head -80
+        | tar -xO 2>/dev/null | head -80 || true
     done
   fi
   echo ">>> Cleanup: bringing down compose"

@@ -30,7 +30,9 @@ const GRAFANA_MIMIR_GROUP = env.get("GRAFANA_MIMIR_GROUP", "mimir");
 // store-gateway, ruler.
 const MIMIR_TARGET = env.get("MIMIR_TARGET", "all");
 const MIMIR_STORAGE_PREFIX = env.get("MIMIR_STORAGE_PREFIX", "blocks");
-const MIMIR_TSDB_DIR = env.get("MIMIR_TSDB_DIR", GRAFANA_MIMIR_DATA_DIR);
+// Mimir refuses a tsdb dir that overlaps the bucket-store sync dir, so each
+// gets its own subdirectory of the data volume instead of the volume itself.
+const MIMIR_TSDB_DIR = env.get("MIMIR_TSDB_DIR", GRAFANA_MIMIR_DATA_DIR + "/tsdb");
 const MIMIR_ACTIVITY_FILE = env.get("MIMIR_ACTIVITY_FILE", GRAFANA_MIMIR_DATA_DIR + "/metrics-activity.log");
 // Mimir defaults these to ./tsdb-sync, ./data-compactor and ./data-ruler, all
 // relative to a working directory the mimir user cannot write.

@@ -47,10 +47,10 @@ on_exit() {
       # crash leaves the container exited where `exec` cannot reach it: docker cp
       # reads them out of the stopped container.
       docker cp "$cid:/opt/containers/logs/." - 2>/dev/null \
-        | tar -xO 2>/dev/null | tail -n 80
+        | tar -xO 2>/dev/null | tail -n 80 || true
       echo "=== $s: rendered config"
       docker cp "$cid:/opt/containers/config/." - 2>/dev/null \
-        | tar -xO 2>/dev/null | head -80
+        | tar -xO 2>/dev/null | head -80 || true
     done
   fi
   echo ">>> Cleanup: bringing down compose"
@@ -68,15 +68,19 @@ wait_until "master REST API" 300 masterJson
 echo ""
 echo "Test 1: the master reports itself ALIVE"
 json="$(masterJson)" || true
-if ! grep -c '"status": *"ALIVE"' <<<"$json" > /dev/null; then
+if ! grep -c '"status" *: *"ALIVE"' <<<"$json" > /dev/null; then
   printf '%s\n' "$json" | head -20
   fail "master not ALIVE"
 fi
 echo "  PASS"
 
 echo ""
+# The worker starts after the master is ready and takes a few seconds to
+# register, so poll instead of asserting the instant the master answers.
+workerUp() { masterJson | grep -cE '"aliveworkers" *: *1' > /dev/null; }
+
 echo "Test 2: the worker registered with the master"
-masterJson | grep -Eq '"aliveworkers": *1' || fail "no live worker"
+wait_until "worker registered" 60 workerUp
 echo "  PASS"
 
 echo ""
