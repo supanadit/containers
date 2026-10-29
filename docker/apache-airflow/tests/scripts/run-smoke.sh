@@ -14,6 +14,11 @@ fail() { echo "  FAIL: $1"; exit 1; }
 wait_until() {
   local label="$1" attempts="$2"; shift 2
   for _ in $(seq 1 "$attempts"); do
+    # A crashed container will never become ready: stop instead of polling out
+    # the whole budget, which is what made red runs take ten minutes.
+    if ! docker compose -f "$COMPOSE_FILE" ps -q airflow 2>/dev/null | grep -q . ; then
+      echo "  FAIL: $label: container exited while waiting"; return 1
+    fi
     if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
     sleep 2
   done

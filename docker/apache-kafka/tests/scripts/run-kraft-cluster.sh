@@ -35,13 +35,14 @@ echo "=== KRaft Cluster Test ==="
 docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 240
 
 # The compose healthcheck only proves the JVM exists (pgrep), so `--wait`
-# returns while the node is still "waiting to be unfenced". Poll the controller
-# quorum instead: admin commands fail with UnsupportedVersionException ("The
-# node does not support METADATA") until the leader is elected.
+# returns while the node is still "waiting to be unfenced". Poll the quorum
+# through the *broker* listener: kafka-metadata-quorum.sh is an admin client,
+# and pointed at the controller listener (9093) it answers
+# UnsupportedVersionException ("The node does not support METADATA") forever.
 wait_quorum() {
   local deadline=$((SECONDS + 180))
   until docker compose -f "$COMPOSE_FILE" exec -T kafka-1 \
-        kafka-metadata-quorum.sh --bootstrap-server localhost:9093 describe --status 2>/dev/null \
+        kafka-metadata-quorum.sh --bootstrap-server localhost:9092 describe --status 2>/dev/null \
         | grep -q "CurrentVoters"; do
     if [ $SECONDS -ge $deadline ]; then
       echo "  FAIL: quorum never formed"
