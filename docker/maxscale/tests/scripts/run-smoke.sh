@@ -43,8 +43,8 @@ on_exit() {
       # Most lifecycles write child output to files under /opt/containers, and a
       # crash leaves the container exited where `exec` cannot reach it: docker cp
       # reads them out of the stopped container.
-      docker cp "$cid:/opt/containers/." - 2>/dev/null \
-        | tar -xO --wildcards '*.log' '*.out' 2>/dev/null | tail -n 120
+      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null \
+        | tar -xO 2>/dev/null | tail -n 80
       echo "=== $s: rendered config"
       docker cp "$cid:/opt/containers/config/." - 2>/dev/null \
         | tar -xO 2>/dev/null | head -80
@@ -67,7 +67,7 @@ restAnswers() {
 # monitor needs a few seconds to mark the server as the master.
 routed() {
   dc exec -T "$SERVICE" mariadb --host=127.0.0.1 --port=3306 \
-    --user=maxscale --password=maxscale --execute='SELECT 1' | grep -c '^1$' > /dev/null
+    --skip-ssl --user=maxscale --password=maxscale --execute='SELECT 1' | grep -c '^1$' > /dev/null
 }
 
 echo "=== Smoke Test ==="

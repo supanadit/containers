@@ -4,23 +4,32 @@ const { api, probe, scheduler, log } = require("ezx");
 const { KAFKA_DATA_DIR } = require("./env");
 const { readyProbe, brokerListener, controllerListener } = require("./runtime");
 
-// checkKafka — the broker/controller answers its own readiness command.
-function checkKafka() {
-	const p = readyProbe();
-	return probe.exec(...p.exec);
+// listenerAddr — host/port of a listener, with a routable host.
+function listenerAddr(l) {
+	if (!l) return null;
+	const host = l.host && l.host !== "0.0.0.0" && l.host !== "::" ? l.host : "127.0.0.1";
+	return [host, parseInt(l.port, 10)];
 }
 
-// checkProcess — a JVM running the Kafka server class.
+// checkKafka — the client-facing listener accepts connections. This used to
+// re-run the readiness command through probe.exec(), which has a hard 1 s
+// timeout: kafka-broker-api-versions.sh starts a JVM and needs ~3 s, so the
+// check reported false on a broker that was serving clients fine.
+function checkKafka() {
+	const a = listenerAddr(brokerListener());
+	return a ? probe.tcp(a[0], a[1]) : false;
+}
+
+// checkProcess — probe.process() matches /proc/<pid>/comm, which is "java" for
+// the broker JVM; "kafka.Kafka" is only the argument, so it never matched.
 function checkProcess() {
-	return probe.process("kafka.Kafka") || probe.process("kafka-server-start");
+	return probe.process("java");
 }
 
 // checkPort — the primary client-facing listener accepts TCP.
 function checkPort() {
-	const l = brokerListener() || controllerListener();
-	if (!l) return false;
-	const host = l.host && l.host !== "0.0.0.0" && l.host !== "::" ? l.host : "127.0.0.1";
-	return probe.tcp(host, parseInt(l.port, 10));
+	const a = listenerAddr(controllerListener()) || listenerAddr(brokerListener());
+	return a ? probe.tcp(a[0], a[1]) : false;
 }
 
 // checkDisk — the data mount has at least 10% and 100MB free.

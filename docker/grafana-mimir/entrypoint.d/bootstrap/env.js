@@ -32,6 +32,11 @@ const MIMIR_TARGET = env.get("MIMIR_TARGET", "all");
 const MIMIR_STORAGE_PREFIX = env.get("MIMIR_STORAGE_PREFIX", "blocks");
 const MIMIR_TSDB_DIR = env.get("MIMIR_TSDB_DIR", GRAFANA_MIMIR_DATA_DIR);
 const MIMIR_ACTIVITY_FILE = env.get("MIMIR_ACTIVITY_FILE", GRAFANA_MIMIR_DATA_DIR + "/metrics-activity.log");
+// Mimir defaults these to ./tsdb-sync, ./data-compactor and ./data-ruler, all
+// relative to a working directory the mimir user cannot write.
+const MIMIR_SYNC_DIR = env.get("MIMIR_SYNC_DIR", GRAFANA_MIMIR_DATA_DIR + "/tsdb-sync");
+const MIMIR_COMPACTOR_DIR = env.get("MIMIR_COMPACTOR_DIR", GRAFANA_MIMIR_DATA_DIR + "/compactor");
+const MIMIR_RULER_DIR = env.get("MIMIR_RULER_DIR", GRAFANA_MIMIR_DATA_DIR + "/ruler");
 // Comma-separated list of ingester addresses (enables clustering when set).
 const MIMIR_MEMBER_LIST = env.get("MIMIR_MEMBER_LIST", "");
 const GRAFANA_MIMIR_EXTRA_ARGS = env.get("GRAFANA_MIMIR_EXTRA_ARGS", "");
@@ -87,6 +92,9 @@ module.exports = {
 	MIMIR_STORAGE_PREFIX,
 	MIMIR_TSDB_DIR,
 	MIMIR_ACTIVITY_FILE,
+	MIMIR_SYNC_DIR,
+	MIMIR_COMPACTOR_DIR,
+	MIMIR_RULER_DIR,
 	MIMIR_MEMBER_LIST,
 	GRAFANA_MIMIR_EXTRA_ARGS,
 	SLEEP_MODE,

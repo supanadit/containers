@@ -11,6 +11,9 @@ const {
 	MIMIR_TARGET,
 	MIMIR_STORAGE_PREFIX,
 	MIMIR_ACTIVITY_FILE,
+	MIMIR_SYNC_DIR,
+	MIMIR_COMPACTOR_DIR,
+	MIMIR_RULER_DIR,
 	MIMIR_TSDB_DIR,
 	MIMIR_MEMBER_LIST,
 	MIMIR_INGESTER_REPLICATION_FACTOR,
@@ -39,7 +42,10 @@ function mimirConfig() {
 		blocks_storage: {
 			storage_prefix: MIMIR_STORAGE_PREFIX,
 			tsdb: { dir: MIMIR_TSDB_DIR },
+			bucket_store: { sync_dir: MIMIR_SYNC_DIR },
 		},
+		compactor: { data_dir: MIMIR_COMPACTOR_DIR },
+		ruler: { rule_path: MIMIR_RULER_DIR },
 		ingester: {
 			ring: { replication_factor: MIMIR_INGESTER_REPLICATION_FACTOR },
 		},

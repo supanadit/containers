@@ -43,8 +43,8 @@ on_exit() {
       # Most lifecycles write child output to files under /opt/containers, and a
       # crash leaves the container exited where `exec` cannot reach it: docker cp
       # reads them out of the stopped container.
-      docker cp "$cid:/opt/containers/." - 2>/dev/null \
-        | tar -xO --wildcards '*.log' '*.out' 2>/dev/null | tail -n 120
+      docker cp "$cid:/opt/containers/logs/." - 2>/dev/null \
+        | tar -xO 2>/dev/null | tail -n 80
       echo "=== $s: rendered config"
       docker cp "$cid:/opt/containers/config/." - 2>/dev/null \
         | tar -xO 2>/dev/null | head -80
@@ -61,9 +61,18 @@ phpServed() { dc exec -T "$SERVICE" curl -fsS -o /dev/null http://127.0.0.1/wp-i
 # page (which is served with HTTP 200, so the body has to be inspected).
 siteRendered() {
   local page
-  page="$(dc exec -T "$SERVICE" curl -fsS http://127.0.0.1/index.php)" || return 1
-  [ -n "$page" ] || return 1
-  ! printf '%s' "$page" | grep -c 'Error establishing a database connection' > /dev/null
+  page="$(dc exec -T "$SERVICE" curl -fsS http://127.0.0.1/index.php 2>&1)" || {
+    printf '%s\n' "$page"
+    return 1
+  }
+  [ -n "$page" ] || {
+    echo "empty response body"
+    return 1
+  }
+  if printf '%s' "$page" | grep -c 'Error establishing a database connection' > /dev/null; then
+    printf '%s\n' "$page" | head -20
+    return 1
+  fi
 }
 
 echo "=== Smoke Test ==="

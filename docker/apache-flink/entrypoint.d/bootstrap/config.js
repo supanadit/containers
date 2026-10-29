@@ -18,15 +18,24 @@ const OWNER = FLINK_USER + ":" + FLINK_GROUP;
 // configPairs — [key, value] pairs from every CONFIG_* environment variable,
 // with the documented name transform.
 function configPairs() {
-	const all = env.all();
 	const pairMap = {};
-	for (const name of Object.keys(all)) {
-		if (!/^CONFIG_/.test(name)) continue;
-		const key = name
+	const toKey = (name) =>
+		name
 			.replace(/^CONFIG_/, "")
 			.toLowerCase()
 			.replace(/_/g, ".");
-		pairMap[key] = String(all[name]);
+	// The bash entrypoint exported its CONFIG_* defaults as shell variables, so
+	// `compgen -v CONFIG_` saw them even when the user set nothing. env.all()
+	// only sees the real environment, so seed from the declared defaults first —
+	// without them the generated file is empty and Flink refuses to start
+	// ("Either required fine-grained memory ... need to be configured").
+	for (const [name, value] of Object.entries(require("./env"))) {
+		if (!/^CONFIG_/.test(name)) continue;
+		pairMap[toKey(name)] = String(value);
+	}
+	for (const name of Object.keys(env.all())) {
+		if (!/^CONFIG_/.test(name)) continue;
+		pairMap[toKey(name)] = String(env.all()[name]);
 	}
 	return Object.keys(pairMap)
 		.sort()
