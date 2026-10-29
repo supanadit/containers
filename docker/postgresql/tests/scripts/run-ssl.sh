@@ -75,7 +75,7 @@ echo "Test 1: the server has ssl on"
 
 echo ""
 echo "Test 2: a TLS-required client connects and the session is encrypted"
-row="$(psql "sslmode=require" "select ssl, ssl_version from pg_stat_ssl where pid = pg_backend_pid()")"
+row="$(psql "sslmode=require" "select ssl, version from pg_stat_ssl where pid = pg_backend_pid()")"
 [ "${row%%|*}" = "t" ] || fail "session is not encrypted ($row)"
 echo "  PASS ($row)"
 
