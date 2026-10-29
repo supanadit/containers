@@ -64,19 +64,16 @@ phpServed() { dc exec -T "$SERVICE" curl -fsS -o /dev/null http://127.0.0.1/wp-i
 # siteRendered — the front page comes back and is not WordPress's database error
 # page (which is served with HTTP 200, so the body has to be inspected).
 siteRendered() {
-  local page
-  page="$(dc exec -T "$SERVICE" curl -fsS http://127.0.0.1/index.php 2>&1)" || {
-    printf '%s\n' "$page"
-    return 1
-  }
-  [ -n "$page" ] || {
-    echo "empty response body"
-    return 1
-  }
-  if printf '%s' "$page" | grep -c 'Error establishing a database connection' > /dev/null; then
-    printf '%s\n' "$page" | head -20
-    return 1
+  local out code
+  out="$(dc exec -T "$SERVICE" curl -sS -w 'HTTP:%{http_code}\n' http://127.0.0.1/index.php 2>&1)" || true
+  code="$(printf '%s' "$out" | grep -o 'HTTP:[0-9]*' | tail -1)"
+  if [ "$code" = "HTTP:200" ] \
+    && ! printf '%s' "$out" | grep -c 'Error establishing a database connection' > /dev/null; then
+    return 0
   fi
+  # Always show what came back: status line plus the body WordPress rendered.
+  printf '%s\n' "$out" | head -30
+  return 1
 }
 
 echo "=== Smoke Test ==="
@@ -97,7 +94,7 @@ echo "  PASS"
 
 echo ""
 echo "Test 3: the site renders from the database"
-wait_until "WordPress front page" 90 siteRendered
+wait_until "WordPress front page" 30 siteRendered
 echo "  PASS"
 
 echo ""

@@ -59,7 +59,10 @@ on_exit() {
 trap on_exit EXIT
 
 ready() { dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/ready; }
-query() { dc exec -T "$SERVICE" curl -fsS 'http://127.0.0.1:8080/prometheus/api/v1/query?query=up'; }
+# Mimir is multi-tenant by default: every API call needs X-Scope-OrgID, and
+# without it the querier answers 401.
+query() { dc exec -T "$SERVICE" curl -fsS -H 'X-Scope-OrgID: demo' \
+    'http://127.0.0.1:8080/prometheus/api/v1/query?query=up'; }
 
 echo "=== Smoke Test ==="
 echo "Starting container..."
