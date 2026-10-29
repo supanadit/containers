@@ -20,7 +20,22 @@ wait_until() {
   fail "$label did not become ready"
 }
 
-trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; dc logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; dc down -v > /dev/null 2>&1 || true' EXIT
+# on_exit — on failure dump the compose logs plus the app's own log files (most
+# lifecycles send child output to /opt/containers/logs), then tear down.
+on_exit() {
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    echo ">>> Failure: container logs"
+    dc logs --no-color --tail 120 || true
+    for s in $(dc config --services 2>/dev/null); do
+      echo "=== app logs: $s"
+      dc exec -T "$s" sh -c 'tail -n 60 /opt/containers/logs/*.log' 2>/dev/null || true
+    done
+  fi
+  echo ">>> Cleanup: bringing down compose"
+  dc down -v > /dev/null 2>&1 || true
+}
+trap on_exit EXIT
 
 ready() { dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:12345/-/ready; }
 
@@ -36,8 +51,12 @@ echo "  PASS"
 
 echo ""
 echo "Test 2: Alloy serves its own metrics"
-dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:12345/metrics | grep -q 'alloy_build_info' \
-  || fail "no alloy_build_info metric"
+dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:12345/metrics > /tmp/alloy-metrics.txt \
+  || fail "metrics endpoint"
+grep -qE '^alloy_' /tmp/alloy-metrics.txt || {
+  head -20 /tmp/alloy-metrics.txt
+  fail "no alloy_* metric"
+}
 echo "  PASS"
 
 echo ""

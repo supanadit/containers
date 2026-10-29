@@ -20,7 +20,22 @@ wait_until() {
   fail "$label did not become ready"
 }
 
-trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; dc logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; dc down -v > /dev/null 2>&1 || true' EXIT
+# on_exit — on failure dump the compose logs plus the app's own log files (most
+# lifecycles send child output to /opt/containers/logs), then tear down.
+on_exit() {
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    echo ">>> Failure: container logs"
+    dc logs --no-color --tail 120 || true
+    for s in $(dc config --services 2>/dev/null); do
+      echo "=== app logs: $s"
+      dc exec -T "$s" sh -c 'tail -n 60 /opt/containers/logs/*.log' 2>/dev/null || true
+    done
+  fi
+  echo ">>> Cleanup: bringing down compose"
+  dc down -v > /dev/null 2>&1 || true
+}
+trap on_exit EXIT
 
 ready() { dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:3200/ready; }
 
@@ -36,8 +51,12 @@ echo "  PASS"
 
 echo ""
 echo "Test 2: Tempo exports its own metrics"
-dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:3200/metrics | grep -qE '^tempo_' \
-  || fail "no tempo metrics"
+dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:3200/metrics > /tmp/tempo-metrics.txt \
+  || fail "metrics endpoint"
+grep -qE '^tempo_' /tmp/tempo-metrics.txt || {
+  head -20 /tmp/tempo-metrics.txt
+  fail "no tempo_* metric"
+}
 echo "  PASS"
 
 echo ""

@@ -136,8 +136,9 @@ function validateEnvironment() {
 		"KAFKA_MESSAGE_MAX_BYTES",
 		"KAFKA_REPLICA_FETCH_MAX_BYTES",
 	]) {
+		// env.get returns "" for an unset variable: only validate what is set.
 		const val = env.get(v);
-		if (val !== undefined && !isSize(val)) {
+		if (val !== undefined && val !== "" && !isSize(val)) {
 			fail(`Invalid ${v}: ${val} (must be a non-negative integer byte count)`);
 		}
 	}

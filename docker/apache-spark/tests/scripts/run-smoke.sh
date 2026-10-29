@@ -20,7 +20,22 @@ wait_until() {
   fail "$label did not become ready"
 }
 
-trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; dc logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; dc down -v > /dev/null 2>&1 || true' EXIT
+# on_exit — on failure dump the compose logs plus the app's own log files (most
+# lifecycles send child output to /opt/containers/logs), then tear down.
+on_exit() {
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    echo ">>> Failure: container logs"
+    dc logs --no-color --tail 120 || true
+    for s in $(dc config --services 2>/dev/null); do
+      echo "=== app logs: $s"
+      dc exec -T "$s" sh -c 'tail -n 60 /opt/containers/logs/*.log' 2>/dev/null || true
+    done
+  fi
+  echo ">>> Cleanup: bringing down compose"
+  dc down -v > /dev/null 2>&1 || true
+}
+trap on_exit EXIT
 
 masterJson() { dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/json/; }
 

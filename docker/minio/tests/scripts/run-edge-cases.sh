@@ -9,7 +9,22 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$DIR/../compose/edge-cases.yaml"
 CRED_DIR="$DIR/../compose/file-creds"
 
-trap 'rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true; rm -rf "$CRED_DIR"' EXIT
+# on_exit — on failure dump the compose logs and the app's own log files (most
+# lifecycles send child output to /opt/containers/logs), then tear down.
+on_exit() {
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    echo ">>> Failure: container logs"
+    docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true
+    for s in $(docker compose -f "$COMPOSE_FILE" config --services 2>/dev/null); do
+      echo "=== app logs: $s"
+      docker compose -f "$COMPOSE_FILE" exec -T "$s" sh -c 'tail -n 60 /opt/containers/logs/*.log' 2>/dev/null || true
+    done
+  fi
+  echo ">>> Cleanup: bringing down compose"
+  rc=$?; if [ $rc -ne 0 ]; then echo ">>> Failure: container logs"; docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 || true; fi; echo ">>> Cleanup: bringing down compose"; docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true; rm -rf "$CRED_DIR"
+}
+trap on_exit EXIT
 
 # The mounted credential files must exist before compose starts the container.
 mkdir -p "$CRED_DIR"
