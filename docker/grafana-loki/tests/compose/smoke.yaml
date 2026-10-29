@@ -1,0 +1,14 @@
+# Smoke test — single-binary Loki with the filesystem storage backend.
+services:
+  loki:
+    image: loki:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      GRAFANA_LOKI_LISTEN_PORT_HTTP: "3100"
+      GRAFANA_LOKI_LISTEN_PORT_GRPC: "9096"
+      GRAFANA_LOKI_STORAGE_BACKEND: "filesystem"
+    volumes:
+      - loki-data:/opt/containers/data
+
+volumes:
+  loki-data:

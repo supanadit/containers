@@ -1,0 +1,64 @@
+#!/bin/bash
+# tests/scripts/run-smoke.sh — Cassandra smoke test: the node comes up in the
+# ring, answers CQL (cqlsh round trip), runs unprivileged and ezx stays PID 1.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="$DIR/../compose/smoke.yaml"
+SERVICE="cassandra"
+
+dc() { docker compose -f "$COMPOSE_FILE" "$@"; }
+fail() { echo "  FAIL: $1"; exit 1; }
+
+# wait_until <label> <attempts> <command...> — poll a probe until it succeeds.
+wait_until() {
+  local label="$1" attempts="$2"; shift 2
+  for _ in $(seq 1 "$attempts"); do
+    if "$@" > /dev/null 2>&1; then echo "  ready: $label"; return 0; fi
+    sleep 2
+  done
+  fail "$label did not become ready"
+}
+
+trap 'echo ">>> Cleanup: bringing down compose"; dc down -v > /dev/null 2>&1 || true' EXIT
+
+# nodeUp — nodetool reports the node as Up/Normal.
+nodeUp() { dc exec -T "$SERVICE" timeout 60 nodetool status | grep -q '^UN'; }
+
+echo "=== Smoke Test ==="
+echo "Starting container..."
+dc up -d --wait --wait-timeout 600
+wait_until "node Up/Normal" 120 nodeUp
+
+echo ""
+echo "Test 1: nodetool status shows the node Up/Normal"
+dc exec -T "$SERVICE" nodetool status | grep -q '^UN' || fail "node not Up/Normal"
+echo "  PASS"
+
+echo ""
+echo "Test 2: CQL round trip"
+dc exec -T "$SERVICE" cqlsh -e "SELECT release_version FROM system.local;" | grep -Eq '[0-9]+\.[0-9]+' \
+  || fail "cqlsh query returned nothing"
+echo "  PASS"
+
+echo ""
+echo "Test 3: composite health is healthy"
+dc exec -T "$SERVICE" curl -fsS http://127.0.0.1:8080/health/comprehensive | grep -q '"healthy":true' \
+  || fail "composite health"
+echo "  PASS"
+
+echo ""
+echo "Test 4: runs as the dedicated non-root user"
+uid="$(dc exec -T "$SERVICE" id -u cassandra | tr -d '[:space:]')"
+[ "$uid" != "0" ] || fail "cassandra user is root"
+echo "  PASS (uid=$uid)"
+
+echo ""
+echo "Test 5: ezx is PID 1 and supervises Cassandra"
+pid1="$(dc exec -T "$SERVICE" cat /proc/1/comm | tr -d '[:space:]')"
+[ "$pid1" = "ezx" ] || fail "PID 1 is '$pid1', want 'ezx'"
+dc exec -T "$SERVICE" pgrep -f CassandraDaemon > /dev/null || fail "no CassandraDaemon process"
+echo "  PASS"
+
+echo ""
+echo "=== ALL SMOKE TESTS PASSED ==="

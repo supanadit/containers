@@ -137,4 +137,14 @@ main();
 - `.github/workflows/build-and-publish-<name>.yml` builds and pushes on tags.
   The `build-args` in each workflow must match the Dockerfile `ARG`s.
 - `.github/workflows/pr-test-<name>.yml` runs the compose suites in
-  `docker/<name>/tests/`. Not every container has one yet.
+  `docker/<name>/tests/` for exactly one container, filtered by `paths:` so a PR
+  only builds and tests what it touched.
+
+Every container has one. Each suite is a real compose scenario
+(`tests/compose/<case>.yaml`) plus a `tests/scripts/run-<case>.sh`; the workflow
+runs **every** `run-*.sh` it finds, so adding a case only means adding a script.
+The image is built with the Dockerfile `ARG` defaults (no `build-args` to drift).
+Each script asserts the contract: the app answers on its own protocol/API, the
+composite health endpoint is healthy, the app runs as its dedicated non-root
+user, and `ezx` is PID 1. Shell is fine here — these run on a CI runner, not
+inside the image.

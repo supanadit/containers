@@ -1,0 +1,38 @@
+# Smoke test — MaxScale in front of one MariaDB server, on the container
+# defaults. The backend is an upstream MariaDB: MaxScale is the container under
+# test, the database is only there to be routed to.
+services:
+  db:
+    image: mariadb:11.8
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: test
+      MARIADB_USER: maxscale
+      MARIADB_PASSWORD: maxscale
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - db-data:/var/lib/mysql
+
+  maxscale:
+    image: maxscale:test
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      MAXSCALE_SERVICE_USER: "maxscale"
+      MAXSCALE_SERVICE_PASSWORD: "maxscale"
+      MAXSCALE_SERVICE_READWRITE_ROUTES: "db:3306"
+      MAXSCALE_SERVICE_READCONN_ROUTES: "db:3306"
+      MAXSCALE_MONITOR_MARIADB_MONITOR_SERVERS: "db:3306"
+    volumes:
+      - maxscale-data:/opt/containers/data
+
+volumes:
+  db-data:
+  maxscale-data:

@@ -1,0 +1,13 @@
+# Smoke test — Pyroscope in single-binary mode (PYROSCOPE_COMPONENT=all).
+services:
+  pyroscope:
+    image: pyroscope:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      PYROSCOPE_COMPONENT: "all"
+      PYROSCOPE_STORAGE_BACKEND: "filesystem"
+    volumes:
+      - pyroscope-data:/opt/containers/data
+
+volumes:
+  pyroscope-data:

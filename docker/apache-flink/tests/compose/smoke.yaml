@@ -1,0 +1,13 @@
+# Smoke test — a Flink standalone cluster (JobManager + TaskManager) in one
+# container, on the container defaults.
+services:
+  flink:
+    image: flink:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      CONFIG_REST_PORT: "8081"
+    volumes:
+      - flink-data:/opt/containers/data
+
+volumes:
+  flink-data:

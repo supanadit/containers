@@ -1,0 +1,37 @@
+# Smoke test — WordPress (Apache + PHP) in front of an upstream MariaDB.
+#
+# WordPress requires the WORDPRESS_DB_* variables, so the database is part of the
+# scenario. The database is an upstream MariaDB image: WordPress is the
+# container under test.
+services:
+  db:
+    image: mariadb:11.8
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+    volumes:
+      - db-data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:test
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_NAME: "wordpress"
+      WORDPRESS_DB_USER: "wordpress"
+      WORDPRESS_DB_PASSWORD: "wordpress"
+      WORDPRESS_DB_HOST: "db:3306"
+    volumes:
+      - wordpress-data:/opt/containers/data
+
+volumes:
+  db-data:
+  wordpress-data:

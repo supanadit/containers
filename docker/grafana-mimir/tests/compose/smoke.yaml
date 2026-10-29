@@ -1,0 +1,16 @@
+# Smoke test — Mimir's single-binary "all" target with filesystem storage.
+#
+# Mimir keeps its default HTTP port (8080), so the ezx health API is moved to
+# 8081 to keep the two apart.
+services:
+  mimir:
+    image: mimir:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8081"
+      MIMIR_TARGET: "all"
+      MIMIR_HTTP_PORT: "8080"
+    volumes:
+      - mimir-data:/opt/containers/data
+
+volumes:
+  mimir-data:

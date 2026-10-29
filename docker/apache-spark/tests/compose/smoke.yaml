@@ -1,0 +1,15 @@
+# Smoke test — a Spark standalone master + worker in one container.
+#
+# The master web UI keeps its default port (8080), so the ezx health API is
+# moved to 8081 to keep the two apart.
+services:
+  spark:
+    image: spark:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8081"
+      SPARK_MASTER_WEBUI_PORT: "8080"
+    volumes:
+      - spark-data:/opt/containers/data
+
+volumes:
+  spark-data:

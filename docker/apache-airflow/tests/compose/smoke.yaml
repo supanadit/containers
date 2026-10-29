@@ -1,0 +1,15 @@
+# Smoke test — Airflow's API server on SQLite, on the container defaults.
+#
+# The API server keeps its default port (8080), so the ezx health API is moved
+# to 8081 to keep the two apart.
+services:
+  airflow:
+    image: airflow:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8081"
+      AIRFLOW_PORT: "8080"
+    volumes:
+      - airflow-data:/opt/containers/data
+
+volumes:
+  airflow-data:

@@ -1,0 +1,12 @@
+# Smoke test — Grafana Alloy on the bundled example config.
+services:
+  alloy:
+    image: alloy:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      GRAFANA_ALLOY_HTTP_LISTEN_ADDR: "0.0.0.0:12345"
+    volumes:
+      - alloy-data:/opt/containers/data
+
+volumes:
+  alloy-data:
