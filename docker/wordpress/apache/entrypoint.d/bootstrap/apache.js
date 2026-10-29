@@ -115,9 +115,13 @@ function provisionHttpdBase() {
   conf.property("User", WORDPRESS_USER);
   conf.property("Group", WORDPRESS_GROUP);
   conf.property("DirectoryIndex", "index.php index.html");
-  // Without a ServerName Apache logs "Could not reliably determine the server's
-  // fully qualified domain name" on every start.
-  conf.property("ServerName", APACHE_SERVER_NAME);
+  // Without a ServerName Apache warns AH00558 on every start. `conf.property`
+  // edits the stock commented line in place and leaves it as
+  // "ServerName localhost www.example.com:80", which Apache rejects
+  // ("ServerName takes one argument"), so append one line when there is none.
+  if (!/^\s*ServerName\s+\S+/m.test(conf.read())) {
+    conf.add("ServerName", APACHE_SERVER_NAME);
+  }
 
   // The document-root <Directory> block. `conf.property`/`conf.wrap` append at
   // EOF when their pattern does not match, and there is at most one matching
@@ -137,13 +141,11 @@ function provisionHttpdBase() {
     dir.property("Require", "all granted");
   }
 
-  // mod_php + MIME handlers. Replace-in-place: `add` appended a second
-  // LoadModule php_module line, and Apache warned "module php_module is already
-  // loaded, skipping" on every start.
-  conf.line(
-    "^\\s*#?\\s*LoadModule\\s+php_module\\s+.*$",
-    "LoadModule php_module modules/libphp.so",
-  );
+  // mod_php + MIME handlers. Append only when absent: appending unconditionally
+  // made a second run load it twice ("module php_module is already loaded").
+  if (!/^\s*LoadModule\s+php_module\b/m.test(conf.read())) {
+    conf.add("LoadModule", "php_module modules/libphp.so");
+  }
   for (const type of PHP_MIME_TYPES) {
     conf.add("AddType", "application/x-httpd-php " + type);
   }
