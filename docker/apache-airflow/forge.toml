@@ -1,0 +1,52 @@
+[project]
+name = "apache-airflow"
+description = "Apache Airflow workflow orchestrator"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+AIRFLOW_VERSION = "3.1.0"
+PYTHON_VERSION = "3.12"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Airflow's build needs a C toolchain for several provider wheels; runtime keeps
+# the shared libs the wheels link against.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = {
+    build = ["build-essential", "libssl-dev", "libffi-dev", "libxml2-dev", "libxslt1-dev", "libpq-dev", "git"],
+    runtime = ["curl", "ca-certificates", "bash", "coreutils", "procps", "tzdata", "gzip", "tar", "libssl3", "libffi8", "libxml2", "libxslt1.1", "libpq5"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+  { user = { name = "airflow", system = true, create_home = false } },
+]
+
+# ============ 2. PYTHON DEPENDENCIES ============
+
+# pip install is a `raw` step (forge's source_install is for archives/git). The
+# pinned version + constraint file guarantee a reproducible resolution.
+[[components]]
+name = "airflow"
+needs = ["system-deps"]
+ops = [
+  { raw = "python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel" },
+  { raw = "python3 -m pip install --no-cache-dir \"apache-airflow==${AIRFLOW_VERSION}\" --constraint \"https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt\"" },
+  { raw = "python3 -m pip install --no-cache-dir apache-airflow-providers-postgres apache-airflow-providers-mysql apache-airflow-providers-http apache-airflow-providers-docker" },
+  { verify = [{ file = "/usr/local/bin/airflow" }] },
+]
+
+# ============ 3. IMAGE CLEANUP ============
+
+# Remove the build toolchain and pip cache. Forge filters the remove list to
+# packages that are actually installed.
+[[components]]
+name = "cleanup"
+needs = ["airflow"]
+ops = [
+  { packages = { remove = ["build-essential", "git", "nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "python3 -m pip cache purge 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

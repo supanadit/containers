@@ -1,0 +1,12 @@
+# Smoke test — minimal single-node KRaft broker with default config
+services:
+  kafka:
+    image: kafka:test
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"

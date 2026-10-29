@@ -8,11 +8,17 @@ If you have any questions or suggestions, please feel free to open an issue or a
 
 You can also request a container that you need, and I will try to create it for you. Just open an issue with the details of the container you need, and I will do my best.
 
-## Upcoming Release
+## Built with EZX
 
-I might change to the shellscript entrypoint in the future to [EZX](https://github.com/supanadit/ezx) which is a tool that I have created to run program in container easily. This ensure consistency, testability, and maintainability of the containers. It will also make it easier for users to run the containers without having to worry about the underlying implementation details.
+Every container in this repository is built with [Forge](https://github.com/supanadit/forge)
+(a declarative `forge.toml` build manifest) and runs under
+[EZX](https://github.com/supanadit/ezx) (a single Go binary that supervises the
+application from a declarative JavaScript entrypoint). There are no `setup.sh`
+or shell entrypoints; the build and the runtime are fully reproducible and
+reviewable, and the container never authors fragile shell.
 
-[EZX](https://github.com/supanadit/ezx) is under active development.
+See [`AGENTS.md`](./AGENTS.md) for the build and entrypoint patterns every
+container follows.
 
 ## License
 

@@ -1,0 +1,73 @@
+[project]
+name = "etcd"
+description = "etcd distributed key-value store, built from Go source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.24.12"
+ETCD_VERSION = "3.6.7"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Go toolchain + build deps for the etcd build stage. The runtime stage copies
+# only the built binaries into debian:bookworm-slim, so this layer is trimmed by
+# the cleanup component.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["curl", "wget", "git", "make", "build-essential"], runtime = ["ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. GO TOOLCHAIN ============
+
+# Installed into /usr/local/go. The Go tarball extracts to a top-level go/
+# directory; strategy=none leaves the move to the after hook (which runs inside
+# the extracted source dir).
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  { source_install = { type = "archive", url = "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz", strategy = "none",
+    after = [
+      { raw = "rm -rf /usr/local/go && mv go /usr/local/go" },
+    ] } },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 3. ETCD ============
+
+# Built from the pinned release tag. The etcd Makefile writes the etcd,
+# etcdctl and etcdutl binaries into ./bin.
+[[components]]
+name = "etcd"
+needs = ["golang"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/etcd-io/etcd.git", ref = "v${ETCD_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/go/bin:/usr/local/go/bin:${PATH}", GOFLAGS = "-buildvcs=false" },
+    after = [
+      { raw = "make build" },
+      { raw = "mkdir -p /usr/local/bin && cp -r bin/* /usr/local/bin/ && chmod 0755 /usr/local/bin/etcd /usr/local/bin/etcdctl /usr/local/bin/etcdutl" },
+    ],
+    verify = [{ file = "/usr/local/bin/etcd" }, { file = "/usr/local/bin/etcdctl" }, { file = "/usr/local/bin/etcdutl" }] } },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+
+# The runtime stage is debian:bookworm-slim and copies only the binaries, so
+# this cleanup trims the build stage. Forge filters the remove list to packages
+# that are actually installed.
+[[components]]
+name = "cleanup"
+needs = ["etcd"]
+ops = [
+  { packages = { remove = ["git", "curl", "wget", "make", "build-essential", "nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "strip --strip-unneeded /usr/local/bin/etcd /usr/local/bin/etcdctl /usr/local/bin/etcdutl 2>/dev/null || true" },
+  { raw = "rm -rf /usr/local/go /go" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

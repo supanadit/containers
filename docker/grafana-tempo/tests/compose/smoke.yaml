@@ -1,0 +1,14 @@
+# Smoke test — Tempo in scalable-single-binary mode with local storage.
+services:
+  tempo:
+    image: tempo:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      GRAFANA_TEMPO_LISTEN_PORT_HTTP: "3200"
+      GRAFANA_TEMPO_TARGET: "scalable-single-binary"
+      GRAFANA_TEMPO_STORAGE_BACKEND: "local"
+    volumes:
+      - tempo-data:/opt/containers/data
+
+volumes:
+  tempo-data:

@@ -35,7 +35,7 @@ jobs:
       - name: Set matrix and context for Apache Kafka
         id: versions
         run: |
-          MATRIX='[{"version": "3.9.2", "kafka_version": "3.9.2", "java_version": "21"}, {"version": "4.0.2", "kafka_version": "4.0.2", "java_version": "21"}, {"version": "4.1.2", "kafka_version": "4.1.2", "java_version": "21"}, {"version": "4.2.0", "kafka_version": "4.2.0", "java_version": "21"}]'
+          MATRIX='[{"version": "3.9.2", "kafka_version": "3.9.2", "java_version": "21", "kafka_sha512": "01186a5086b5ae753811ee71808a797baec1303d4e0d4b1c0acf42c489654a7b8988136f8469d0b66f0be439f8e3e9b816171ea0b0d7a36462b07aa2d3ef0023"}, {"version": "4.0.2", "kafka_version": "4.0.2", "java_version": "21", "kafka_sha512": "b854b5ee761f04f8bd27f18576590cd54f4890d5dc103818f3db23c1a5b04de27f8465d4042f7cdf463dbfa6f149dafca92b60f56b5e2136861cf8d766f1a56b"}, {"version": "4.1.2", "kafka_version": "4.1.2", "java_version": "21", "kafka_sha512": "78ac6e488b1071122f9608dfdb363f6fe50e1dbbc492347002c0398dfbf77e0d8caa5bf794c5937379721004dfe92025937d238b0faf4eb715529417fd43b491"}, {"version": "4.2.0", "kafka_version": "4.2.0", "java_version": "21", "kafka_sha512": "16ce46e590ba915f01b720ea514445e49c88bf129cf4ceab88878b122d54ef24f0dedb88d0eb178957f58057a6c6a9adbea8b8059307585daea13129b85ba1d8"}]'
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "context=docker/apache-kafka" >> $GITHUB_OUTPUT
 
@@ -75,6 +75,7 @@ jobs:
           build-args: |
             KAFKA_VERSION=${{ matrix.kafka_version }}
             JAVA_VERSION=${{ matrix.java_version }}
+            KAFKA_SHA512=${{ matrix.kafka_sha512 }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ steps.tag.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-apache-kafka-${{ matrix.version }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-apache-kafka-${{ matrix.version }},mode=max,ignore-error=true

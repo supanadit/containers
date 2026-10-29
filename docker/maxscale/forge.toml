@@ -1,0 +1,48 @@
+[project]
+name = "maxscale"
+description = "MariaDB MaxScale database proxy"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+MAXSCALE_VERSION = "24.02.1"
+
+# ============ 1. SYSTEM LAYER ============
+
+# MaxScale is installed from the MariaDB apt repository, which is configured by
+# the mariadb_repo_setup script (a `raw` step). The runtime tools mirror the
+# previous image's apt list.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { runtime = ["curl", "ca-certificates", "gnupg2", "lsb-release", "mariadb-client", "netcat-openbsd", "openssl", "procps", "sudo", "gosu"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. MAXSCALE ============
+
+# The MariaDB repository adds the maxscale package. The repo list file is
+# removed afterwards, exactly as the previous Dockerfile did.
+[[components]]
+name = "maxscale"
+needs = ["system-deps"]
+ops = [
+  { raw = "curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | bash -s -- --maxscale" },
+  { raw = "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends maxscale && rm -f /etc/apt/sources.list.d/mariadb.list" },
+  { verify = [{ file = "/usr/bin/maxscale" }, { file = "/usr/bin/maxctrl" }] },
+]
+
+# ============ 3. IMAGE CLEANUP ============
+
+# Strip docs/man and non-English locales. Forge filters the remove list to
+# packages that are actually installed, so it stays portable.
+[[components]]
+name = "cleanup"
+needs = ["maxscale"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

@@ -1,0 +1,72 @@
+[project]
+name = "mariadb"
+description = "MariaDB built from source with Galera Cluster support"
+no_cache = true
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+MARIADB_VERSION = "11.8.3"
+GALERA_VERSION = "26.4.22"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Build toolchain + runtime shared libraries. Everything MariaDB/Galera link
+# against is installed here; the build-only -dev packages are removed by the
+# cleanup component so the final image keeps runtime libs only.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["build-essential", "cmake", "pkg-config", "git", "wget", "bison", "check", "libssl-dev", "libncurses-dev", "libreadline-dev", "zlib1g-dev", "libbz2-dev", "liblz4-dev", "libzstd-dev", "liblzma-dev", "libxml2-dev", "libcurl4-openssl-dev", "libpcre2-dev", "libjemalloc-dev", "libsnappy-dev", "libgnutls28-dev", "libpam0g-dev", "libnuma-dev", "libsystemd-dev", "libkrb5-dev", "libaio-dev", "libev-dev", "libgcrypt20-dev", "libboost-program-options-dev", "libboost-filesystem-dev", "libboost-system-dev", "libboost-date-time-dev"], runtime = ["curl", "ca-certificates", "zlib1g", "libssl3", "libbz2-1.0", "liblz4-1", "libzstd1", "liblzma5", "libxml2", "libcurl4", "libpcre2-8-0", "libjemalloc2", "libsnappy1v5", "libgnutls30", "libpam0g", "libnuma1", "libsystemd0", "libgssapi-krb5-2", "libkrb5-3", "libaio1", "libev4", "libgcrypt20", "libncurses6", "libreadline8", "procps", "tzdata"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. GALERA REPLICATION LIBRARY ============
+
+# Built from source (matching the PostgreSQL policy of no distro binaries).
+# Produces libgalera_smm.so, which MariaDB's WSREP layer dlopen()s at runtime.
+[[components]]
+name = "galera"
+needs = ["system-deps"]
+ops = [
+  { source_install = { type = "archive", url = "https://releases.galeracluster.com/galera-4.22/source/galera-4-${GALERA_VERSION}.tar.gz", strategy = "cmake", prefix = "/usr/local", jobs = 4, after = [{ raw = "find /usr/local/lib -name 'libgalera_smm.so*' -exec strip {} \\; 2>/dev/null || true" }] } },
+  { verify = [{ file = "/usr/local/lib/libgalera_smm.so" }] },
+]
+
+# ============ 3. MARIADB CORE ============
+
+# Built from source with the storage engines and features we do not ship
+# disabled at configure time, so nothing dead is compiled in the first place.
+[[components]]
+name = "mariadb"
+needs = ["system-deps", "galera"]
+ops = [
+  { user = { name = "mysql", create_home = true } },
+  { source_install = { type = "archive", url = "https://archive.mariadb.org/mariadb-${MARIADB_VERSION}/source/mariadb-${MARIADB_VERSION}.tar.gz", strategy = "cmake", prefix = "/usr/local/mariadb", jobs = 4, flags = ["-DWITH_SSL=system", "-DWITH_ZLIB=system", "-DWITH_READLINE=ON", "-DWITH_EMBEDDED_SERVER=OFF", "-DWITH_UNIT_TESTS=OFF", "-DWITH_WSREP=ON", "-DWSREP_PROVIDER=/usr/local/lib/libgalera_smm.so", "-DWITH_SAFEMALLOC=OFF", "-DWITH_VALGRIND=OFF", "-DWITHOUT_OQGRAPH=ON", "-DWITHOUT_ROCKSDB=ON", "-DWITHOUT_CONNECT=ON", "-DWITHOUT_TOKUDB=ON", "-DWITHOUT_SPIDER=ON", "-DWITHOUT_ARCHIVE=ON", "-DWITHOUT_FEDERATED=ON", "-DWITHOUT_BLACKHOLE=ON", "-DWITHOUT_PERFSCHEMA=ON"], after = [{ raw = "find /usr/local/mariadb/bin /usr/local/mariadb/lib -type f -exec strip --strip-unneeded {} + 2>/dev/null || true" }, { raw = "rm -rf /usr/local/mariadb/mysql-test /usr/local/mariadb/sql-bench /usr/local/mariadb/support-files /usr/local/mariadb/docs" }, { raw = "find /usr/local/mariadb -type d -name man -exec rm -rf {} + 2>/dev/null || true" }, { raw = "find /usr/local/mariadb -type f -name '*.1' -delete" }], env = { PATH = "/usr/local/mariadb/bin:${PATH}" } } },
+  # Timezone-table SQL, generated once at build time. The runtime loads it with
+  # the client's `source` command instead of regenerating it: ezx's
+  # process.capture caps a stream at 1 MiB while this dump is ~4.8 MB, so a
+  # runtime generation silently yields empty time_zone tables and mariadbd then
+  # aborts with "Illegal or unknown default time zone 'UTC'".
+  { raw = "mkdir -p /opt/container && /usr/local/mariadb/bin/mysql_tzinfo_to_sql /usr/share/zoneinfo > /opt/container/mariadb-tzdata.sql && test -s /opt/container/mariadb-tzdata.sql" },
+  { verify = [{ file = "/usr/local/mariadb/bin/mariadbd" }, { file = "/usr/local/mariadb/scripts/mariadb-install-db" }, { file = "/opt/container/mariadb-tzdata.sql" }] },
+]
+
+# ============ 4. IMAGE CLEANUP ============
+
+# Remove build-only packages, strip binaries, drop static libs / docs / man
+# pages and non-English locales. Forge filters the remove list to packages
+# that are actually installed, so it stays portable across base images.
+[[components]]
+name = "cleanup"
+needs = ["mariadb", "galera"]
+ops = [
+  { packages = { remove = ["build-essential", "cmake", "pkg-config", "git", "wget", "bison", "check", "libssl-dev", "libncurses-dev", "libreadline-dev", "zlib1g-dev", "libbz2-dev", "liblz4-dev", "libzstd-dev", "liblzma-dev", "libxml2-dev", "libcurl4-openssl-dev", "libpcre2-dev", "libjemalloc-dev", "libsnappy-dev", "libgnutls28-dev", "libpam0g-dev", "libnuma-dev", "libsystemd-dev", "libkrb5-dev", "libaio-dev", "libev-dev", "libgcrypt20-dev", "libboost-program-options-dev", "libboost-filesystem-dev", "libboost-system-dev", "libboost-date-time-dev", "nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "strip --strip-unneeded /usr/local/mariadb/bin/* /usr/local/mariadb/lib/*.so /usr/local/lib/libgalera_smm.so 2>/dev/null || true" },
+  { raw = "find /usr/local -name '*.a' -delete" },
+  { raw = "find /usr/local -name '*.la' -delete" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

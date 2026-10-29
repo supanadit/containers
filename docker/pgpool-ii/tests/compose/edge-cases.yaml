@@ -1,0 +1,27 @@
+# Edge cases — PgPool-II validation failures.
+services:
+  # PGPOOL_BACKENDS is required: the container must refuse to start without it.
+  pgpool-no-backends:
+    image: pgpool-ii:test
+    environment:
+      PGPOOL_BACKEND_PASSWORD: "secret"
+    volumes:
+      - pgpool-nb-config:/opt/containers/config
+      - pgpool-nb-run:/opt/containers/run
+
+  # Watchdog needs a hostname and a delegate IP.
+  pgpool-watchdog-missing:
+    image: pgpool-ii:test
+    environment:
+      PGPOOL_BACKENDS: "postgres-1:5432"
+      PGPOOL_BACKEND_PASSWORD: "secret"
+      PGPOOL_ENABLE_WATCHDOG: "on"
+    volumes:
+      - pgpool-wd-config:/opt/containers/config
+      - pgpool-wd-run:/opt/containers/run
+
+volumes:
+  pgpool-nb-config:
+  pgpool-nb-run:
+  pgpool-wd-config:
+  pgpool-wd-run:

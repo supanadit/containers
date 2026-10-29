@@ -1,0 +1,54 @@
+# Edge cases — credential materialisation and validation.
+services:
+  # Inline credentials: ezx must write them to 0600 files and hand MinIO the
+  # *_FILE paths, so the secret never appears in the process arguments. The files
+  # are inspected with `docker exec` (not a bind mount, which the bootstrap's
+  # recursive chown would re-own on the host).
+  minio-inline-creds:
+    image: minio:test
+    environment:
+      MINIO_ROOT_USER: superadmin
+      MINIO_ROOT_PASSWORD: supersecretpassword
+    ports:
+      - "19010:9000"
+    volumes:
+      - minio-inline-data:/opt/containers/data
+
+  # Operator-supplied *_FILE credentials must be used as-is, never rewritten.
+  # They are mounted read-only, which is also the case the bootstrap must not
+  # choke on.
+  minio-file-creds:
+    image: minio:test
+    environment:
+      MINIO_ROOT_USER_FILE: /opt/containers/config/root-user
+      MINIO_ROOT_PASSWORD_FILE: /opt/containers/config/root-password
+    ports:
+      - "19011:9000"
+    volumes:
+      - ./file-creds/root-user:/opt/containers/config/root-user:ro
+      - ./file-creds/root-password:/opt/containers/config/root-password:ro
+      - minio-file-data:/opt/containers/data
+
+  # Only one half of the credentials set must be rejected.
+  minio-bad-creds:
+    image: minio:test
+    environment:
+      MINIO_ROOT_USER: superadmin
+    volumes:
+      - minio-bad-creds-data:/opt/containers/data
+
+  # An invalid listen address must be rejected.
+  minio-bad-address:
+    image: minio:test
+    environment:
+      MINIO_ROOT_USER: superadmin
+      MINIO_ROOT_PASSWORD: supersecretpassword
+      MINIO_ADDRESS: "not-an-address"
+    volumes:
+      - minio-bad-address-data:/opt/containers/data
+
+volumes:
+  minio-inline-data:
+  minio-file-data:
+  minio-bad-creds-data:
+  minio-bad-address-data:

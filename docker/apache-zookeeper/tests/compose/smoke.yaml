@@ -1,0 +1,12 @@
+# Smoke test — a single ZooKeeper server on the container defaults.
+services:
+  zookeeper:
+    image: zookeeper:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      ZOOKEEPER_CLIENT_PORT: "2181"
+    volumes:
+      - zookeeper-data:/opt/containers/data
+
+volumes:
+  zookeeper-data:

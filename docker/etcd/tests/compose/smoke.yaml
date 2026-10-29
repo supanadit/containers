@@ -1,0 +1,12 @@
+# Smoke test — a single etcd node forming its own cluster on the defaults.
+services:
+  etcd:
+    image: etcd:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      ETCD_NAME: "etcd-smoke"
+    volumes:
+      - etcd-data:/opt/containers/data
+
+volumes:
+  etcd-data:

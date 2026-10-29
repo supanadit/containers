@@ -1,0 +1,103 @@
+[project]
+name = "thanos"
+description = "Thanos — highly available Prometheus setup with long-term storage, built from Go source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.25.14"
+GO_SHA256 = "a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712"
+THANOS_VERSION = "0.40.1"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Source-build container: Go toolchain + git for the pinned tag. The runtime
+# stage copies only the built binary into debian:bookworm-slim, so every
+# package listed as build here disappears with the stage.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["git"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+
+# A dedicated unprivileged account lets ezx drop privileges per node
+# (process.user/group) while ezx itself stays PID 1.
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "thanos", system = true, create_home = false } }]
+
+# ============ 3. GO TOOLCHAIN ============
+
+# Installed into /usr/local/go and removed again by the cleanup component, so
+# the toolchain never reaches the runtime stage.
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 4. THANOS ============
+
+# Built from the pinned release tag with the .promu.yml flags (netgo +
+# slicelabels, static) reproduced here, so the build does not need the promu
+# helper, whose release tarball ships no checksum.
+
+[[components]]
+name = "thanos"
+needs = ["golang", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/thanos-io/thanos.git", ref = "v${THANOS_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "0", GOTOOLCHAIN = "local" },
+    after = [
+      { raw = """
+set -e
+VERSION="v${THANOS_VERSION}"
+REVISION="$(git rev-parse --short HEAD)"
+BUILD_DATE="$(date -u +%Y%m%d-%H:%M:%S)"
+go build -trimpath -tags "netgo slicelabels" \
+  -ldflags "-s -w \
+    -X github.com/prometheus/common/version.Version=${VERSION} \
+    -X github.com/prometheus/common/version.Revision=${REVISION} \
+    -X github.com/prometheus/common/version.Branch=${VERSION} \
+    -X github.com/prometheus/common/version.BuildUser=forge@localhost \
+    -X github.com/prometheus/common/version.BuildDate=${BUILD_DATE}" \
+  -o /usr/local/bin/thanos ./cmd/thanos
+chmod 0755 /usr/local/bin/thanos
+""" },
+    ],
+    verify = [{ file = "/usr/local/bin/thanos" }] } },
+]
+
+# ============ 5. IMAGE CLEANUP ============
+
+# Forge removes `build` packages automatically after all components finish. This
+# component only trims the toolchain, docs/man and non-English locales; the
+# binary is already stripped by -ldflags "-s -w".
+[[components]]
+name = "cleanup"
+needs = ["thanos"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

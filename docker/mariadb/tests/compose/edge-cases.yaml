@@ -1,0 +1,9 @@
+# Edge-case test — database creation, app user, and root host handling
+services:
+  mariadb:
+    image: mariadb:test
+    environment:
+      MARIADB_ROOT_PASSWORD: testpass
+      MARIADB_DATABASE: myapp
+      MARIADB_USER: appuser
+      MARIADB_PASSWORD: apppass

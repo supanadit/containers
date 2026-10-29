@@ -94,5 +94,5 @@ jobs:
             ${{ matrix.wordpress_version && format('WORDPRESS_VERSION={0}', matrix.wordpress_version) || '' }}
             ${{ matrix.php_version && format('PHP_VERSION={0}', matrix.php_version) || '' }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ steps.tag.outputs.repo }}:${{ steps.tag.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-wordpress-${{ matrix.version }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-wordpress-${{ matrix.version }},mode=max,ignore-error=true

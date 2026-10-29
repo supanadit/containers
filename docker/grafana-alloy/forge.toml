@@ -1,0 +1,120 @@
+[project]
+name = "grafana-alloy"
+description = "Grafana Alloy telemetry collector, built from Go + Vite source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.25.14"
+GO_SHA256 = "a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712"
+NODE_VERSION = "24.4.0"
+NODE_SHA256 = "292c187efeb7a360dee81efb519518dea2e02cb98e4c0d1d5a0f0af62c31e4b6"
+NODE_ARCH = "x64"
+GRAFANA_ALLOY_VERSION = "1.12.1"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Source-build container. libsystemd-dev + gcc are required by the
+# `promtail_journal_enabled` build tag (cgo sdjournal); the runtime stage keeps
+# only libsystemd0.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["git", "make", "build-essential", "pkg-config", "libsystemd-dev"], runtime = ["curl", "ca-certificates", "tzdata", "procps", "libsystemd0"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "alloy", system = true, create_home = false } }]
+
+# ============ 3. GO TOOLCHAIN ============
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 4. NODE TOOLCHAIN ============
+
+# Node for the Vite UI build, matching upstream internal/web/ui/.nvmrc (24.4).
+
+[[components]]
+name = "node"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here for the same per-architecture reason
+  # as the Go toolchain.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/node.tar.gz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz"
+echo "${NODE_SHA256}  /tmp/node.tar.gz" | sha256sum -c -
+rm -rf /usr/local/node "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}"
+tar -C /usr/local -xzf /tmp/node.tar.gz
+mv "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}" /usr/local/node
+ln -sf /usr/local/node/bin/node /usr/local/bin/node
+ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
+ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
+rm -f /tmp/node.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/node/bin/node" }] },
+]
+
+# ============ 5. GRAFANA ALLOY ============
+
+# Mirrors the upstream Dockerfile: build the Vite UI, drop it in
+# internal/web/ui/dist, then `make alloy` with the release flags and tags.
+
+[[components]]
+name = "alloy"
+needs = ["golang", "node", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/grafana/alloy.git", ref = "v${GRAFANA_ALLOY_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/node/bin:/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "1", GOTOOLCHAIN = "local" },
+    after = [
+      { raw = """
+set -e
+(cd internal/web/ui && npm install --no-audit --no-fund && npm run build)
+make alloy \
+  RELEASE_BUILD=1 \
+  VERSION=v${GRAFANA_ALLOY_VERSION} \
+  GIT_BRANCH=v${GRAFANA_ALLOY_VERSION} \
+  GOOS=linux \
+  GOARCH=${ARCH} \
+  CGO_ENABLED=1 \
+  GO_TAGS="netgo builtinassets promtail_journal_enabled slicelabels"
+mkdir -p /usr/share/grafana /etc/alloy
+install -m 0755 build/alloy /usr/share/grafana/alloy
+cp example-config.alloy /etc/alloy/config.alloy
+""" },
+    ],
+    verify = [{ file = "/usr/share/grafana/alloy" }, { file = "/etc/alloy/config.alloy" }] } },
+]
+
+# ============ 6. IMAGE CLEANUP ============
+[[components]]
+name = "cleanup"
+needs = ["alloy"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go /usr/local/node" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

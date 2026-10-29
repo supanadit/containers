@@ -64,6 +64,7 @@ jobs:
           push: true
           build-args: |
             GRAFANA_LOKI_VERSION=${{ needs.setup.outputs.version }}
+            GO_VERSION=1.24.13
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-grafana-loki
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-grafana-loki,mode=max,ignore-error=true

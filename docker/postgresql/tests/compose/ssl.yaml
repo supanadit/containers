@@ -1,0 +1,21 @@
+# TLS test — server-side TLS with a self-signed certificate.
+#
+# The container's generated postgresql.conf pins `ssl = off`, and any parameter
+# can be overridden through the generic POSTGRESQL_CONFIG_* mapping, so that is
+# how TLS is switched on. The certificate/key are mounted into the config volume
+# read-write: the bootstrap chowns that volume to the postgres user, and
+# PostgreSQL refuses a key that the server user cannot read (or that is group- or
+# world-accessible).
+services:
+  postgresql:
+    image: postgresql:test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      POSTGRESQL_CONFIG_SSL: "on"
+      POSTGRESQL_CONFIG_SSL_CERT_FILE: "/opt/containers/config/tls/server.crt"
+      POSTGRESQL_CONFIG_SSL_KEY_FILE: "/opt/containers/config/tls/server.key"
+      POSTGRESQL_CONFIG_SSL_MIN_PROTOCOL_VERSION: "TLSv1.2"
+    volumes:
+      - ./certs:/opt/containers/config/tls

@@ -7,7 +7,6 @@ on:
   push:
     tags:
       - "grafana-oss-*"
-      - "grafana-enterprise-*"
 
 jobs:
   setup:
@@ -17,7 +16,6 @@ jobs:
       revision: ${{ steps.extract.outputs.revision }}
       context: ${{ steps.versions.outputs.context }}
       version: ${{ steps.extract.outputs.version }}
-      edition: ${{ steps.extract.outputs.edition }}
     steps:
       - name: Extract container, edition, version and revision
         id: extract
@@ -28,13 +26,12 @@ jobs:
           EDITION=${parts[1]}
           VERSION=${parts[2]}
           REVISION=${parts[3]:1}  # Remove the 'r' prefix
-          if [ ${#parts[@]} -eq 4 ] && [[ ${parts[3]} =~ ^r[0-9]+$ ]]; then
+          if [ ${#parts[@]} -eq 4 ] && [ "${EDITION}" = "oss" ] && [[ ${parts[3]} =~ ^r[0-9]+$ ]]; then
             echo "container=$CONTAINER" >> $GITHUB_OUTPUT
-            echo "edition=$EDITION" >> $GITHUB_OUTPUT
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "revision=$REVISION" >> $GITHUB_OUTPUT
           else
-            echo "Invalid tag format for Grafana. Expected: grafana-<edition>-<version>-r<revision>"
+            echo "Invalid tag format for Grafana. Expected: grafana-oss-<version>-r<revision> (Enterprise is no longer built)"
             exit 1
           fi
 
@@ -68,7 +65,8 @@ jobs:
           push: true
           build-args: |
             GRAFANA_VERSION=${{ needs.setup.outputs.version }}
-            GRAFANA_EDITION=${{ needs.setup.outputs.edition }}
-          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.edition }}-${{ needs.setup.outputs.version }}-r${{ needs.setup.outputs.revision }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            GO_VERSION=1.25.14
+            NODE_VERSION=22.16.0
+          tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:oss-${{ needs.setup.outputs.version }}-r${{ needs.setup.outputs.revision }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-grafana
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-grafana,mode=max,ignore-error=true

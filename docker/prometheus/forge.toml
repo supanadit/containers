@@ -1,0 +1,136 @@
+[project]
+name = "prometheus"
+description = "Prometheus monitoring system and time series database, built from Go + React source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.25.14"
+GO_SHA256 = "a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712"
+NODE_VERSION = "22.21.1"
+NODE_SHA256 = "219a152ea859861d75adea578bdec3dce8143853c13c5187f40c40e77b0143b2"
+NODE_ARCH = "x64"
+PROMETHEUS_VERSION = "3.8.1"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Source-build container: Go toolchain, Node for the web UI bundle and git for
+# the pinned tag. gzip (needed by scripts/compress_assets.sh) is an essential
+# package of the base image and cannot be installed as a removable build
+# package. The runtime stage copies only the built binaries.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["git"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+
+# A dedicated unprivileged account lets ezx drop privileges per node
+# (process.user/group) while ezx itself stays PID 1.
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "prometheus", system = true, create_home = false } }]
+
+# ============ 3. GO TOOLCHAIN ============
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 4. NODE TOOLCHAIN ============
+
+# Node for web/ui, pinned to the upstream web/ui/.nvmrc (22.21.1).
+
+[[components]]
+name = "node"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here for the same per-architecture reason
+  # as the Go toolchain.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/node.tar.gz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz"
+echo "${NODE_SHA256}  /tmp/node.tar.gz" | sha256sum -c -
+rm -rf /usr/local/node "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}"
+tar -C /usr/local -xzf /tmp/node.tar.gz
+mv "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}" /usr/local/node
+ln -sf /usr/local/node/bin/node /usr/local/bin/node
+ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
+ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
+rm -f /tmp/node.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/node/bin/node" }] },
+]
+
+# ============ 5. PROMETHEUS ============
+
+# Mirrors the upstream `make build` chain (ui-install -> ui-build ->
+# assets-compress -> plugins -> go build with the builtinassets tag) without the
+# promu helper, whose release tarball carries no checksum. The ldflags reproduce
+# .promu.yml.
+
+[[components]]
+name = "prometheus"
+needs = ["golang", "node", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/prometheus/prometheus.git", ref = "v${PROMETHEUS_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/node/bin:/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "0", GOTOOLCHAIN = "local" },
+    after = [
+      { raw = """
+set -e
+(cd web/ui && npm install --no-audit --no-fund)
+(cd web/ui/react-app && npm install --no-audit --no-fund)
+(cd web/ui && CI="" npm run build)
+bash scripts/compress_assets.sh
+go generate -tags plugins ./plugins
+REVISION="$(git rev-parse --short HEAD)"
+BUILD_DATE="$(date -u +%Y%m%d-%H:%M:%S)"
+LDFLAGS="-s -w \
+  -X github.com/prometheus/common/version.Version=${PROMETHEUS_VERSION} \
+  -X github.com/prometheus/common/version.Revision=${REVISION} \
+  -X github.com/prometheus/common/version.Branch=v${PROMETHEUS_VERSION} \
+  -X github.com/prometheus/common/version.BuildUser=forge@localhost \
+  -X github.com/prometheus/common/version.BuildDate=${BUILD_DATE}"
+go build -trimpath -tags "netgo builtinassets" -ldflags "${LDFLAGS}" -o /usr/local/bin/prometheus ./cmd/prometheus
+go build -trimpath -tags "netgo builtinassets" -ldflags "${LDFLAGS}" -o /usr/local/bin/promtool ./cmd/promtool
+chmod 0755 /usr/local/bin/prometheus /usr/local/bin/promtool
+mkdir -p /opt/container
+install -m 0644 documentation/examples/prometheus.yml /opt/container/prometheus.yml.default
+""" },
+    ],
+    verify = [{ file = "/usr/local/bin/prometheus" }, { file = "/usr/local/bin/promtool" }, { file = "/opt/container/prometheus.yml.default" }] } },
+]
+
+# ============ 6. IMAGE CLEANUP ============
+
+# Forge removes `build` packages automatically after all components finish. This
+# component only trims the toolchains, docs/man and non-English locales; both
+# binaries are already stripped by -ldflags "-s -w".
+[[components]]
+name = "cleanup"
+needs = ["prometheus"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go /usr/local/node" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

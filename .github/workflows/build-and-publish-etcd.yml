@@ -65,5 +65,5 @@ jobs:
           build-args: |
             ETCD_VERSION=${{ needs.setup.outputs.version }}
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-etcd
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-etcd,mode=max,ignore-error=true

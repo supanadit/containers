@@ -64,6 +64,8 @@ jobs:
           push: true
           build-args: |
             PROMETHEUS_VERSION=${{ needs.setup.outputs.version }}
+            GO_VERSION=1.25.14
+            NODE_VERSION=22.21.1
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-prometheus
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-release-prometheus,mode=max,ignore-error=true

@@ -1,0 +1,68 @@
+name: PR Test - MariaDB
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/mariadb/**'
+      - 'entrypoint.d/scripts/utils/**'
+
+concurrency:
+  group: pr-test-mariadb-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if docs-only PR
+        id: skip-check
+        run: |
+          if [[ "${{ github.event.pull_request.title }}" =~ ^docs(\(.+\))?: ]]; then
+            echo "PR title starts with 'docs:', skipping tests"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "run-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR (registry build cache)
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build MariaDB image (registry cache)
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/mariadb
+          load: true
+          tags: mariadb:test
+          # Registry cache lives in GHCR next to the images: unlike type=gha
+          # it has no 10 GB repo-wide ceiling, so 21 images do not evict each
+          # other. ignore-error keeps a failed export from failing the build.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-mariadb
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-mariadb,mode=max,ignore-error=true
+          build-args: |
+            MARIADB_VERSION=11.8.3
+
+      - name: Test — Smoke (minimal config)
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/mariadb/tests/scripts/run-smoke.sh
+
+      - name: Test — Edge cases (database, app user, root host)
+        if: steps.skip-check.outputs.skip != 'true'
+        run: docker/mariadb/tests/scripts/run-edge-cases.sh

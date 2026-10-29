@@ -1,0 +1,26 @@
+# Edge cases — an explicitly configured PROMETHEUS_CONFIG_FILE must be honoured,
+# and a missing one must fail fast instead of silently falling back.
+services:
+  prometheus-custom:
+    image: prometheus:test
+    environment:
+      PROMETHEUS_PORT: "9091"
+      PROMETHEUS_CONFIG_FILE: /opt/containers/config/prometheus.yml
+      PROMETHEUS_ENABLE_EXEMPLAR_STORAGE: "true"
+    ports:
+      - "19091:9091"
+    volumes:
+      - ./custom-prometheus.yml:/opt/containers/config/prometheus.yml:ro
+      - prometheus-custom-data:/opt/containers/data
+
+  prometheus-missing:
+    image: prometheus:test
+    environment:
+      PROMETHEUS_PORT: "9092"
+      PROMETHEUS_CONFIG_FILE: /opt/containers/config/does-not-exist.yml
+    volumes:
+      - prometheus-missing-data:/opt/containers/data
+
+volumes:
+  prometheus-custom-data:
+  prometheus-missing-data:

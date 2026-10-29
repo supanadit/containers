@@ -1,0 +1,118 @@
+[project]
+name = "grafana-pyroscope"
+description = "Grafana Pyroscope continuous profiling platform, built from Go + webpack source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.24.13"
+GO_SHA256 = "1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730"
+NODE_VERSION = "24.4.0"
+NODE_SHA256 = "292c187efeb7a360dee81efb519518dea2e02cb98e4c0d1d5a0f0af62c31e4b6"
+NODE_ARCH = "x64"
+GRAFANA_PYROSCOPE_VERSION = "1.16.0"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Source-build container: Go toolchain, Node for the webpack frontend, and git
+# for the pinned tag. The runtime stage copies only the built binary.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["git", "make", "python3"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "pyroscope", system = true, create_home = false } }]
+
+# ============ 3. GO TOOLCHAIN ============
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 4. NODE TOOLCHAIN ============
+
+# Node + Yarn classic, matching the upstream frontend image (node:24). Installed
+# under /usr/local/node so the toolchain can be deleted after the build.
+
+[[components]]
+name = "node"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here for the same per-architecture reason
+  # as the Go toolchain.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/node.tar.gz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz"
+echo "${NODE_SHA256}  /tmp/node.tar.gz" | sha256sum -c -
+rm -rf /usr/local/node "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}"
+tar -C /usr/local -xzf /tmp/node.tar.gz
+mv "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}" /usr/local/node
+ln -sf /usr/local/node/bin/node /usr/local/bin/node
+ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
+ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
+# The frontend uses a Yarn 1 lockfile, so install Yarn classic next to Node.
+npm install -g --no-audit --no-fund yarn@1.22.22
+rm -f /tmp/node.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/node/bin/node" }, { file = "/usr/local/node/bin/yarn" }] },
+]
+
+# ============ 5. GRAFANA PYROSCOPE ============
+
+# The upstream frontend is built with yarn + webpack, then embedded into the Go
+# binary through the `embedassets` build tag (the same way the upstream
+# frontend.Dockerfile does it).
+
+[[components]]
+name = "pyroscope"
+needs = ["golang", "node", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/grafana/pyroscope.git", ref = "v${GRAFANA_PYROSCOPE_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/node/bin:/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "0", GOTOOLCHAIN = "local", NODE_OPTIONS = "--max-old-space-size=4096" },
+    after = [
+      { raw = """
+set -e
+yarn --frozen-lockfile --non-interactive
+yarn build
+# tools/image-tag derives the version from git and reports "HEAD-<sha>" for a
+# detached checkout, so pin the tag instead.
+make go/bin IMAGE_TAG="${GRAFANA_PYROSCOPE_VERSION}" GIT_BRANCH="v${GRAFANA_PYROSCOPE_VERSION}"
+mkdir -p /usr/share/grafana
+install -m 0755 ./pyroscope /usr/share/grafana/pyroscope
+""" },
+    ],
+    verify = [{ file = "/usr/share/grafana/pyroscope" }] } },
+]
+
+# ============ 6. IMAGE CLEANUP ============
+[[components]]
+name = "cleanup"
+needs = ["pyroscope"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go /usr/local/node" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

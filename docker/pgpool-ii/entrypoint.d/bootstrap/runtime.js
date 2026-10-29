@@ -1,0 +1,90 @@
+// runtime.js — runtime/startup: run pgpool-II under ezx supervision. ezx stays
+// PID 1, forwards signals, reaps zombies, and drains the graph on SIGTERM. This
+// is ezx's only job here: pgpool-II keeps its native behaviour and its native
+// hooks (follow_master_command / failover_command) are user-supplied paths.
+//
+// Run: ezx bootstrap /opt/container/entrypoint.d/bootstrap/main.js
+const { chain } = require("ezx");
+const {
+  PGPOOL_PORT,
+  PGPOOL_USER,
+  PGPOOL_GROUP,
+  PGPOOL_CONF,
+  POOL_HBA_CONF,
+  PGPOOL_LOG_DIR,
+  PGPOOL_KEY_PATH,
+  PGPOOL_READY_MAX_ATTEMPTS,
+} = require("./env");
+
+// pgpoolLog — per-service rotated log (50 MiB x 5).
+function pgpoolLog() {
+  return {
+    stdout: "file",
+    stderr: "file",
+    filePath: PGPOOL_LOG_DIR + "/pgpool.log",
+    maxBytes: 50 * 1024 * 1024,
+    maxBackups: 5,
+  };
+}
+
+function startSleep() {
+  chain.run({
+    execDefault: false,
+    nodes: [
+      {
+        name: "sleep",
+        process: {},
+        restart: { mode: "always", backoff: 1e9 },
+      },
+    ],
+  });
+}
+
+function startPgpool() {
+  chain.run({
+    // ezx must stay PID 1: it is the container's init (zombie reaping, signal
+    // forwarding, health). A lone node without restart/scheduler/health would
+    // otherwise be exec'd into: ezx would replace itself with pgpool and stop
+    // supervising.
+    execDefault: false,
+    nodes: [
+      {
+        name: "pgpool",
+        // Config files are written by provisionConfig() in main(), before the
+        // chain starts (pg_md5 needs pgpool.conf on disk), so the node carries
+        // no FileProvision rules.
+        process: {
+          binaryPath: "pgpool",
+          // -n: run in foreground (ezx supervises). -f: our generated pgpool.conf.
+          // -a: our generated pool_hba.conf. -F is NOT the pid file (it is the
+          // PCP config file), and -a is required because pgpool otherwise reads
+          // the compiled-in default pool_hba.conf; the pid file is configured
+          // via pid_file_name in pgpool.conf instead.
+          arguments: ["-f", PGPOOL_CONF, "-a", POOL_HBA_CONF, "-n"],
+          // PGPOOLKEYFILE points pgpool at the AES key it needs to decrypt the
+          // pool_passwd entries. pgpool would otherwise fall back to
+          // <home>/.pgpoolkey; the bootstrap mirrors the key there too, so this
+          // is belt-and-braces rather than the only copy.
+          environment: ["PGPOOLKEYFILE=" + PGPOOL_KEY_PATH],
+          user: PGPOOL_USER,
+          group: PGPOOL_GROUP,
+          log: pgpoolLog(),
+        },
+        readiness: {
+          type: "tcp",
+          tcp: { host: "127.0.0.1", port: Number(PGPOOL_PORT) },
+          interval: 1e9,
+          timeout: 5e9,
+          maxAttempts: PGPOOL_READY_MAX_ATTEMPTS,
+        },
+        forwardSignals: ["SIGTERM", "SIGINT", "SIGHUP"],
+        shutdown: { timeout: -1, forceKill: false },
+      },
+    ],
+  });
+}
+
+module.exports = {
+  startPgpool,
+  startSleep,
+};

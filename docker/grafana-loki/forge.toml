@@ -1,0 +1,97 @@
+[project]
+name = "grafana-loki"
+description = "Grafana Loki log aggregation system, built from Go source"
+
+# Values come from Dockerfile ARG (passed via -var) or environment.
+[vars]
+GO_VERSION = "1.24.13"
+GO_SHA256 = "1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730"
+GRAFANA_LOKI_VERSION = "3.5.3"
+ARCH = "amd64"
+
+# ============ 1. SYSTEM LAYER ============
+
+# Source-build container: Go toolchain + git for the pinned tag. The runtime
+# stage copies only the built binary into debian:bookworm-slim.
+[[components]]
+name = "system-deps"
+ops = [
+  { packages = { build = ["git"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = ["locales"] },
+  { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
+]
+
+# ============ 2. IDENTITY ============
+[[components]]
+name = "identity"
+needs = ["system-deps"]
+ops = [{ user = { name = "loki", system = true, create_home = false } }]
+
+# ============ 3. GO TOOLCHAIN ============
+
+# Installed into /usr/local/go and removed again by the cleanup component, so
+# the toolchain never reaches the runtime stage.
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 4. GRAFANA LOKI ============
+
+# Built from the pinned release tag with the upstream Makefile flags (CGO
+# disabled, netgo tag, static link) but without its Docker build image. The
+# upstream docker sample config comes from the checkout, so it always matches
+# the compiled version.
+
+[[components]]
+name = "loki"
+needs = ["golang", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/grafana/loki.git", ref = "v${GRAFANA_LOKI_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "0", GOTOOLCHAIN = "local" },
+    after = [
+      { raw = """
+set -e
+REVISION="$(git rev-parse --short HEAD)"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+go build -trimpath -tags netgo \
+  -ldflags "-extldflags \"-static\" -s -w \
+    -X github.com/grafana/loki/v3/pkg/util/build.Branch=${GRAFANA_LOKI_VERSION} \
+    -X github.com/grafana/loki/v3/pkg/util/build.Version=${GRAFANA_LOKI_VERSION} \
+    -X github.com/grafana/loki/v3/pkg/util/build.Revision=${REVISION} \
+    -X github.com/grafana/loki/v3/pkg/util/build.BuildUser=forge@localhost \
+    -X github.com/grafana/loki/v3/pkg/util/build.BuildDate=${BUILD_DATE}" \
+  -o /usr/share/grafana/loki ./cmd/loki
+chmod 0755 /usr/share/grafana/loki
+mkdir -p /etc/loki
+cp cmd/loki/loki-docker-config.yaml /etc/loki/loki-sample.yaml
+""" },
+    ],
+    verify = [{ file = "/usr/share/grafana/loki" }, { file = "/etc/loki/loki-sample.yaml" }] } },
+]
+
+# ============ 5. IMAGE CLEANUP ============
+[[components]]
+name = "cleanup"
+needs = ["loki"]
+ops = [
+  { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go" },
+  { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
+  { raw = "find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + 2>/dev/null || true" },
+]

@@ -1,0 +1,26 @@
+# Version control
+.git/
+.gitignore
+
+# Docs (except README)
+*.md
+!README.md
+docs/
+
+# Tests
+tests/
+
+# Editor / OS cruft
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+target/
+*.tmp
+.cache/
+Dockerfile*
+!Dockerfile

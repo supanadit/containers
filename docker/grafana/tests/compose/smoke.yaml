@@ -1,0 +1,12 @@
+# Smoke test — Grafana on the bundled default config.
+services:
+  grafana:
+    image: grafana:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      GRAFANA_PORT: "3000"
+    volumes:
+      - grafana-data:/opt/containers/data
+
+volumes:
+  grafana-data:

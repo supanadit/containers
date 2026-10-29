@@ -1,0 +1,12 @@
+# Smoke test — a single Cassandra node on the container defaults.
+services:
+  cassandra:
+    image: cassandra:test
+    environment:
+      EZX_HEALTH_ADDR: "127.0.0.1:8080"
+      CASSANDRA_NATIVE_PORT: "9042"
+    volumes:
+      - cassandra-data:/opt/containers/data
+
+volumes:
+  cassandra-data:
