@@ -138,17 +138,28 @@ function stanzaInit() {
 	// Native-HA replica: skip stanza init (no primary cluster here).
 	if (HA_MODE === "native" && REPL_ROLE === "replica") return null;
 	const stanzaArgs = ["--config=/etc/pgbackrest.conf", "--stanza=" + STANZA];
-	// Run pgbackrest with standard options (user/group/env filtering).
-	const runPgbackrest = (subcommand) =>
-		process.run({
+	// Run pgbackrest with standard options (user/group/env filtering) and
+	// capture its stderr, so a failure is diagnosable from the oneshot log
+	// instead of collapsing into a bare exit code.
+	const runPgbackrest = (subcommand) => {
+		const res = process.capture({
 			process: {
 				binaryPath: "pgbackrest",
 				arguments: stanzaArgs.concat([subcommand]),
 				user: PG_USER,
 				group: PG_GROUP,
 				filterEnvPattern: ["^PGBACKREST_"],
+				check: false,
 			},
 		});
+		if (res.code !== 0) {
+			log.error(
+				"[pgbackrest] " + subcommand + " failed (code=" + res.code + "): " +
+					String(res.stderr || "").trim(),
+			);
+		}
+		return res.code;
+	};
 	// Initialize stanza: try create, fall back to upgrade, then check.
 	const initStanza = () => {
 		let code = runPgbackrest("stanza-create");
