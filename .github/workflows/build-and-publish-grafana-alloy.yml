@@ -64,6 +64,8 @@ jobs:
           push: true
           build-args: |
             GRAFANA_ALLOY_VERSION=${{ needs.setup.outputs.version }}
+            GO_VERSION=1.25.14
+            NODE_VERSION=24.4.0
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

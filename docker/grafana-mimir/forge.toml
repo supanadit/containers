@@ -1,19 +1,24 @@
 [project]
 name = "grafana-mimir"
-description = "Grafana Mimir scalable long-term Prometheus storage"
+description = "Grafana Mimir scalable long-term Prometheus storage, built from Go source"
 
+# Values come from Dockerfile ARG (passed via -var) or environment.
 [vars]
+GO_VERSION = "1.24.13"
+GO_SHA256 = "1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730"
 GRAFANA_MIMIR_VERSION = "2.17.1"
 ARCH = "amd64"
 
 # ============ 1. SYSTEM LAYER ============
+
+# Source-build container: Go toolchain + git for the pinned tag. Mimir vendors
+# its dependencies, so no module proxy is needed at build time.
 [[components]]
 name = "system-deps"
 ops = [
-  { packages = { runtime = ["ca-certificates", "curl", "tzdata", "procps"] } },
+  { packages = { build = ["git"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
   { packages = ["locales"] },
   { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
-  { raw = "update-ca-certificates" },
 ]
 
 # ============ 2. IDENTITY ============
@@ -22,64 +27,64 @@ name = "identity"
 needs = ["system-deps"]
 ops = [{ user = { name = "mimir", system = true, create_home = false } }]
 
-# ============ 3. GRAFANA MIMIR ============
-#
-# Mimir releases publish `mimir-linux-<arch>` as a bare binary under the
-# `mimir-<version>` tag; newer releases may ship a .tar.gz or .zip. The
-# upstream downloader tried each candidate in turn, and that fallback is kept
-# here (a bare binary cannot go through forge's archive fetch).
+# ============ 3. GO TOOLCHAIN ============
+
+# Installed into /usr/local/go and removed again by the cleanup component, so
+# the toolchain never reaches the runtime stage.
 [[components]]
-name = "mimir"
-needs = ["identity"]
+name = "golang"
+needs = ["system-deps"]
 ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
   { raw = """
 set -e
-base="https://github.com/grafana/mimir/releases/download/mimir-${GRAFANA_MIMIR_VERSION}"
-case "${ARCH}" in
-  amd64) artifact_arch=amd64 ;;
-  arm64) artifact_arch=arm64 ;;
-  *) echo "unsupported ARCH=${ARCH}" >&2; exit 1 ;;
-esac
-name="mimir-linux-${artifact_arch}"
-mkdir -p /tmp/mimir /usr/share/grafana
-found=""
-for candidate in "${name}" "${name}.tar.gz" "${name}.zip"; do
-  if curl -fL --retry 3 --retry-delay 2 -o "/tmp/mimir/${candidate}" "${base}/${candidate}"; then
-    found="${candidate}"
-    break
-  fi
-  rm -f "/tmp/mimir/${candidate}"
-done
-if [ -z "${found}" ]; then
-  echo "Failed to download Grafana Mimir ${GRAFANA_MIMIR_VERSION} for ${artifact_arch}" >&2
-  exit 1
-fi
-case "${found}" in
-  *.zip) unzip -q "/tmp/mimir/${found}" -d /tmp/mimir/dist ;;
-  *.tar.gz) mkdir -p /tmp/mimir/dist && tar -xzf "/tmp/mimir/${found}" -C /tmp/mimir/dist ;;
-  *) install -m 0755 "/tmp/mimir/${found}" /usr/share/grafana/mimir ;;
-esac
-if [ ! -x /usr/share/grafana/mimir ]; then
-  bin_path="$(find /tmp/mimir/dist -type f -name mimir -print -quit)"
-  if [ -z "${bin_path}" ]; then
-    echo "Unable to locate the Mimir binary in the downloaded archive" >&2
-    exit 1
-  fi
-  cp -a "$(dirname "${bin_path}")/." /usr/share/grafana/
-fi
-chmod 0755 /usr/share/grafana/mimir
-rm -rf /tmp/mimir
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
 """ },
-  { verify = [{ file = "/usr/share/grafana/mimir" }] },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
 ]
 
-# ============ 4. IMAGE CLEANUP ============
+# ============ 4. GRAFANA MIMIR ============
+
+# Built from the pinned release tag with the upstream Makefile flags (vendored
+# modules, CGO disabled, netgo + stringlabels tags, static link). The upstream
+# build image and its Docker-in-Docker wrapper are not used.
+
+[[components]]
+name = "mimir"
+needs = ["golang", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/grafana/mimir.git", ref = "mimir-${GRAFANA_MIMIR_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "0", GOTOOLCHAIN = "local" },
+    after = [
+      { raw = """
+set -e
+REVISION="$(git rev-parse --short HEAD)"
+mkdir -p /usr/share/grafana
+go build -mod=vendor -trimpath -tags "netgo,stringlabels" \
+  -ldflags "-extldflags \"-static\" -s -w \
+    -X github.com/grafana/mimir/pkg/util/version.Branch=${GRAFANA_MIMIR_VERSION} \
+    -X github.com/grafana/mimir/pkg/util/version.Version=${GRAFANA_MIMIR_VERSION} \
+    -X github.com/grafana/mimir/pkg/util/version.Revision=${REVISION}" \
+  -o /usr/share/grafana/mimir ./cmd/mimir
+chmod 0755 /usr/share/grafana/mimir
+""" },
+    ],
+    verify = [{ file = "/usr/share/grafana/mimir" }] } },
+]
+
+# ============ 5. IMAGE CLEANUP ============
 [[components]]
 name = "cleanup"
 needs = ["mimir"]
 ops = [
   { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
-  { raw = "strip --strip-unneeded /usr/share/grafana/mimir 2>/dev/null || true" },
+  { raw = "rm -rf /usr/local/go /go" },
   { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
   { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
   { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },

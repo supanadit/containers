@@ -64,6 +64,7 @@ jobs:
           push: true
           build-args: |
             THANOS_VERSION=${{ needs.setup.outputs.version }}
+            GO_VERSION=1.25.14
           tags: ghcr.io/${{ github.repository_owner }}/containers/${{ needs.setup.outputs.container }}:${{ needs.setup.outputs.version }}-${{ needs.setup.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

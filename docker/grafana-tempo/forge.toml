@@ -1,16 +1,22 @@
 [project]
 name = "grafana-tempo"
-description = "Grafana Tempo distributed tracing backend"
+description = "Grafana Tempo distributed tracing backend, built from Go source"
 
+# Values come from Dockerfile ARG (passed via -var) or environment.
 [vars]
+GO_VERSION = "1.24.13"
+GO_SHA256 = "1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730"
 GRAFANA_TEMPO_VERSION = "2.8.2"
 ARCH = "amd64"
 
 # ============ 1. SYSTEM LAYER ============
+
+# Source-build container: Go toolchain + git + make for the pinned tag. Tempo
+# vendors its dependencies, so no module proxy is needed at build time.
 [[components]]
 name = "system-deps"
 ops = [
-  { packages = { runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = { build = ["git", "make"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
   { packages = ["locales"] },
   { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
 ]
@@ -21,25 +27,61 @@ name = "identity"
 needs = ["system-deps"]
 ops = [{ user = { name = "tempo", system = true, create_home = false } }]
 
-# ============ 3. GRAFANA TEMPO ============
+# ============ 3. GO TOOLCHAIN ============
+
+# Installed into /usr/local/go and removed again by the cleanup component, so
+# the toolchain never reaches the runtime stage.
+[[components]]
+name = "golang"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
+]
+
+# ============ 4. GRAFANA TEMPO ============
+
+# Built from the pinned release tag with the upstream `make tempo` target, which
+# carries the version ldflags and the vendored build flags. The target does not
+# need the upstream build image.
+
 [[components]]
 name = "tempo"
-needs = ["identity"]
+needs = ["golang", "identity"]
 ops = [
-  { source_install = { type = "archive", url = "https://github.com/grafana/tempo/releases/download/v${GRAFANA_TEMPO_VERSION}/tempo_${GRAFANA_TEMPO_VERSION}_linux_${ARCH}.tar.gz", strategy = "none",
+  { source_install = { type = "git", url = "https://github.com/grafana/tempo.git", ref = "v${GRAFANA_TEMPO_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", CGO_ENABLED = "0", GOTOOLCHAIN = "local" },
     after = [
-      { raw = "mkdir -p /usr/share/grafana && mv tempo /usr/share/grafana/tempo && chmod 0755 /usr/share/grafana/tempo" },
+      { raw = """
+set -e
+# tempo reads its version from the most recent tag in the repository, which is
+# not necessarily the tag that was checked out, so pin it explicitly. A detached
+# clone also reports "HEAD" as the branch.
+make tempo VERSION="v${GRAFANA_TEMPO_VERSION}" GIT_BRANCH="v${GRAFANA_TEMPO_VERSION}"
+mkdir -p /usr/share/grafana
+install -m 0755 "./bin/linux/tempo-${ARCH}" /usr/share/grafana/tempo
+""" },
     ],
     verify = [{ file = "/usr/share/grafana/tempo" }] } },
 ]
 
-# ============ 4. IMAGE CLEANUP ============
+# ============ 5. IMAGE CLEANUP ============
 [[components]]
 name = "cleanup"
 needs = ["tempo"]
 ops = [
   { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
-  { raw = "strip --strip-unneeded /usr/share/grafana/tempo 2>/dev/null || true" },
+  { raw = "rm -rf /usr/local/go /go" },
   { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
   { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
   { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },

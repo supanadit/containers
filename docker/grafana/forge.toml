@@ -1,63 +1,130 @@
 [project]
 name = "grafana"
-description = "Grafana analytics and monitoring platform"
+description = "Grafana analytics and monitoring platform, built from Go + webpack source (OSS only)"
 
 # Values come from Dockerfile ARG (passed via -var) or environment.
 [vars]
+GO_VERSION = "1.25.14"
+GO_SHA256 = "a21ae5633a269bcd7e90cf767e48225633795e99d831742cbf3397064fee7712"
+NODE_VERSION = "22.16.0"
+NODE_SHA256 = "fb870226119d47378fa9c92c4535389c72dae14fcc7b47e6fdcc82c43de5a547"
+NODE_ARCH = "x64"
 GRAFANA_VERSION = "12.2.1"
-GRAFANA_EDITION = "oss"
-# OSS asset is grafana-<ver>.linux-<arch>.tar.gz; enterprise adds a suffix
-# (grafana-enterprise-<ver>...). Build with GRAFANA_EDITION_SUFFIX=-enterprise
-# for the enterprise tarball; the directory inside follows the same name.
-GRAFANA_EDITION_SUFFIX = ""
 ARCH = "amd64"
 
 # ============ 1. SYSTEM LAYER ============
 
-# Binary-release container: Grafana ships prebuilt tarballs. Only runtime libs
-# are installed; curl stays for user-supplied hooks and health scripts.
+# Source-build container: Go toolchain, Node + corepack-managed Yarn for the
+# webpack frontend, and gcc for the cgo dependencies Grafana's developer guide
+# requires. The runtime stage copies only the built tree.
 [[components]]
 name = "system-deps"
 ops = [
-  { packages = { runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
+  { packages = { build = ["git", "make", "gcc", "libc6-dev", "python3"], runtime = ["curl", "ca-certificates", "tzdata", "procps"] } },
   { packages = ["locales"] },
   { raw = "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen && locale-gen && update-locale LANG=en_US.UTF-8" },
 ]
 
 # ============ 2. IDENTITY ============
 
-# Grafana previously ran as root. A dedicated unprivileged account lets ezx drop
-# privileges per node (process.user/group) while ezx itself stays PID 1.
+# A dedicated unprivileged account lets ezx drop privileges per node
+# (process.user/group) while ezx itself stays PID 1.
 [[components]]
 name = "identity"
 needs = ["system-deps"]
 ops = [{ user = { name = "grafana", system = true, create_home = false } }]
 
-# ============ 3. GRAFANA ============
-
-# The release tarball extracts to grafana[-enterprise]-<version>/; the whole tree
-# is installed under /usr/share/grafana (homepath), matching upstream layout.
+# ============ 3. GO TOOLCHAIN ============
 [[components]]
-name = "grafana"
-needs = ["identity"]
+name = "golang"
+needs = ["system-deps"]
 ops = [
-  { source_install = { type = "archive", url = "https://dl.grafana.com/${GRAFANA_EDITION}/release/grafana${GRAFANA_EDITION_SUFFIX}-${GRAFANA_VERSION}.linux-${ARCH}.tar.gz", strategy = "none",
-    after = [
-      { raw = "mkdir -p /usr/share/grafana /etc/grafana/provisioning /var/lib/grafana/plugins && cp -a grafana${GRAFANA_EDITION_SUFFIX}-${GRAFANA_VERSION}/. /usr/share/grafana/ && chmod 0755 /usr/share/grafana/bin/grafana /usr/share/grafana/bin/grafana-server" },
-      { raw = "chown -R grafana:grafana /usr/share/grafana /var/lib/grafana" },
-    ],
-    verify = [{ file = "/usr/share/grafana/bin/grafana" }] } },
+  # Downloaded and checksum-verified here rather than through
+  # source_install.archive: the digest is per architecture and a forge var can
+  # only hold one value, so the Dockerfile resolves it before calling forge.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+rm -rf /usr/local/go
+tar -C /usr/local -xzf /tmp/go.tar.gz
+rm -f /tmp/go.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/go/bin/go" }] },
 ]
 
-# ============ 4. IMAGE CLEANUP ============
+# ============ 4. NODE TOOLCHAIN ============
 
-# Strip docs/man and non-English locales. Forge filters the remove list to
-# packages that are actually installed, so it stays portable across base images.
+# Node pinned to .nvmrc (22.16.0). Yarn 4.9.2 is declared in package.json and is
+# provisioned by corepack from that field, exactly as the developer guide says.
+
+[[components]]
+name = "node"
+needs = ["system-deps"]
+ops = [
+  # Downloaded and checksum-verified here for the same per-architecture reason
+  # as the Go toolchain.
+  { raw = """
+set -e
+curl -fsSL --retry 3 -o /tmp/node.tar.gz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz"
+echo "${NODE_SHA256}  /tmp/node.tar.gz" | sha256sum -c -
+rm -rf /usr/local/node "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}"
+tar -C /usr/local -xzf /tmp/node.tar.gz
+mv "/usr/local/node-v${NODE_VERSION}-linux-${NODE_ARCH}" /usr/local/node
+ln -sf /usr/local/node/bin/node /usr/local/bin/node
+ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
+ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
+ln -sf /usr/local/node/bin/corepack /usr/local/bin/corepack
+corepack enable
+ln -sf /usr/local/node/bin/yarn /usr/local/bin/yarn
+rm -f /tmp/node.tar.gz
+""" },
+  { verify = [{ file = "/usr/local/node/bin/node" }, { file = "/usr/local/bin/yarn" }] },
+]
+
+# ============ 5. GRAFANA (OSS) ============
+
+# `make build` is the upstream production build: build-go (wire codegen, go work
+# sync, build.go) plus build-js (webpack). Only the OSS edition can be built
+# from source; Grafana Enterprise is not publicly available.
+
+[[components]]
+name = "grafana"
+needs = ["golang", "node", "identity"]
+ops = [
+  { source_install = { type = "git", url = "https://github.com/grafana/grafana.git", ref = "v${GRAFANA_VERSION}", strategy = "none",
+    env = { GOROOT = "/usr/local/go", GOPATH = "/go", PATH = "/usr/local/node/bin:/usr/local/go/bin:/go/bin:${PATH}", GOFLAGS = "-buildvcs=false", GOOS = "linux", GOARCH = "${ARCH}", GOTOOLCHAIN = "local", COREPACK_ENABLE_DOWNLOAD_PROMPT = "0", NODE_OPTIONS = "--max-old-space-size=6144" },
+    after = [
+      { raw = """
+set -e
+yarn install --immutable
+make build
+mkdir -p /usr/share/grafana/bin
+cp -a conf public /usr/share/grafana/
+# `build.go build` writes into bin/<os>-<arch>/, while a dev build writes into
+# bin/. Handle both so the runtime layout is always a flat bin/.
+for b in grafana grafana-server grafana-cli; do
+  src="./bin/${b}"
+  if [ ! -f "${src}" ]; then
+    src="./bin/linux-${ARCH}/${b}"
+  fi
+  install -m 0755 "${src}" "/usr/share/grafana/bin/${b}"
+done
+""" },
+    ],
+    verify = [{ file = "/usr/share/grafana/bin/grafana" }, { file = "/usr/share/grafana/bin/grafana-server" }, { file = "/usr/share/grafana/conf/defaults.ini" }] } },
+]
+
+# ============ 6. IMAGE CLEANUP ============
+
+# Forge removes `build` packages automatically after all components finish. This
+# component only trims the toolchains, docs/man and non-English locales.
 [[components]]
 name = "cleanup"
 needs = ["grafana"]
 ops = [
   { packages = { remove = ["nano", "vim-tiny", "less", "info", "install-info", "diffutils", "mailcap", "bsdmainutils", "gnupg", "gnupg-l10n", "gnupg-utils", "apt", "apt-utils", "pppoe", "pppoeconf", "pppconfig", "whois", "hostname", "kmod", "logrotate", "e2fsprogs-extra", "libsasl2-modules"] } },
+  { raw = "rm -rf /usr/local/go /go /usr/local/node" },
   { raw = "find /usr/share -type d -name doc -exec rm -rf {} + 2>/dev/null || true" },
   { raw = "find /usr/share -type d -name man -exec rm -rf {} + 2>/dev/null || true" },
   { raw = "find /usr/share -type d -name info -exec rm -rf {} + 2>/dev/null || true" },
