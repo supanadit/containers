@@ -7,6 +7,10 @@ on:
       - 'docker/postgresql/**'
       - 'entrypoint.d/scripts/utils/**'
 
+concurrency:
+  group: pr-test-postgresql-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -35,8 +39,8 @@ jobs:
           context: docker/postgresql
           load: true
           tags: postgresql:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=postgresql
+          cache-to: type=gha,mode=max,scope=postgresql
           build-args: |
             POSTGRESQL_VERSION=18.1
             CITUS_VERSION=14.0.0

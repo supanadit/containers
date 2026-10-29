@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/apache-airflow/**'
 
+concurrency:
+  group: pr-test-apache-airflow-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/apache-airflow
           load: true
           tags: airflow:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=apache-airflow
+          cache-to: type=gha,mode=max,scope=apache-airflow
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/grafana-alloy/**'
 
+concurrency:
+  group: pr-test-grafana-alloy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/grafana-alloy
           load: true
           tags: alloy:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=grafana-alloy
+          cache-to: type=gha,mode=max,scope=grafana-alloy
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/grafana-tempo/**'
 
+concurrency:
+  group: pr-test-grafana-tempo-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/grafana-tempo
           load: true
           tags: tempo:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=grafana-tempo
+          cache-to: type=gha,mode=max,scope=grafana-tempo
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

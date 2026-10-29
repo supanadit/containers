@@ -10,6 +10,10 @@ on:
       - 'docker/mariadb/**'
       - 'entrypoint.d/scripts/utils/**'
 
+concurrency:
+  group: pr-test-mariadb-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,8 +42,8 @@ jobs:
           context: docker/mariadb
           load: true
           tags: mariadb:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=mariadb
+          cache-to: type=gha,mode=max,scope=mariadb
           build-args: |
             MARIADB_VERSION=11.8.3
 

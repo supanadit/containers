@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pr-test-pgpool-ii-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,8 +41,8 @@ jobs:
           context: docker/pgpool-ii
           load: true
           tags: pgpool-ii:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=pgpool-ii
+          cache-to: type=gha,mode=max,scope=pgpool-ii
 
       - name: Test — Smoke (config generation, no backends)
         if: steps.skip-check.outputs.skip != 'true'

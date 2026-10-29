@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pr-test-prometheus-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,8 +41,8 @@ jobs:
           context: docker/prometheus
           load: true
           tags: prometheus:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=prometheus
+          cache-to: type=gha,mode=max,scope=prometheus
 
       - name: Test — Smoke (bundled default config)
         if: steps.skip-check.outputs.skip != 'true'

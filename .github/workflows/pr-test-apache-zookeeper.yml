@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/apache-zookeeper/**'
 
+concurrency:
+  group: pr-test-apache-zookeeper-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/apache-zookeeper
           load: true
           tags: zookeeper:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=apache-zookeeper
+          cache-to: type=gha,mode=max,scope=apache-zookeeper
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

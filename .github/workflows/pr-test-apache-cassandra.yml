@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/apache-cassandra/**'
 
+concurrency:
+  group: pr-test-apache-cassandra-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/apache-cassandra
           load: true
           tags: cassandra:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=apache-cassandra
+          cache-to: type=gha,mode=max,scope=apache-cassandra
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

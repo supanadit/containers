@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/apache-flink/**'
 
+concurrency:
+  group: pr-test-apache-flink-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/apache-flink
           load: true
           tags: flink:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=apache-flink
+          cache-to: type=gha,mode=max,scope=apache-flink
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

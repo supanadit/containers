@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/apache-spark/**'
 
+concurrency:
+  group: pr-test-apache-spark-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
           context: docker/apache-spark
           load: true
           tags: spark:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=apache-spark
+          cache-to: type=gha,mode=max,scope=apache-spark
 
       - name: Run test suites
         if: steps.skip-check.outputs.skip != 'true'

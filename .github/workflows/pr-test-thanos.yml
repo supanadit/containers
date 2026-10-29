@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pr-test-thanos-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,8 +41,8 @@ jobs:
           context: docker/thanos
           load: true
           tags: thanos:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=thanos
+          cache-to: type=gha,mode=max,scope=thanos
 
       - name: Test — Smoke (query component)
         if: steps.skip-check.outputs.skip != 'true'
